@@ -4,7 +4,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
     private static let selectedAccountDefaultsKey = "quota.selectedAccount"
 
-    private let orbSize = NSSize(width: 74, height: 74)
+    private let orbSize = NSSize(width: 111, height: 111)
     private let followCodex: Bool
     private var client: CodexQuotaClient?
     private var window: NSWindow!
@@ -13,21 +13,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cliMonitor: CodexCLIProcessMonitor?
     private var codexGUIRunning = false
     private var codexCLIRunning = false
+    private var accounts: [CodexAccountSlot]
     private var selectedAccount: CodexAccountSlot
     private var accountStatuses: [CodexAccountSlot: CodexAccountStatus] = [:]
-    private var pendingSecondaryLogin: Bool?
+    private var pendingAccountLogin: CodexAccountSlot?
+    private var pendingLoginReplacesExisting = false
 
     init(followCodex: Bool) {
         self.followCodex = followCodex
+        let accounts = CodexAccountProfile.loadAccounts()
+        self.accounts = accounts
         let savedAccount = UserDefaults.standard.string(forKey: Self.selectedAccountDefaultsKey)
-        self.selectedAccount = savedAccount.flatMap(CodexAccountSlot.init(rawValue:)) ?? .primary
+        let restoredAccount = savedAccount.flatMap(CodexAccountSlot.init(rawValue:))
+        self.selectedAccount = restoredAccount.flatMap { accounts.contains($0) ? $0 : nil } ?? .primary
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        if CodexAccountProfile.hasStoredCredentials(for: .secondary) {
-            accountStatuses[.secondary] = .stored
+        for account in accounts where !account.isPrimary && CodexAccountProfile.hasStoredCredentials(for: account) {
+            accountStatuses[account] = .stored
         }
         createWindow()
 
@@ -90,7 +95,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.onQuit = { NSApp.terminate(nil) }
         orbView.onPositionChanged = { [weak self] in self?.saveWindowPosition() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
-        orbView.onConfigureSecondaryAccount = { [weak self] in self?.configureSecondaryAccount() }
+        orbView.onAddAccount = { [weak self] in self?.addAccount() }
+        orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
+        orbView.onDeleteAccount = { [weak self] account in self?.deleteAccount(account) }
         updateAccountMenuState()
         window.contentView = orbView
     }
@@ -103,11 +110,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             codexHome = try CodexAccountProfile.homeURL(for: selectedAccount)
         } catch {
-            orbView.state = .failed("无法创建备用账号目录：\(error.localizedDescription)")
+            orbView.state = .failed("无法创建额度账号目录：\(error.localizedDescription)")
             return
         }
 
         orbView.state = .loading
+        let clientAccount = selectedAccount
         let client = CodexQuotaClient(codexHome: codexHome)
         client.onSnapshot = { [weak self, weak client] snapshot in
             guard let self, self.client === client else { return }
@@ -115,10 +123,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         client.onAccount = { [weak self, weak client] account in
             guard let self, self.client === client else { return }
-            self.accountStatuses[self.selectedAccount] = account.map(CodexAccountStatus.signedIn) ?? .signedOut
+            self.accountStatuses[clientAccount] = account.map(CodexAccountStatus.signedIn) ?? .signedOut
             self.updateAccountMenuState()
             if account == nil {
-                let name = self.selectedAccount == .secondary ? "备用账号" : "当前 Codex 账号"
+                let name = self.accountName(for: clientAccount)
                 self.orbView.state = .failed("\(name)未登录，请右键登录")
             }
         }
@@ -135,8 +143,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.client = client
         client.start()
-        if let replacingExisting = pendingSecondaryLogin {
-            pendingSecondaryLogin = nil
+        if pendingAccountLogin == clientAccount {
+            pendingAccountLogin = nil
+            let replacingExisting = pendingLoginReplacesExisting
+            pendingLoginReplacesExisting = false
             client.loginWithChatGPT(replacingExisting: replacingExisting)
         }
 
@@ -158,7 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func switchAccount(to account: CodexAccountSlot) {
-        guard account != selectedAccount else { return }
+        guard accounts.contains(account), account != selectedAccount else { return }
         selectedAccount = account
         UserDefaults.standard.set(account.rawValue, forKey: Self.selectedAccountDefaultsKey)
         updateAccountMenuState()
@@ -166,40 +176,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startOrb()
     }
 
-    private func configureSecondaryAccount() {
-        let hasExistingAccount: Bool
-        switch accountStatuses[.secondary] ?? .unknown {
-        case .stored, .signedIn:
-            hasExistingAccount = true
-        case .unknown, .signedOut:
-            hasExistingAccount = CodexAccountProfile.hasStoredCredentials(for: .secondary)
-        }
+    private func addAccount() {
+        let account = CodexAccountProfile.createAccount()
+        accounts.append(account)
+        accountStatuses[account] = .signedOut
+        pendingAccountLogin = account
+        pendingLoginReplacesExisting = false
+        switchAccount(to: account)
+    }
 
-        if hasExistingAccount {
-            let alert = NSAlert()
-            alert.messageText = "更换备用账号？"
-            alert.informativeText = "这会清除额度悬浮球保存的备用账号登录状态，然后打开 ChatGPT 登录页。当前 Codex 账号不会受影响。"
-            alert.addButton(withTitle: "更换账号")
-            alert.addButton(withTitle: "取消")
-            NSApp.activate(ignoringOtherApps: true)
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
-        }
-
-        pendingSecondaryLogin = hasExistingAccount
-        if selectedAccount == .secondary {
-            let replacingExisting = pendingSecondaryLogin ?? false
-            pendingSecondaryLogin = nil
+    private func loginAccount(_ account: CodexAccountSlot) {
+        guard accounts.contains(account), !account.isPrimary else { return }
+        let replacingExisting = CodexAccountProfile.hasStoredCredentials(for: account)
+        if selectedAccount == account {
             orbView.state = .loading
             client?.loginWithChatGPT(replacingExisting: replacingExisting)
         } else {
-            switchAccount(to: .secondary)
+            pendingAccountLogin = account
+            pendingLoginReplacesExisting = replacingExisting
+            switchAccount(to: account)
+        }
+    }
+
+    private func deleteAccount(_ account: CodexAccountSlot) {
+        guard accounts.contains(account), !account.isPrimary else { return }
+        let name = accountName(for: account)
+        let alert = NSAlert()
+        alert.messageText = "删除\(name)？"
+        alert.informativeText = "这会从本机永久删除该额度账号保存的登录凭据。当前 Codex CLI/桌面端账号不会受影响。"
+        alert.addButton(withTitle: "删除账号")
+        alert.addButton(withTitle: "取消")
+        alert.alertStyle = .warning
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let wasSelected = selectedAccount == account
+        if wasSelected {
+            stopOrb(hideWindow: false)
+        }
+        do {
+            try CodexAccountProfile.deleteAccount(account)
+            accounts.removeAll { $0 == account }
+            accountStatuses.removeValue(forKey: account)
+            if pendingAccountLogin == account {
+                pendingAccountLogin = nil
+                pendingLoginReplacesExisting = false
+            }
+            if wasSelected {
+                selectedAccount = .primary
+                UserDefaults.standard.set(CodexAccountSlot.primary.rawValue, forKey: Self.selectedAccountDefaultsKey)
+            }
+            updateAccountMenuState()
+            if wasSelected {
+                startOrb()
+            }
+        } catch {
+            if wasSelected {
+                startOrb()
+            }
+            let failure = NSAlert(error: error)
+            failure.messageText = "无法删除\(name)"
+            NSApp.activate(ignoringOtherApps: true)
+            failure.runModal()
         }
     }
 
     private func updateAccountMenuState() {
         guard orbView != nil else { return }
+        orbView.accounts = accounts
         orbView.selectedAccount = selectedAccount
         orbView.accountStatuses = accountStatuses
+    }
+
+    private func accountName(for account: CodexAccountSlot) -> String {
+        if account.isPrimary { return "当前 Codex 账号" }
+        if case .signedIn(let summary) = accountStatuses[account], let email = summary.email {
+            return email
+        }
+        let index = accounts.filter { !$0.isPrimary }.firstIndex(of: account).map { $0 + 1 } ?? 1
+        return "额度账号 \(index)"
     }
 
     private var isCodexRunning: Bool {

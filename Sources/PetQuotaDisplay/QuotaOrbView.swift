@@ -33,7 +33,10 @@ final class QuotaOrbView: NSView {
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
     var onSelectAccount: ((CodexAccountSlot) -> Void)?
-    var onConfigureSecondaryAccount: (() -> Void)?
+    var onAddAccount: (() -> Void)?
+    var onLoginAccount: ((CodexAccountSlot) -> Void)?
+    var onDeleteAccount: ((CodexAccountSlot) -> Void)?
+    var accounts: [CodexAccountSlot] = [.primary]
     var selectedAccount: CodexAccountSlot = .primary
     var accountStatuses: [CodexAccountSlot: CodexAccountStatus] = [:]
 
@@ -225,7 +228,7 @@ final class QuotaOrbView: NSView {
 
         let accountItem = NSMenuItem(title: "切换额度账号", action: nil, keyEquivalent: "")
         let accountMenu = NSMenu(title: "切换额度账号")
-        for slot in CodexAccountSlot.allCases {
+        for slot in accounts {
             let item = NSMenuItem(
                 title: accountMenuTitle(for: slot),
                 action: #selector(selectAccount(_:)),
@@ -237,20 +240,42 @@ final class QuotaOrbView: NSView {
             accountMenu.addItem(item)
         }
         accountMenu.addItem(.separator())
-        let configureTitle: String
-        switch accountStatuses[.secondary] ?? .unknown {
-        case .stored, .signedIn:
-            configureTitle = "更换备用账号…"
-        case .unknown, .signedOut:
-            configureTitle = "登录备用账号…"
-        }
-        let configure = NSMenuItem(
-            title: configureTitle,
-            action: #selector(configureSecondaryAccount),
+        let addAccount = NSMenuItem(
+            title: "新加额度账号…",
+            action: #selector(addAccountFromMenu),
             keyEquivalent: ""
         )
-        configure.target = self
-        accountMenu.addItem(configure)
+        addAccount.target = self
+        accountMenu.addItem(addAccount)
+
+        if !selectedAccount.isPrimary,
+           accountStatuses[selectedAccount] == .signedOut {
+            let login = NSMenuItem(
+                title: "登录当前额度账号…",
+                action: #selector(loginCurrentAccountFromMenu),
+                keyEquivalent: ""
+            )
+            login.target = self
+            accountMenu.addItem(login)
+        }
+
+        let removableAccounts = accounts.filter { !$0.isPrimary }
+        if !removableAccounts.isEmpty {
+            let deleteItem = NSMenuItem(title: "删除额度账号", action: nil, keyEquivalent: "")
+            let deleteMenu = NSMenu(title: "删除额度账号")
+            for slot in removableAccounts {
+                let item = NSMenuItem(
+                    title: accountMenuTitle(for: slot),
+                    action: #selector(deleteAccountFromMenu(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = slot.rawValue
+                deleteMenu.addItem(item)
+            }
+            deleteItem.submenu = deleteMenu
+            accountMenu.addItem(deleteItem)
+        }
         accountItem.submenu = accountMenu
         menu.addItem(accountItem)
         menu.addItem(.separator())
@@ -301,7 +326,15 @@ final class QuotaOrbView: NSView {
         onSelectAccount?(account)
     }
 
-    @objc private func configureSecondaryAccount() { onConfigureSecondaryAccount?() }
+    @objc private func addAccountFromMenu() { onAddAccount?() }
+
+    @objc private func loginCurrentAccountFromMenu() { onLoginAccount?(selectedAccount) }
+
+    @objc private func deleteAccountFromMenu(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let account = CodexAccountSlot(rawValue: rawValue) else { return }
+        onDeleteAccount?(account)
+    }
 
     @objc private func selectDisplayedWindow(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
@@ -320,18 +353,26 @@ final class QuotaOrbView: NSView {
     }
 
     private func accountMenuTitle(for slot: CodexAccountSlot) -> String {
+        let title = accountDisplayName(for: slot)
         switch accountStatuses[slot] ?? .unknown {
         case .unknown:
-            return slot.title
+            return title
         case .stored:
-            return "\(slot.title) · 已保存"
+            return "\(title) · 已保存"
         case .signedOut:
-            return "\(slot.title) · 未登录"
+            return "\(title) · 未登录"
         case .signedIn(let account):
             let identity = account.email ?? "ChatGPT"
             let plan = account.planType.map { " · \($0.uppercased())" } ?? ""
-            return "\(slot.title) · \(identity)\(plan)"
+            return "\(title) · \(identity)\(plan)"
         }
+    }
+
+    private func accountDisplayName(for slot: CodexAccountSlot) -> String {
+        if slot.isPrimary { return "当前 Codex 账号" }
+        let additional = accounts.filter { !$0.isPrimary }
+        let index = additional.firstIndex(of: slot).map { $0 + 1 } ?? 1
+        return "额度账号 \(index)"
     }
 
     private func updateAccessibility() {
