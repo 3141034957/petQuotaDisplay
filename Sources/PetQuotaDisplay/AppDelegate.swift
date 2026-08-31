@@ -14,10 +14,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var codexGUIRunning = false
     private var codexCLIRunning = false
     private var accounts: [CodexAccountSlot]
-    private var selectedAccount: CodexAccountSlot
+    private var selectedAccount: CodexAccountSlot?
     private var accountStatuses: [CodexAccountSlot: CodexAccountStatus] = [:]
     private var pendingAccountLogin: CodexAccountSlot?
     private var pendingLoginReplacesExisting = false
+    private var suppressOrbUntilCodexStops = false
 
     init(followCodex: Bool) {
         self.followCodex = followCodex
@@ -25,13 +26,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.accounts = accounts
         let savedAccount = UserDefaults.standard.string(forKey: Self.selectedAccountDefaultsKey)
         let restoredAccount = savedAccount.flatMap(CodexAccountSlot.init(rawValue:))
-        self.selectedAccount = restoredAccount.flatMap { accounts.contains($0) ? $0 : nil } ?? .primary
+        self.selectedAccount = restoredAccount.flatMap { accounts.contains($0) ? $0 : nil } ?? accounts.first
         super.init()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        for account in accounts where !account.isPrimary && CodexAccountProfile.hasStoredCredentials(for: account) {
+        for account in accounts where CodexAccountProfile.hasStoredCredentials(for: account) {
             accountStatuses[account] = .stored
         }
         createWindow()
@@ -89,15 +90,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView = QuotaOrbView(frame: NSRect(origin: .zero, size: orbSize))
         orbView.autoresizingMask = [.width, .height]
         orbView.onRefresh = { [weak self] in
-            self?.orbView.state = .loading
-            self?.client?.refresh()
+            guard let self else { return }
+            guard let client = self.client else {
+                self.orbView.state = .failed("尚未添加额度账号，请右键添加")
+                return
+            }
+            self.orbView.state = .loading
+            client.refresh()
         }
-        orbView.onQuit = { NSApp.terminate(nil) }
+        orbView.onQuit = { [weak self] in self?.quitOrHideOrb() }
         orbView.onPositionChanged = { [weak self] in self?.saveWindowPosition() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
         orbView.onDeleteAccount = { [weak self] account in self?.deleteAccount(account) }
+        orbView.quitMenuTitle = followCodex ? "本次隐藏悬浮球" : "退出额度悬浮球"
         updateAccountMenuState()
         window.contentView = orbView
     }
@@ -105,6 +112,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startOrb() {
         window.orderFrontRegardless()
         guard client == nil else { return }
+        guard let selectedAccount else {
+            orbView.state = .failed("尚未添加额度账号，请右键添加")
+            return
+        }
 
         let codexHome: URL?
         do {
@@ -186,7 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func loginAccount(_ account: CodexAccountSlot) {
-        guard accounts.contains(account), !account.isPrimary else { return }
+        guard accounts.contains(account) else { return }
         let replacingExisting = CodexAccountProfile.hasStoredCredentials(for: account)
         if selectedAccount == account {
             orbView.state = .loading
@@ -199,7 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func deleteAccount(_ account: CodexAccountSlot) {
-        guard accounts.contains(account), !account.isPrimary else { return }
+        guard accounts.contains(account) else { return }
         let name = accountName(for: account)
         let alert = NSAlert()
         alert.messageText = "删除\(name)？"
@@ -223,8 +234,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 pendingLoginReplacesExisting = false
             }
             if wasSelected {
-                selectedAccount = .primary
-                UserDefaults.standard.set(CodexAccountSlot.primary.rawValue, forKey: Self.selectedAccountDefaultsKey)
+                selectedAccount = accounts.first
+                if let selectedAccount {
+                    UserDefaults.standard.set(selectedAccount.rawValue, forKey: Self.selectedAccountDefaultsKey)
+                } else {
+                    UserDefaults.standard.removeObject(forKey: Self.selectedAccountDefaultsKey)
+                }
             }
             updateAccountMenuState()
             if wasSelected {
@@ -249,12 +264,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func accountName(for account: CodexAccountSlot) -> String {
-        if account.isPrimary { return "当前 Codex 账号" }
         if case .signedIn(let summary) = accountStatuses[account], let email = summary.email {
             return email
         }
-        let index = accounts.filter { !$0.isPrimary }.firstIndex(of: account).map { $0 + 1 } ?? 1
+        let index = accounts.firstIndex(of: account).map { $0 + 1 } ?? 1
         return "额度账号 \(index)"
+    }
+
+    private func quitOrHideOrb() {
+        guard followCodex else {
+            NSApp.terminate(nil)
+            return
+        }
+        suppressOrbUntilCodexStops = true
+        stopOrb()
     }
 
     private var isCodexRunning: Bool {
@@ -276,7 +299,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func reconcileOrbVisibility() {
-        if codexGUIRunning || codexCLIRunning {
+        let codexRunning = codexGUIRunning || codexCLIRunning
+        if suppressOrbUntilCodexStops {
+            if !codexRunning {
+                suppressOrbUntilCodexStops = false
+            }
+            stopOrb()
+        } else if codexRunning {
             startOrb()
         } else {
             stopOrb()

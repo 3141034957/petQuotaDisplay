@@ -50,14 +50,14 @@ enum CodexAccountProfile {
         if normalized != defaults.stringArray(forKey: additionalAccountsDefaultsKey) {
             defaults.set(normalized, forKey: additionalAccountsDefaultsKey)
         }
-        return [.primary] + additional
+        return additional
     }
 
     static func createAccount(defaults: UserDefaults = .standard) -> CodexAccountSlot {
         let slot = CodexAccountSlot(rawValue: UUID().uuidString)!
         var accounts = loadAccounts(defaults: defaults)
         accounts.append(slot)
-        defaults.set(accounts.filter { !$0.isPrimary }.map(\.rawValue), forKey: additionalAccountsDefaultsKey)
+        defaults.set(accounts.map(\.rawValue), forKey: additionalAccountsDefaultsKey)
         return slot
     }
 
@@ -68,7 +68,7 @@ enum CodexAccountProfile {
         if fileManager.fileExists(atPath: home.path) {
             try fileManager.removeItem(at: home)
         }
-        let remaining = loadAccounts(defaults: defaults).filter { !$0.isPrimary && $0 != slot }
+        let remaining = loadAccounts(defaults: defaults).filter { $0 != slot }
         defaults.set(remaining.map(\.rawValue), forKey: additionalAccountsDefaultsKey)
     }
 

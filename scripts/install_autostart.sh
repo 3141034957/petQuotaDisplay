@@ -20,6 +20,7 @@ cp "${repository_dir}/autostart/${label}.plist" "${installed_plist}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${installed_binary}" "${installed_plist}"
 
 launchctl bootout "${launch_domain}/${label}" 2>/dev/null || true
+launchctl enable "${launch_domain}/${label}"
 bootstrap_status=1
 for attempt in 1 2 3; do
     if launchctl bootstrap "${launch_domain}" "${installed_plist}"; then
@@ -29,7 +30,6 @@ for attempt in 1 2 3; do
     /bin/sleep 1
 done
 (( bootstrap_status == 0 ))
-launchctl enable "${launch_domain}/${label}"
 
 echo "Installed: ${installed_binary}"
 echo "LaunchAgent: ${installed_plist}"

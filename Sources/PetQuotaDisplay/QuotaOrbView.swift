@@ -36,9 +36,10 @@ final class QuotaOrbView: NSView {
     var onAddAccount: (() -> Void)?
     var onLoginAccount: ((CodexAccountSlot) -> Void)?
     var onDeleteAccount: ((CodexAccountSlot) -> Void)?
-    var accounts: [CodexAccountSlot] = [.primary]
-    var selectedAccount: CodexAccountSlot = .primary
+    var accounts: [CodexAccountSlot] = []
+    var selectedAccount: CodexAccountSlot?
     var accountStatuses: [CodexAccountSlot: CodexAccountStatus] = [:]
+    var quitMenuTitle = "退出额度悬浮球"
 
     private var mouseDownLocation: NSPoint?
     private var windowOriginAtMouseDown: NSPoint?
@@ -239,6 +240,11 @@ final class QuotaOrbView: NSView {
             item.state = selectedAccount == slot ? .on : .off
             accountMenu.addItem(item)
         }
+        if accounts.isEmpty {
+            let empty = NSMenuItem(title: "尚未添加账号", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            accountMenu.addItem(empty)
+        }
         accountMenu.addItem(.separator())
         let addAccount = NSMenuItem(
             title: "新加额度账号…",
@@ -248,7 +254,7 @@ final class QuotaOrbView: NSView {
         addAccount.target = self
         accountMenu.addItem(addAccount)
 
-        if !selectedAccount.isPrimary,
+        if let selectedAccount,
            accountStatuses[selectedAccount] == .signedOut {
             let login = NSMenuItem(
                 title: "登录当前额度账号…",
@@ -259,11 +265,10 @@ final class QuotaOrbView: NSView {
             accountMenu.addItem(login)
         }
 
-        let removableAccounts = accounts.filter { !$0.isPrimary }
-        if !removableAccounts.isEmpty {
+        if !accounts.isEmpty {
             let deleteItem = NSMenuItem(title: "删除额度账号", action: nil, keyEquivalent: "")
             let deleteMenu = NSMenu(title: "删除额度账号")
-            for slot in removableAccounts {
+            for slot in accounts {
                 let item = NSMenuItem(
                     title: accountMenuTitle(for: slot),
                     action: #selector(deleteAccountFromMenu(_:)),
@@ -311,7 +316,7 @@ final class QuotaOrbView: NSView {
             menu.addItem(.separator())
         }
 
-        let quit = NSMenuItem(title: "退出额度悬浮球", action: #selector(quitFromMenu), keyEquivalent: "q")
+        let quit = NSMenuItem(title: quitMenuTitle, action: #selector(quitFromMenu), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         return menu
@@ -328,7 +333,10 @@ final class QuotaOrbView: NSView {
 
     @objc private func addAccountFromMenu() { onAddAccount?() }
 
-    @objc private func loginCurrentAccountFromMenu() { onLoginAccount?(selectedAccount) }
+    @objc private func loginCurrentAccountFromMenu() {
+        guard let selectedAccount else { return }
+        onLoginAccount?(selectedAccount)
+    }
 
     @objc private func deleteAccountFromMenu(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
@@ -369,9 +377,7 @@ final class QuotaOrbView: NSView {
     }
 
     private func accountDisplayName(for slot: CodexAccountSlot) -> String {
-        if slot.isPrimary { return "当前 Codex 账号" }
-        let additional = accounts.filter { !$0.isPrimary }
-        let index = additional.firstIndex(of: slot).map { $0 + 1 } ?? 1
+        let index = accounts.firstIndex(of: slot).map { $0 + 1 } ?? 1
         return "额度账号 \(index)"
     }
 
