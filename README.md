@@ -21,7 +21,7 @@ swift run PetQuotaDisplay
 - 拖动：移动悬浮球，位置会自动保存。
 - 单击：立即刷新周额度。
 - 右键：切换额度周期、切换 ChatGPT 账号、查看精确重置时间，或退出。
-- 自动刷新：每 5 分钟从本机 Codex `app-server` 读取一次。
+- 自动刷新：每 30 秒从本机 Codex `app-server` 读取一次。
 
 如果 Codex CLI 不在常见位置，可在启动前设置：
 

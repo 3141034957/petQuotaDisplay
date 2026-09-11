@@ -3,6 +3,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
     private static let selectedAccountDefaultsKey = "quota.selectedAccount"
+    private static let refreshInterval: TimeInterval = 30
 
     private let orbSize = NSSize(width: 111, height: 111)
     private let followCodex: Bool
@@ -161,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             client.loginWithChatGPT(replacingExisting: replacingExisting)
         }
 
-        let timer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             self?.client?.refresh()
         }
         refreshTimer = timer
