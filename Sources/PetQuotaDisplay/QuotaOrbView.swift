@@ -112,7 +112,7 @@ final class QuotaOrbView: NSView {
             }
             return NSColor(calibratedRed: 0.32, green: 0.37, blue: 0.48, alpha: 1)
         }
-        let remaining = displayedQuota(in: snapshot).remainingPercent
+        let remaining = displayedQuota(in: snapshot)?.quota.remainingPercent ?? 0
         if remaining <= 20 {
             return NSColor(calibratedRed: 0.88, green: 0.25, blue: 0.28, alpha: 1)
         }
@@ -129,15 +129,14 @@ final class QuotaOrbView: NSView {
         NSColor.white.withAlphaComponent(0.18).setStroke()
         background.stroke()
 
-        guard case .loaded(let snapshot) = state else { return }
+        guard case .loaded(let snapshot) = state, let displayed = displayedQuota(in: snapshot) else { return }
         let center = NSPoint(x: ringRect.midX, y: ringRect.midY)
-        let quota = displayedQuota(in: snapshot)
         let progress = NSBezierPath()
         progress.appendArc(
             withCenter: center,
             radius: ringRect.width / 2,
             startAngle: 90,
-            endAngle: 90 - CGFloat(quota.remainingPercent) * 3.6,
+            endAngle: 90 - CGFloat(displayed.quota.remainingPercent) * 3.6,
             clockwise: true
         )
         progress.lineWidth = 5
@@ -157,20 +156,20 @@ final class QuotaOrbView: NSView {
             drawCentered("—", y: 51, font: .systemFont(ofSize: 35, weight: .bold), alpha: 1)
             drawCentered("单击重试", y: 100, font: .systemFont(ofSize: 11, weight: .medium), alpha: 0.78)
         case .loaded(let snapshot):
-            let quota = displayedQuota(in: snapshot)
+            guard let displayed = displayedQuota(in: snapshot) else { return }
             drawCentered(
-                "\(displayedWindow.title)额度",
+                "\(displayed.title)额度",
                 y: 28,
                 font: .systemFont(ofSize: 11, weight: .medium),
                 alpha: 0.82
             )
             drawCentered(
-                "\(quota.remainingPercent)%",
+                "\(displayed.quota.remainingPercent)%",
                 y: 43,
                 font: .monospacedDigitSystemFont(ofSize: 38, weight: .bold),
                 alpha: 1
             )
-            let reset = quota.resetsAt.map(Self.shortDateFormatter.string) ?? "时间未知"
+            let reset = displayed.quota.resetsAt.map(Self.shortDateFormatter.string) ?? "时间未知"
             drawCentered(
                 reset,
                 y: 92,
@@ -285,24 +284,28 @@ final class QuotaOrbView: NSView {
         menu.addItem(accountItem)
         menu.addItem(.separator())
 
+        var loadedSnapshot: QuotaSnapshot?
+        if case .loaded(let snapshot) = state { loadedSnapshot = snapshot }
+
         let fiveHour = NSMenuItem(title: "展示 5 小时额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: "")
         fiveHour.target = self
         fiveHour.representedObject = DisplayedWindow.fiveHour.rawValue
         fiveHour.state = displayedWindow == .fiveHour ? .on : .off
+        fiveHour.isEnabled = loadedSnapshot?.fiveHour != nil
         menu.addItem(fiveHour)
 
         let weekly = NSMenuItem(title: "展示本周额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: "")
         weekly.target = self
         weekly.representedObject = DisplayedWindow.weekly.rawValue
         weekly.state = displayedWindow == .weekly ? .on : .off
+        weekly.isEnabled = loadedSnapshot?.weekly != nil
         menu.addItem(weekly)
         menu.addItem(.separator())
 
-        if case .loaded(let snapshot) = state {
-            let quota = displayedQuota(in: snapshot)
-            let reset = quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知"
+        if let snapshot = loadedSnapshot, let displayed = displayedQuota(in: snapshot) {
+            let reset = displayed.quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知"
             let detail = NSMenuItem(
-                title: "\(displayedWindow.title)额度：剩余 \(quota.remainingPercent)% · \(reset) 重置",
+                title: "\(displayed.title)额度：剩余 \(displayed.quota.remainingPercent)% · \(reset) 重置",
                 action: nil,
                 keyEquivalent: ""
             )
@@ -353,11 +356,17 @@ final class QuotaOrbView: NSView {
         updateAccessibility()
     }
 
-    private func displayedQuota(in snapshot: QuotaSnapshot) -> QuotaWindow {
+    /// Falls back to whichever window the current plan actually publishes.
+    private func displayedQuota(in snapshot: QuotaSnapshot) -> (title: String, quota: QuotaWindow)? {
         switch displayedWindow {
-        case .fiveHour: return snapshot.fiveHour
-        case .weekly: return snapshot.weekly
+        case .fiveHour:
+            if let fiveHour = snapshot.fiveHour { return (DisplayedWindow.fiveHour.title, fiveHour) }
+            if let weekly = snapshot.weekly { return (DisplayedWindow.weekly.title, weekly) }
+        case .weekly:
+            if let weekly = snapshot.weekly { return (DisplayedWindow.weekly.title, weekly) }
+            if let fiveHour = snapshot.fiveHour { return (DisplayedWindow.fiveHour.title, fiveHour) }
         }
+        return nil
     }
 
     private func accountMenuTitle(for slot: CodexAccountSlot) -> String {
@@ -389,9 +398,12 @@ final class QuotaOrbView: NSView {
         case .failed(let message):
             description = "Codex Token 额度不可用，\(message)"
         case .loaded(let snapshot):
-            let quota = displayedQuota(in: snapshot)
-            let reset = quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知时间"
-            description = "Codex \(displayedWindow.title)额度剩余 \(quota.remainingPercent)%，\(reset) 重置"
+            if let displayed = displayedQuota(in: snapshot) {
+                let reset = displayed.quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知时间"
+                description = "Codex \(displayed.title)额度剩余 \(displayed.quota.remainingPercent)%，\(reset) 重置"
+            } else {
+                description = "Codex 额度已同步"
+            }
         }
         setAccessibilityLabel(description)
         setAccessibilityHelp("可拖动悬浮球；单击刷新；右键切换账号、5 小时或本周额度")

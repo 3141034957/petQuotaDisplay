@@ -52,10 +52,10 @@ final class QuotaCoreTests: XCTestCase {
         let snapshot = try QuotaParser.parse(result: result, now: Date(timeIntervalSince1970: 1))
 
         XCTAssertEqual(snapshot.planType, "plus")
-        XCTAssertEqual(snapshot.fiveHour.remainingPercent, 80)
-        XCTAssertEqual(snapshot.fiveHour.resetsAt, Date(timeIntervalSince1970: 2_000_000_000))
-        XCTAssertEqual(snapshot.weekly.remainingPercent, 35)
-        XCTAssertEqual(snapshot.weekly.resetsAt, Date(timeIntervalSince1970: 2_000_100_000))
+        XCTAssertEqual(snapshot.fiveHour?.remainingPercent, 80)
+        XCTAssertEqual(snapshot.fiveHour?.resetsAt, Date(timeIntervalSince1970: 2_000_000_000))
+        XCTAssertEqual(snapshot.weekly?.remainingPercent, 35)
+        XCTAssertEqual(snapshot.weekly?.resetsAt, Date(timeIntervalSince1970: 2_000_100_000))
     }
 
     func testParsesChatGPTAccount() {
@@ -98,8 +98,8 @@ final class QuotaCoreTests: XCTestCase {
 
         let snapshot = try QuotaParser.parse(result: result)
 
-        XCTAssertEqual(snapshot.fiveHour.remainingPercent, 56)
-        XCTAssertEqual(snapshot.weekly.remainingPercent, 84)
+        XCTAssertEqual(snapshot.fiveHour?.remainingPercent, 56)
+        XCTAssertEqual(snapshot.weekly?.remainingPercent, 84)
     }
 
     func testClampsPercentages() {
@@ -107,27 +107,44 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertEqual(WeeklyQuota(usedPercent: 140, resetsAt: nil).remainingPercent, 0)
     }
 
-    func testMissingWeeklyWindowIsAnError() {
+    /// ChatGPT Pro only publishes the weekly window.
+    func testParsesPlanWithoutFiveHourWindow() throws {
+        let result: [String: Any] = [
+            "rateLimits": [
+                "planType": "prolite",
+                "primary": ["usedPercent": 9, "windowDurationMins": 10_080, "resetsAt": 1_792_551_039],
+                "secondary": NSNull(),
+            ],
+        ]
+
+        let snapshot = try QuotaParser.parse(result: result)
+
+        XCTAssertNil(snapshot.fiveHour)
+        XCTAssertEqual(snapshot.weekly?.remainingPercent, 91)
+    }
+
+    func testParsesPlanWithoutWeeklyWindow() throws {
         let result: [String: Any] = [
             "rateLimits": [
                 "primary": ["usedPercent": 10, "windowDurationMins": 300],
             ],
         ]
 
-        XCTAssertThrowsError(try QuotaParser.parse(result: result)) { error in
-            XCTAssertEqual(error as? QuotaParseError, .missingWeeklyWindow)
-        }
+        let snapshot = try QuotaParser.parse(result: result)
+
+        XCTAssertNil(snapshot.weekly)
+        XCTAssertEqual(snapshot.fiveHour?.remainingPercent, 90)
     }
 
-    func testMissingFiveHourWindowIsAnError() {
+    func testMissingAnyKnownWindowIsAnError() {
         let result: [String: Any] = [
             "rateLimits": [
-                "secondary": ["usedPercent": 10, "windowDurationMins": 10_080],
+                "primary": ["usedPercent": 10, "windowDurationMins": 60],
             ],
         ]
 
         XCTAssertThrowsError(try QuotaParser.parse(result: result)) { error in
-            XCTAssertEqual(error as? QuotaParseError, .missingFiveHourWindow)
+            XCTAssertEqual(error as? QuotaParseError, .missingQuotaWindow)
         }
     }
 }

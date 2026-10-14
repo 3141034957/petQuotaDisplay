@@ -16,14 +16,15 @@ public typealias WeeklyQuota = QuotaWindow
 
 public struct QuotaSnapshot: Equatable {
     public let planType: String?
-    public let fiveHour: QuotaWindow
-    public let weekly: QuotaWindow
+    /// `nil` on plans that no longer publish a 5-hour window, such as ChatGPT Pro.
+    public let fiveHour: QuotaWindow?
+    public let weekly: QuotaWindow?
     public let fetchedAt: Date
 
     public init(
         planType: String?,
-        fiveHour: QuotaWindow,
-        weekly: QuotaWindow,
+        fiveHour: QuotaWindow?,
+        weekly: QuotaWindow?,
         fetchedAt: Date = Date()
     ) {
         self.planType = planType
@@ -59,17 +60,14 @@ public enum CodexAccountParser {
 
 public enum QuotaParseError: LocalizedError, Equatable {
     case missingRateLimits
-    case missingFiveHourWindow
-    case missingWeeklyWindow
+    case missingQuotaWindow
 
     public var errorDescription: String? {
         switch self {
         case .missingRateLimits:
             return "Codex 没有返回额度信息"
-        case .missingFiveHourWindow:
-            return "Codex 没有返回 5 小时额度"
-        case .missingWeeklyWindow:
-            return "Codex 没有返回周额度"
+        case .missingQuotaWindow:
+            return "Codex 没有返回可用的额度窗口"
         }
     }
 }
@@ -85,11 +83,10 @@ public enum QuotaParser {
         }
 
         let candidates = ["primary", "secondary"].compactMap { limits[$0] as? [String: Any] }
-        guard let fiveHour = window(durationMinutes: fiveHourDurationMinutes, in: candidates) else {
-            throw QuotaParseError.missingFiveHourWindow
-        }
-        guard let weekly = window(durationMinutes: weeklyDurationMinutes, in: candidates) else {
-            throw QuotaParseError.missingWeeklyWindow
+        let fiveHour = window(durationMinutes: fiveHourDurationMinutes, in: candidates)
+        let weekly = window(durationMinutes: weeklyDurationMinutes, in: candidates)
+        guard fiveHour != nil || weekly != nil else {
+            throw QuotaParseError.missingQuotaWindow
         }
 
         return QuotaSnapshot(
