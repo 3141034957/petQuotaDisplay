@@ -54,8 +54,12 @@ CODEX_CLI_PATH=/你的路径/codex python3 main.py
 zsh scripts/install_autostart.sh
 ```
 
+更新已安装的版本时，也需要重新运行上面的安装脚本。它会编译 Release 版本、替换自启动目录中的程序并重启监听器，保留已有账号和悬浮球设置。仅运行 `swift build` 或 `python3 main.py` 不会更新后台自启动的安装版。
+
 这个方案不会修改或注入 Codex 应用，不受 Codex 代码签名影响。若要停用：
 
 ```bash
 zsh scripts/uninstall_autostart.sh
 ```
+
+卸载脚本会停止后台监听并删除 LaunchAgent 自启动配置，保留程序、已登录账号和悬浮球设置。
