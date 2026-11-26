@@ -15,6 +15,8 @@ final class QuotaOrbView: NSView {
                 if let current = recentQuotas[context], current.latest != previous {
                     onQuotaHistoryChanged?(context, current.readings)
                 }
+                let scope = QuotaReminderScope(context: context, modelID: displayedCodexBucket?.id)
+                onFreshQuota?(scope, displaySnapshot(snapshot))
             }
             needsDisplay = true
             updateAccessibility()
@@ -30,6 +32,7 @@ final class QuotaOrbView: NSView {
     var onQuotaHistoryChanged: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
     var onToggleHistoryArchive: (() -> Void)?
+    var onFreshQuota: ((QuotaReminderScope, QuotaSnapshot) -> Void)?
     var onResetHistoryArchive: (() -> Void)?
     var retainsHistoryAcrossLaunches = false
     var historyArchiveError: String?
@@ -41,6 +44,8 @@ final class QuotaOrbView: NSView {
         }
     }
     var onSelectWarningThreshold: ((QuotaWarningThreshold) -> Void)?
+    var lowQuotaSoundEnabled = false
+    var onToggleLowQuotaSound: (() -> Void)?
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
@@ -552,6 +557,9 @@ final class QuotaOrbView: NSView {
         sourceName.target = self
         sourceName.state = showsMenuBarSourceName ? .on : .off
         submenu.addItem(warningThresholdMenuItem())
+        let sound = submenu.addItem(withTitle: "低额度声音提醒", action: #selector(toggleLowQuotaSound), keyEquivalent: "")
+        sound.target = self
+        sound.state = lowQuotaSoundEnabled ? .on : .off
         item.submenu = submenu
         return item
     }
@@ -573,6 +581,8 @@ final class QuotaOrbView: NSView {
         guard let threshold = QuotaWarningThreshold(rawValue: item.tag) else { return }
         onSelectWarningThreshold?(threshold)
     }
+
+    @objc private func toggleLowQuotaSound() { onToggleLowQuotaSound?() }
 
     private func refreshCadenceMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "定时刷新", action: nil, keyEquivalent: "")

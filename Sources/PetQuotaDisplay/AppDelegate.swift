@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let historyArchive = QuotaHistoryArchive.local
     private let historyArchiveWriter = DispatchQueue(label: "com.erenshwang.petquotadisplay.history", qos: .utility)
     private var historyArchiveGeneration = UUID()
+    private var lowQuotaReminder = QuotaLowReminder()
     private var countdownTimer: Timer?
     private var statusItem: NSStatusItem?
     private var orbIsActive = false
@@ -139,6 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.showsMenuBarQuota = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarEnabledKey)
         orbView.showsMenuBarSourceName = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarSourceNameKey)
         orbView.warningThreshold = QuotaWarningThreshold.load()
+        orbView.lowQuotaSoundEnabled = QuotaPreferences.shared.bool(forKey: QuotaPreferences.lowQuotaSoundKey)
         orbView.menuBarOnly = !forceOrbVisible && orbView.showsMenuBarQuota
             && QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarOnlyKey)
         orbView.sizePreference = orbSizePreference
@@ -160,6 +162,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onToggleMenuBarQuota = { [weak self] in self?.toggleMenuBarQuota() }
         orbView.onToggleMenuBarSourceName = { [weak self] in self?.toggleMenuBarSourceName() }
         orbView.onSelectWarningThreshold = { [weak self] threshold in self?.setWarningThreshold(threshold) }
+        orbView.onToggleLowQuotaSound = { [weak self] in self?.toggleLowQuotaSound() }
+        orbView.onFreshQuota = { [weak self] scope, snapshot in self?.handleLowQuota(scope, snapshot: snapshot) }
         orbView.onToggleWindowLevel = { [weak self] in self?.toggleWindowLevel() }
         orbView.onRaiseOrb = { [weak self] in self?.reconcileWindowVisibility() }
         orbView.onToggleOrbVisibility = { [weak self] in
@@ -275,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func historyDidChange(_ context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
         updateQuotaHistory(context: context, readings: readings)
+        if readings.isEmpty { lowQuotaReminder.remove(context) }
         guard orbView.retainsHistoryAcrossLaunches else { return }
         let archive = historyArchive
         let latest = readings.last
@@ -502,8 +507,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func setWarningThreshold(_ threshold: QuotaWarningThreshold) {
+        if orbView.warningThreshold != threshold { lowQuotaReminder = QuotaLowReminder() }
         orbView.warningThreshold = threshold
         QuotaPreferences.shared.set(threshold.rawValue, forKey: QuotaWarningThreshold.defaultsKey)
+    }
+
+    private func toggleLowQuotaSound() {
+        orbView.lowQuotaSoundEnabled.toggle()
+        lowQuotaReminder = QuotaLowReminder()
+        QuotaPreferences.shared.set(orbView.lowQuotaSoundEnabled, forKey: QuotaPreferences.lowQuotaSoundKey)
+    }
+
+    private func handleLowQuota(_ scope: QuotaReminderScope, snapshot: QuotaSnapshot) {
+        guard orbView.lowQuotaSoundEnabled else { return }
+        let events = lowQuotaReminder.events(for: scope, snapshot: snapshot, threshold: orbView.warningThreshold)
+        if !events.isEmpty { NSSound.beep() }
     }
 
     private func toggleWindowLevel() {
