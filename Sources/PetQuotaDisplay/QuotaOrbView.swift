@@ -62,12 +62,14 @@ final class QuotaOrbView: NSView {
     var onSelectAccount: ((CodexAccountSlot) -> Void)?
     var onAddAccount: (() -> Void)?
     var onLoginAccount: ((CodexAccountSlot) -> Void)?
+    var onRenameAccount: ((CodexAccountSlot) -> Void)?
     var onDeleteAccount: ((CodexAccountSlot) -> Void)?
     var onConfigureOpenCodeGo: (() -> Void)?
     var accounts: [CodexAccountSlot] = []
     var codexMeteredQuotas: [CodexMeteredQuota] = []
     var selectedAccount: CodexAccountSlot?
     var accountStatuses: [CodexAccountSlot: CodexAccountStatus] = [:]
+    var accountNames: [CodexAccountSlot: String] = [:]
     var quitMenuTitle = "退出额度悬浮球"
 
     private var mouseDownLocation: NSPoint?
@@ -405,6 +407,12 @@ final class QuotaOrbView: NSView {
             accountMenu.addItem(login)
         }
 
+        if selectedAccount != nil {
+            let rename = NSMenuItem(title: "重命名当前额度账号…", action: #selector(renameCurrentAccountFromMenu), keyEquivalent: "")
+            rename.target = self
+            accountMenu.addItem(rename)
+        }
+
         if !accounts.isEmpty {
             let deleteItem = NSMenuItem(title: "删除额度账号", action: nil, keyEquivalent: "")
             let deleteMenu = NSMenu(title: "删除额度账号")
@@ -496,6 +504,11 @@ final class QuotaOrbView: NSView {
         onLoginAccount?(selectedAccount)
     }
 
+    @objc private func renameCurrentAccountFromMenu() {
+        guard let selectedAccount else { return }
+        onRenameAccount?(selectedAccount)
+    }
+
     @objc private func deleteAccountFromMenu(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
               let account = CodexAccountSlot(rawValue: rawValue) else { return }
@@ -546,6 +559,7 @@ final class QuotaOrbView: NSView {
     }
 
     private func accountDisplayName(for slot: CodexAccountSlot) -> String {
+        if let name = accountNames[slot] { return name }
         let index = accounts.firstIndex(of: slot).map { $0 + 1 } ?? 1
         return "额度账号 \(index)"
     }

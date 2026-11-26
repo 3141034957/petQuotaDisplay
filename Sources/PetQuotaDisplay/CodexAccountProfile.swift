@@ -70,6 +70,24 @@ enum CodexAccountProfile {
         }
         let remaining = loadAccounts(defaults: defaults).filter { $0 != slot }
         defaults.set(remaining.map(\.rawValue), forKey: additionalAccountsDefaultsKey)
+        defaults.removeObject(forKey: nameKey(for: slot))
+    }
+
+    static func name(for slot: CodexAccountSlot, defaults: UserDefaults = .standard) -> String? {
+        defaults.string(forKey: nameKey(for: slot))
+    }
+
+    static func setName(_ name: String, for slot: CodexAccountSlot, defaults: UserDefaults = .standard) {
+        let singleLine = name.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        if singleLine.isEmpty {
+            defaults.removeObject(forKey: nameKey(for: slot))
+        } else {
+            defaults.set(String(singleLine.prefix(40)), forKey: nameKey(for: slot))
+        }
+    }
+
+    private static func nameKey(for slot: CodexAccountSlot) -> String {
+        "quota.accountName.\(slot.rawValue)"
     }
 
     static func homeURL(for slot: CodexAccountSlot) throws -> URL? {

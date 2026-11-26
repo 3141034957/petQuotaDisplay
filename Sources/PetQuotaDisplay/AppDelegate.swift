@@ -113,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
+        orbView.onRenameAccount = { [weak self] account in self?.renameAccount(account) }
         orbView.onDeleteAccount = { [weak self] account in self?.deleteAccount(account) }
         orbView.onConfigureOpenCodeGo = { [weak self] in self?.configureOpenCodeGo() }
         orbView.quitMenuTitle = followCodex ? "本次隐藏悬浮球" : "退出额度悬浮球"
@@ -331,6 +332,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func renameAccount(_ account: CodexAccountSlot) {
+        guard accounts.contains(account) else { return }
+        let alert = NSAlert()
+        alert.messageText = "重命名额度账号"
+        alert.informativeText = "可输入便于区分的名称，留空恢复默认名称。"
+        alert.addButton(withTitle: "保存")
+        alert.addButton(withTitle: "取消")
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        input.stringValue = CodexAccountProfile.name(for: account) ?? ""
+        input.placeholderString = "额度账号名称"
+        input.setAccessibilityLabel("额度账号名称")
+        alert.accessoryView = input
+        alert.window.initialFirstResponder = input
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn, accounts.contains(account) else { return }
+        CodexAccountProfile.setName(input.stringValue, for: account)
+        updateAccountMenuState()
+    }
+
     private func deleteAccount(_ account: CodexAccountSlot) {
         guard accounts.contains(account) else { return }
         let name = accountName(for: account)
@@ -383,9 +403,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.accounts = accounts
         orbView.selectedAccount = selectedAccount
         orbView.accountStatuses = accountStatuses
+        orbView.accountNames = Dictionary(uniqueKeysWithValues: accounts.compactMap { account in
+            CodexAccountProfile.name(for: account).map { (account, $0) }
+        })
     }
 
     private func accountName(for account: CodexAccountSlot) -> String {
+        if let name = CodexAccountProfile.name(for: account) { return name }
         if case .signedIn(let summary) = accountStatuses[account], let email = summary.email {
             return email
         }
