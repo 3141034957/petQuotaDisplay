@@ -135,9 +135,10 @@ enum QuotaQuery {
             if result == nil { result = response }
         }
 
-        let deadline = Date().addingTimeInterval(timeout)
-        let timer = Timer(fire: deadline, interval: 0, repeats: false) { _ in }
-        RunLoop.main.add(timer, forMode: .default)
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + timeout)
+        timer.setEventHandler { complete(.failure(Failure.timedOut)) }
+        timer.activate()
         let signals = [SIGINT, SIGTERM].map { number in
             // Caught dispositions reset for a child process on exec.
             let previous = signal(number) { _ in }
@@ -154,14 +155,14 @@ enum QuotaQuery {
                 signal(number, previous)
             }
         }
-        defer { timer.invalidate() }
+        defer { timer.cancel() }
         let stop = try start(complete)
         defer {
             stop()
             QuotaChildProcess.waitForTerminations()
         }
-        while result == nil, interruption == nil, deadline > Date() {
-            _ = RunLoop.main.run(mode: .default, before: deadline)
+        while result == nil, interruption == nil {
+            _ = RunLoop.main.run(mode: .default, before: .distantFuture)
         }
         if let interruption { throw interruption }
         guard let result else { throw Failure.timedOut }
