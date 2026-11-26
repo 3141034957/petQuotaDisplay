@@ -10,11 +10,16 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         let context = QuotaHistoryContext(provider: .gemini, account: nil)
         let original = snapshot(at: 100.25)
         XCTAssertFalse(try archive.load().isEnabled)
+        XCTAssertThrowsError(try archive.export(for: context))
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.path))
 
         try archive.setEnabled(true, initial: [context: [original]])
         XCTAssertTrue(try archive.load().isEnabled)
         XCTAssertEqual(try archive.load().histories[context], [original])
+        let exported = try archive.export(for: context)
+        XCTAssertEqual(exported.provider, "gemini")
+        XCTAssertEqual(exported.readings.first?.snapshot, original)
+        XCTAssertTrue(try archive.export(for: QuotaHistoryContext(provider: .kimiCode, account: nil)).readings.isEmpty)
 
         try archive.setEnabled(false)
         try archive.update(context, latest: snapshot(at: 101))

@@ -72,6 +72,12 @@ struct QuotaHistoryArchive {
         }
     }
 
+    func export(for context: QuotaHistoryContext) throws -> QuotaHistoryExport {
+        let state = try load()
+        guard state.isEnabled else { throw Failure.notEnabled }
+        return QuotaHistoryExport(provider: context.provider, snapshots: state.histories[context] ?? [])
+    }
+
     private static func merge(_ existing: [QuotaSnapshot], with incoming: [QuotaSnapshot]) -> [QuotaSnapshot] {
         var byDate: [Date: QuotaSnapshot] = [:]
         for snapshot in existing + incoming { byDate[snapshot.fetchedAt] = snapshot }
@@ -128,8 +134,13 @@ struct QuotaHistoryArchive {
     }
 
     private enum Failure: LocalizedError {
-        case unsupportedVersion
+        case unsupportedVersion, notEnabled
 
-        var errorDescription: String? { "无法读取此版本的额度历史" }
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedVersion: return "无法读取此版本的额度历史"
+            case .notEnabled: return "请先在悬浮球启用跨启动保留采集记录"
+            }
+        }
     }
 }

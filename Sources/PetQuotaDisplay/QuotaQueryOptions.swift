@@ -2,6 +2,10 @@ import Foundation
 import QuotaCore
 
 struct QuotaQueryOptions {
+    enum Purpose {
+        case live, savedHistory
+    }
+
     private enum Option: String, CaseIterable {
         case provider = "--provider"
         case period = "--period"
@@ -26,11 +30,14 @@ struct QuotaQueryOptions {
     private(set) var account: String?
     private(set) var listModels = false
 
-    init(arguments: [String]) throws {
+    init(arguments: [String], purpose: Purpose = .live) throws {
         var arguments = arguments[...]
         var seen = Set<Option>()
         while let argument = arguments.popFirst() {
             guard let option = Option(rawValue: argument) else { throw Failure.unknownOption }
+            if purpose == .savedHistory, option != .provider, option != .account {
+                throw Failure.unsupportedHistoryOption
+            }
             guard seen.insert(option).inserted else { throw Failure.invalidValue(option) }
             let value = option.requiresValue ? arguments.popFirst() : nil
             switch option {
@@ -73,13 +80,14 @@ struct QuotaQueryOptions {
     }
 
     private enum Failure: LocalizedError {
-        case unknownOption, invalidValue(Option), incompatibleModelList
+        case unknownOption, invalidValue(Option), incompatibleModelList, unsupportedHistoryOption
 
         var errorDescription: String? {
             switch self {
             case .unknownOption: return "--query 接受 \(Option.allCases.map(\.rawValue).joined(separator: "、")) 选项。"
             case .invalidValue(let option): return "请为 \(option.rawValue) 指定一个有效的值。"
             case .incompatibleModelList: return "模型列表仅支持 Codex 来源、账号、超时和输出格式选项。"
+            case .unsupportedHistoryOption: return "--history 接受 --provider 和 --account 选项。"
             }
         }
     }

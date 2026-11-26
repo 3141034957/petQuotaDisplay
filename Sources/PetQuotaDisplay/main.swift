@@ -6,6 +6,7 @@ let usage = """
       PetQuotaDisplay --diagnose [--json]
       PetQuotaDisplay --query [查询选项]
       PetQuotaDisplay --list-codex-accounts
+      PetQuotaDisplay --history [--provider 来源] [--account 账号]
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端
@@ -23,6 +24,7 @@ let usage = """
   --list-models   列出 Codex 返回的额度标识和周期
   --account       本次查询的 Codex 账号名称或标识
   --list-codex-accounts  输出已配置的 Codex 账号标识及本地名称
+  --history       在终端读取本机保存的采集记录
   --json          将诊断输出为 JSON，供脚本读取
   --version       输出版本和可用的构建提交标识
   -h, --help      显示帮助
@@ -52,6 +54,21 @@ case ["--list-codex-accounts"]:
         exit(70)
     }
     exit(0)
+case _ where arguments.first == "--history":
+    let options: QuotaQueryOptions
+    do {
+        options = try QuotaQueryOptions(arguments: Array(arguments.dropFirst()), purpose: .savedHistory)
+    } catch {
+        FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
+        exit(64)
+    }
+    do {
+        print(try QuotaOutput.json(QuotaHistoryCommand.read(options: options)))
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
+        exit(1)
+    }
 case _ where arguments.first == "--query":
     let options: QuotaQueryOptions
     do {

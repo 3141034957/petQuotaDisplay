@@ -28,4 +28,10 @@ final class QuotaQueryOptionsTests: XCTestCase {
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--list-models", "--provider", "gemini"]))
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--list-models", "--period", "weekly"]))
     }
+
+    func testSavedHistoryRejectsLiveQueryOptions() throws {
+        let history = try QuotaQueryOptions(arguments: ["--provider", "codex", "--account", "Work"], purpose: .savedHistory)
+        XCTAssertEqual(history.account, "Work")
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--timeout", "1"], purpose: .savedHistory))
+    }
 }
