@@ -53,13 +53,48 @@ enum QuotaDiagnostics {
         let revision = QuotaBuildInformation.revision
         let sources: [Source]
         let display: DisplayPreferences
+        let history: HistoryStatus
 
         var allSourcesAvailable: Bool { sources.allSatisfy { $0.status == .available } }
 
         var summary: String {
             let sourceLines = sources.map { "\($0.title)：\($0.detail)" }
-            return ([QuotaBuildInformation.summary, "额度来源本机检查"] + sourceLines + ["", display.summary])
+            return ([QuotaBuildInformation.summary, "额度来源本机检查"] + sourceLines + ["", display.summary, history.summary])
                 .joined(separator: "\n")
+        }
+    }
+
+    struct HistoryStatus: Encodable {
+        enum State: String, Encodable {
+            case disabled, enabled, unreadable
+        }
+
+        let state: State
+        let maximumReadingsPerScope: Int
+        let scopeCount: Int?
+        let readingCount: Int?
+
+        init(archive: QuotaHistoryArchive, retention: QuotaHistoryRetention) {
+            maximumReadingsPerScope = retention.rawValue
+            if let archiveState = try? archive.load() {
+                state = archiveState.isEnabled ? .enabled : .disabled
+                scopeCount = archiveState.histories.count
+                readingCount = archiveState.histories.values.reduce(0) { $0 + $1.count }
+            } else {
+                state = .unreadable
+                scopeCount = nil
+                readingCount = nil
+            }
+        }
+
+        var summary: String {
+            let status: String
+            switch state {
+            case .disabled: status = "跨启动保留已关闭"
+            case .enabled: status = "已存档 \(readingCount ?? 0) 条采集记录，共 \(scopeCount ?? 0) 组"
+            case .unreadable: status = "存档无法读取"
+            }
+            return "额度历史：\(status) · 每组最多 \(maximumReadingsPerScope) 条"
         }
     }
 
@@ -114,7 +149,8 @@ enum QuotaDiagnostics {
                 return cliStatus(source, found: found, override: "KIMI_CLI_PATH", environment: environment)
             }
         }
-        return Report(sources: sources, display: DisplayPreferences(defaults: QuotaPreferences.shared))
+        return Report(sources: sources, display: DisplayPreferences(defaults: QuotaPreferences.shared),
+                      history: HistoryStatus(archive: .local, retention: QuotaHistoryRetention.load()))
     }
 
     private static func cliStatus(_ provider: QuotaProvider, found: Bool, override variable: String,

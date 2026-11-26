@@ -30,6 +30,8 @@ swift run PetQuotaDisplay
 
 运行 `python3 main.py --diagnose` 可在终端检查 Codex、Gemini、Kimi 的命令是否可用，以及 Claude Code 是否采集过额度，同时查看构建版本、刷新周期和悬浮球外观设置。检查在本机完成，无需登录或读取钥匙串。脚本可通过 `--diagnose --json` 读取结构化结果。
 
+诊断也会报告本机历史存档是否启用或无法读取，以及共保存了多少条记录。
+
 加上 `--diagnose --provider gemini` 可指定只检查一个来源，也可与 `--json` 一起使用。
 
 脚本可加 `--require-ready`。配置缺失、缓存过期或需要在应用内检查时，诊断会照常输出，退出码为 `1`。诊断只检查本机配置，验证登录和实际额度请运行实时查询。
