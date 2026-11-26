@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-    printf '%s\n' '用法：zsh scripts/install_autostart.sh [--follow-codex | --always-show]'
+    printf '%s\n' '用法：zsh scripts/install_autostart.sh [--follow-codex | --always-show | --status]'
 }
 
 mode="${1:-}"
@@ -11,7 +11,7 @@ if (( $# > 1 )); then
     exit 2
 fi
 case "${mode}" in
-    ""|--follow-codex|--always-show) ;;
+    ""|--follow-codex|--always-show|--status) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -24,6 +24,32 @@ label="com.erenshwang.petquotadisplay"
 installed_binary="${install_dir}/PetQuotaDisplay"
 installed_plist="${launch_agents_dir}/${label}.plist"
 launch_domain="gui/$(id -u)"
+
+if [[ "${mode}" == --status ]]; then
+    if [[ -x "${installed_binary}" ]]; then
+        printf '%s\n' '程序：已安装'
+    else
+        printf '%s\n' '程序：未安装或不可执行'
+    fi
+    if [[ ! -f "${installed_plist}" ]]; then
+        printf '%s\n' '自启动配置：未安装'
+    elif ! /usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "${installed_plist}" >/dev/null 2>&1; then
+        printf '%s\n' '自启动配置：无法读取'
+    else
+        launch_argument="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:1' "${installed_plist}" 2>/dev/null || true)"
+        case "${launch_argument}" in
+            --follow-codex) printf '%s\n' '自启动配置：跟随 Codex' ;;
+            ""|--always-show) printf '%s\n' '自启动配置：登录后显示额度' ;;
+            *) printf '%s\n' '自启动配置：启动模式无法识别' ;;
+        esac
+    fi
+    if launchctl print "${launch_domain}/${label}" >/dev/null 2>&1; then
+        printf '%s\n' 'LaunchAgent：已加载'
+    else
+        printf '%s\n' 'LaunchAgent：当前会话中未检测到'
+    fi
+    exit 0
+fi
 
 if [[ -z "${mode}" ]]; then
     mode=--follow-codex
