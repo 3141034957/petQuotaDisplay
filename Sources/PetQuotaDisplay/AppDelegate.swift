@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var window: NSWindow!
     private var orbView: QuotaOrbView!
     private var refreshTimer: Timer?
+    private let claudeCacheMonitor = ClaudeQuotaCacheMonitor(directory: ClaudeQuotaCache.directory)
     private var historyWindowController: NSWindowController?
     private var historyWindowModel: QuotaHistoryWindowModel?
     private let historyArchive = QuotaHistoryArchive.local
@@ -166,6 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.resetDisplay = savedResetDisplay.flatMap(OrbResetDisplay.init(rawValue:)) ?? .time
         orbView.onSelectProvider = { [weak self] provider in self?.switchProvider(to: provider) }
         orbView.onSelectRefreshCadence = { [weak self] cadence in self?.setRefreshCadence(cadence) }
+        claudeCacheMonitor.onChange = { [weak self] in self?.refreshDisplayedQuota() }
         orbView.onRefresh = { [weak self] in
             guard let self else { return }
             if self.client != nil { self.orbView.state.beginRefresh() }
@@ -397,6 +399,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func scheduleRefreshTimer() {
         refreshTimer?.invalidate()
         refreshTimer = nil
+        if orbIsActive, orbView.provider == .claudeCode, orbView.refreshCadence != .off {
+            claudeCacheMonitor.start()
+        } else {
+            claudeCacheMonitor.stop()
+        }
         guard orbIsActive, let interval = orbView.refreshCadence.interval,
               client != nil || pollingClient != nil || orbView.provider == .claudeCode else { return }
 
@@ -495,6 +502,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func refreshClaudeQuota() {
+        if orbView.refreshCadence != .off { claudeCacheMonitor.start() }
         do {
             orbView.state = try ClaudeQuotaCache.read()
         } catch {
@@ -518,6 +526,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func stopOrb(hideWindow: Bool = true) {
         orbIsActive = false
+        claudeCacheMonitor.stop()
         refreshTimer?.invalidate()
         refreshTimer = nil
         countdownTimer?.invalidate()

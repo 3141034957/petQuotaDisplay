@@ -2,8 +2,9 @@ import Foundation
 import QuotaCore
 
 enum ClaudeQuotaCache {
-    private static let url = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Caches/PetQuotaDisplay/claude-usage.json")
+    static let directory = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Caches/PetQuotaDisplay", isDirectory: true)
+    private static let url = directory.appendingPathComponent("claude-usage.json")
     private static let maximumClockSkew: TimeInterval = 60
 
     static func read() throws -> QuotaDisplayState {

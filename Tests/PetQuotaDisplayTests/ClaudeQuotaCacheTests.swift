@@ -12,6 +12,32 @@ final class ClaudeQuotaCacheTests: XCTestCase {
     }
     """.utf8)
 
+    func testCacheMonitorRefreshesAfterAtomicReplacementAndCancelsWhenStopped() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("claude-usage.json")
+        let monitor = ClaudeQuotaCacheMonitor(directory: directory)
+        let initial = expectation(description: "watcher registered")
+        monitor.onChange = { initial.fulfill() }
+        monitor.start()
+        defer { monitor.stop() }
+        wait(for: [initial], timeout: 2)
+
+        let updated = expectation(description: "cache replaced")
+        monitor.onChange = {
+            if (try? Data(contentsOf: file)) == self.report { updated.fulfill() }
+        }
+        try report.write(to: file, options: .atomic)
+        wait(for: [updated], timeout: 2)
+
+        let canceled = expectation(description: "no callback after stopping")
+        canceled.isInverted = true
+        monitor.onChange = { canceled.fulfill() }
+        monitor.stop()
+        try Data("later update".utf8).write(to: file, options: .atomic)
+        wait(for: [canceled], timeout: 0.3)
+    }
+
     func testCachePreservesCaptureTimeAndFallsBackWhenAWindowResets() throws {
         let recent = try ClaudeQuotaCache.parse(report, now: Date(timeIntervalSince1970: 150))
         XCTAssertEqual(recent.snapshot?.fetchedAt, Date(timeIntervalSince1970: 100))
