@@ -181,6 +181,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.onPositionChanged = { [weak self] in self?.finishOrbDrag() }
         orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
         orbView.onSelectCorner = { [weak self] corner in self?.moveOrb(to: corner) }
+        orbView.displayChoices = { [weak self] in self?.orbDisplayChoices() ?? [] }
+        orbView.onSelectDisplay = { [weak self] displayID in self?.moveOrb(toDisplay: displayID) }
         orbView.onTogglePositionLock = { [weak self] in self?.togglePositionLock() }
         orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
         orbView.onSelectOpacity = { [weak self] opacity in self?.setOrbOpacity(opacity) }
@@ -1066,6 +1068,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         let currentScreen = window.screen ?? NSScreen.screens.first
         guard let visibleFrame = currentScreen?.visibleFrame else { return }
         let origin = OrbWindowPlacement.origin(at: corner, size: orbSize, visibleFrame: visibleFrame)
+        window.setFrameOrigin(origin)
+        saveOrbOrigin(origin)
+    }
+
+    private func orbDisplayChoices() -> [QuotaOrbView.DisplayChoice] {
+        let screens = NSScreen.screens
+        let grouped = Dictionary(grouping: screens, by: \.localizedName)
+        let current = window.screen.flatMap(displayID(for:))
+        return screens.enumerated().compactMap { index, screen in
+            guard let id = displayID(for: screen) else { return nil }
+            let name = screen.localizedName
+            let title = (grouped[name]?.count ?? 0) > 1 ? "\(name) (\(index + 1))" : name
+            return QuotaOrbView.DisplayChoice(id: id, title: title, isCurrent: id == current)
+        }
+    }
+
+    private func displayID(for screen: NSScreen) -> UInt32? {
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        return (screen.deviceDescription[key] as? NSNumber)?.uint32Value
+    }
+
+    private func moveOrb(toDisplay display: UInt32) {
+        guard let target = NSScreen.screens.first(where: { displayID(for: $0) == display }) else { return }
+        let origin: NSPoint
+        if let current = window.screen {
+            origin = OrbWindowPlacement.translatedOrigin(window.frame.origin, size: orbSize,
+                                                        from: current.visibleFrame, to: target.visibleFrame)
+        } else {
+            origin = OrbWindowPlacement.defaultOrigin(size: orbSize, visibleFrame: target.visibleFrame)
+        }
         window.setFrameOrigin(origin)
         saveOrbOrigin(origin)
     }

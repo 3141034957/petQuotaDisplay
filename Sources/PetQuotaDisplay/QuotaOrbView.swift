@@ -2,6 +2,12 @@ import AppKit
 import QuotaCore
 
 final class QuotaOrbView: NSView {
+    struct DisplayChoice {
+        let id: UInt32
+        let title: String
+        let isCurrent: Bool
+    }
+
     private static let designDiameter: CGFloat = 148
     private let defaults: UserDefaults
     private var recentQuotas: [QuotaHistoryContext: QuotaReadingHistory] = [:]
@@ -73,6 +79,8 @@ final class QuotaOrbView: NSView {
     var onPositionChanged: (() -> Void)?
     var onResetPosition: (() -> Void)?
     var onSelectCorner: ((OrbWindowPlacement.Corner) -> Void)?
+    var displayChoices: (() -> [DisplayChoice])?
+    var onSelectDisplay: ((UInt32) -> Void)?
     var isPositionLocked = false {
         didSet { updateAccessibility() }
     }
@@ -695,6 +703,9 @@ final class QuotaOrbView: NSView {
         let reset = submenu.addItem(withTitle: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
         reset.target = self
         submenu.addItem(orbCornerMenuItem())
+        if let displays = displayChoices?(), displays.count > 1 {
+            submenu.addItem(orbDisplaysMenuItem(displays))
+        }
         let lock = submenu.addItem(withTitle: "锁定悬浮球位置", action: #selector(togglePositionLock), keyEquivalent: "")
         lock.target = self
         lock.state = isPositionLocked ? .on : .off
@@ -832,6 +843,21 @@ final class QuotaOrbView: NSView {
             let choice = submenu.addItem(withTitle: title, action: #selector(selectOrbCorner(_:)), keyEquivalent: "")
             choice.target = self
             choice.representedObject = corner.rawValue
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    private func orbDisplaysMenuItem(_ displays: [DisplayChoice]) -> NSMenuItem {
+        let item = NSMenuItem(title: "移到其他显示器", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        submenu.autoenablesItems = false
+        for display in displays {
+            let choice = submenu.addItem(withTitle: display.title, action: #selector(selectOrbDisplay(_:)), keyEquivalent: "")
+            choice.target = self
+            choice.tag = Int(display.id)
+            choice.state = display.isCurrent ? .on : .off
+            choice.isEnabled = !display.isCurrent
         }
         item.submenu = submenu
         return item
@@ -990,6 +1016,11 @@ final class QuotaOrbView: NSView {
         guard let rawValue = sender.representedObject as? String,
               let corner = OrbWindowPlacement.Corner(rawValue: rawValue) else { return }
         onSelectCorner?(corner)
+    }
+
+    @objc private func selectOrbDisplay(_ sender: NSMenuItem) {
+        guard let id = UInt32(exactly: sender.tag) else { return }
+        onSelectDisplay?(id)
     }
 
     @objc private func selectOrbOpacity(_ sender: NSMenuItem) {

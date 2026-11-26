@@ -25,6 +25,14 @@ final class OrbWindowPlacementTests: XCTestCase {
         XCTAssertEqual(origins, expected)
     }
 
+    func testMovingBetweenDisplaysKeepsTheRelativePlaceInTheirVisibleAreas() {
+        let source = CGRect(x: 0, y: 30, width: 1_111, height: 911)
+        let target = CGRect(x: -1_200, y: -200, width: 911, height: 511)
+        let origin = CGPoint(x: 250, y: 630)
+        XCTAssertEqual(OrbWindowPlacement.translatedOrigin(origin, size: size, from: source, to: target),
+                       CGPoint(x: -1_000, y: 100))
+    }
+
     func testKeepsFullyVisiblePosition() {
         let origin = CGPoint(x: 800, y: 200)
         XCTAssertEqual(place(origin, screens: [screen]), origin)
