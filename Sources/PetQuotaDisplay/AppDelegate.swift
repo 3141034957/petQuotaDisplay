@@ -243,7 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             existing.controller.window?.makeKeyAndOrderFront(nil)
             return
         }
-        let model = QuotaHistoryWindowModel(context: context, readings: readings)
+        let model = QuotaHistoryWindowModel(context: context, readings: readings, warningThreshold: orbView.warningThreshold)
         let content = NSHostingController(rootView: QuotaHistoryView(model: model))
         let historyWindow = NSWindow(contentViewController: content)
         historyWindow.styleMask = [.titled, .closable, .miniaturizable, .resizable]
@@ -620,6 +620,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private func setWarningThreshold(_ threshold: QuotaWarningThreshold) {
         if orbView.warningThreshold != threshold { lowQuotaReminder = QuotaLowReminder() }
         orbView.warningThreshold = threshold
+        for window in historyWindows.values { window.model.warningThreshold = threshold }
         QuotaPreferences.shared.set(threshold.rawValue, forKey: QuotaWarningThreshold.defaultsKey)
     }
 

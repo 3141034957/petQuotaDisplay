@@ -22,10 +22,12 @@ private struct QuotaHistoryCSV: FileDocument {
 final class QuotaHistoryWindowModel: ObservableObject {
     let context: QuotaHistoryContext
     @Published var readings: [QuotaSnapshot]
+    @Published var warningThreshold: QuotaWarningThreshold
 
-    init(context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
+    init(context: QuotaHistoryContext, readings: [QuotaSnapshot], warningThreshold: QuotaWarningThreshold) {
         self.context = context
         self.readings = readings
+        self.warningThreshold = warningThreshold
     }
 }
 
@@ -92,6 +94,16 @@ struct QuotaHistoryView: View {
             }
 
             Chart {
+                if !series.points.isEmpty {
+                    RuleMark(y: .value("当前警戒线", model.warningThreshold.rawValue))
+                        .foregroundStyle(Color.red.opacity(0.65))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                        .annotation(position: .top, alignment: .trailing) {
+                            Text("警戒线 \(model.warningThreshold.title)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                }
                 ForEach(series.points) { point in
                     if point.resetChanged {
                         RuleMark(x: .value("首次报告新重置时间", point.time))
