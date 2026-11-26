@@ -1,6 +1,7 @@
 import AppKit
 import QuotaCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
@@ -218,6 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.onShowQuotaHistory = { [weak self] context, readings in self?.showQuotaHistory(context: context, readings: readings) }
         orbView.onQuotaHistoryChanged = { [weak self] changes in self?.historyDidChange(changes) }
         orbView.onQuotaHistoryCleared = { [weak self] in self?.clearHistory() }
+        orbView.onSaveQuotaHistory = { [weak self] contents, format in self?.saveHistory(contents, format: format) }
         orbView.onToggleHistoryArchive = { [weak self] in self?.toggleHistoryArchive() }
         orbView.onSelectHistoryRetention = { [weak self] retention in self?.setHistoryRetention(retention) }
         orbView.onResetHistoryArchive = { [weak self] in self?.resetHistoryArchive() }
@@ -398,6 +400,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         previous.forEach { $0.controller.close() }
         guard orbView.retainsHistoryAcrossLaunches else { return }
         performHistoryArchiveOperation { try historyArchiveWriter.sync { try historyArchive.clear() } }
+    }
+
+    private func saveHistory(_ contents: String, format: QuotaExport.Format) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [format == .csv ? .commaSeparatedText : .json]
+        panel.nameFieldStringValue = "quota-history.\(format.rawValue)"
+        NSApp.activate(ignoringOtherApps: true)
+        panel.begin { response in
+            guard response == .OK, let destination = panel.url else { return }
+            do {
+                try Data(contents.utf8).write(to: destination, options: .atomic)
+            } catch {
+                let alert = NSAlert(error: error)
+                alert.messageText = "无法保存额度采集记录"
+                alert.runModal()
+            }
+        }
     }
 
     private func performHistoryArchiveOperation(_ operation: () throws -> Void) {

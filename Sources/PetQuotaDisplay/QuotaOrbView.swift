@@ -41,6 +41,7 @@ final class QuotaOrbView: NSView {
     var onShowQuotaHistory: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
     var onQuotaHistoryChanged: (([QuotaHistoryContext: [QuotaSnapshot]]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
+    var onSaveQuotaHistory: ((String, QuotaExport.Format) -> Void)?
     var onToggleHistoryArchive: (() -> Void)?
     var onSelectHistoryRetention: ((QuotaHistoryRetention) -> Void)?
     var historyRetention: QuotaHistoryRetention = .standard {
@@ -585,6 +586,16 @@ final class QuotaOrbView: NSView {
                                      action: #selector(copyAllQuotaHistory), keyEquivalent: "")
         export.target = self
         export.isEnabled = !visibleHistoryContexts.isEmpty
+        let save = submenu.addItem(withTitle: "保存全部来源的采集记录", action: nil, keyEquivalent: "")
+        let formats = NSMenu(title: save.title)
+        for format in [QuotaExport.Format.json, .csv] {
+            let option = formats.addItem(withTitle: "\(format.rawValue.uppercased())…",
+                                         action: #selector(saveAllQuotaHistory(_:)), keyEquivalent: "")
+            option.target = self
+            option.representedObject = format.rawValue
+        }
+        save.submenu = formats
+        save.isEnabled = export.isEnabled
         let clear = submenu.addItem(withTitle: "清空最近额度记录", action: #selector(clearRecentQuotas), keyEquivalent: "")
         clear.target = self
         clear.isEnabled = !recentQuotas.isEmpty
@@ -1099,14 +1110,24 @@ final class QuotaOrbView: NSView {
 
     @objc private func copyAllQuotaHistory() { QuotaClipboard.copy(allQuotaHistoryJSON) }
 
+    @objc private func saveAllQuotaHistory(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? String, let format = QuotaExport.Format(rawValue: value),
+              let archive = allQuotaHistory, let contents = try? archive.render(as: format) else { return }
+        onSaveQuotaHistory?(contents, format)
+    }
+
     var allQuotaHistoryJSON: String? {
+        try? allQuotaHistory?.render(as: .json)
+    }
+
+    private var allQuotaHistory: QuotaHistoryBatchExport? {
         let exports = visibleHistoryContexts.compactMap { context in
             recentQuotas[context].map { history in
                 QuotaHistoryExport(provider: context.provider, snapshots: history.readings, modelID: context.modelID)
             }
         }
         guard !exports.isEmpty else { return nil }
-        return try? QuotaOutput.json(QuotaHistoryBatchExport(sources: exports))
+        return QuotaHistoryBatchExport(sources: exports)
     }
 
     @objc private func clearRecentQuotas() {

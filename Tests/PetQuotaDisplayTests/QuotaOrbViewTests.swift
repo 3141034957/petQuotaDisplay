@@ -493,6 +493,14 @@ final class QuotaOrbViewTests: XCTestCase {
         let exported = try XCTUnwrap(report["readings"] as? [[String: Any]])
         XCTAssertEqual(exported.count, 10)
         XCTAssertNil(report["account"])
+
+        var saved: (String, QuotaExport.Format)?
+        view.onSaveQuotaHistory = { saved = ($0, $1) }
+        let save = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu?
+            .item(withTitle: "保存全部来源的采集记录")?.submenu?.item(withTitle: "CSV…"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(save.action), to: save.target, from: save))
+        XCTAssertEqual(saved?.1, .csv)
+        XCTAssertTrue(saved?.0.contains("gemini,weekly,") == true)
     }
 
     func testHistoryChangeEventsRetainTheAccountScopeAndIgnoreDuplicateReads() throws {
