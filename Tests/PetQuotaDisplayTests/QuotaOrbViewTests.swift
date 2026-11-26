@@ -315,6 +315,22 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(updated.item(withTitle: "清空最近额度记录")).isEnabled)
     }
 
+    func testClearingOneProviderLeavesOtherHistoryAndTheCurrentQuota() throws {
+        let view = QuotaOrbView(frame: .zero)
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 45, resetsAt: nil))
+        view.provider = .kimiCode
+        view.state = .loaded(snapshot)
+        view.provider = .gemini
+        view.state = .loaded(snapshot)
+
+        let clear = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu?
+            .item(withTitle: "Gemini")?.submenu?.item(withTitle: "清除此来源的记录"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(clear.action), to: clear.target, from: clear))
+        XCTAssertEqual(view.state.snapshot, snapshot)
+        XCTAssertTrue(view.recentQuotaSummary?.contains("Kimi Code") == true)
+        XCTAssertFalse(view.recentQuotaSummary?.contains("Gemini") == true)
+    }
+
     func testRecentMenuShowsEightReadingsWithTheNewestFirst() throws {
         let view = QuotaOrbView(frame: .zero)
         view.provider = .gemini

@@ -474,6 +474,9 @@ final class QuotaOrbView: NSView {
                 trend.target = self
                 trend.representedObject = source.rawValue
             }
+            let clearSource = details.addItem(withTitle: "清除此来源的记录", action: #selector(clearSourceQuotaHistory(_:)), keyEquivalent: "")
+            clearSource.target = self
+            clearSource.representedObject = source.rawValue
             entry.submenu = details
         }
         item.submenu = submenu
@@ -687,6 +690,13 @@ final class QuotaOrbView: NSView {
     @objc private func clearRecentQuotas() {
         recentQuotas.removeAll()
         onQuotaHistoryCleared?()
+    }
+
+    @objc private func clearSourceQuotaHistory(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let source = QuotaProvider(rawValue: rawValue) else { return }
+        let context = quotaContext(for: source)
+        forgetQuota(for: context.provider, account: context.account)
     }
 
     @objc private func showQuotaHistory(_ sender: NSMenuItem) {
