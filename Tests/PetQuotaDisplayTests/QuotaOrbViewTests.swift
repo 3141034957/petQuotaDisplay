@@ -5,6 +5,19 @@ import XCTest
 
 @MainActor
 final class QuotaOrbViewTests: XCTestCase {
+    func testPositionLockRemainsAccessibleAndLeavesClickRefreshAvailable() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.isPositionLocked = true
+        let appearance = try XCTUnwrap(menu(view).item(withTitle: "外观")?.submenu)
+        XCTAssertEqual(appearance.item(withTitle: "锁定悬浮球位置")?.state, .on)
+        XCTAssertTrue(view.accessibilityHelp()?.contains("位置已锁定") == true)
+        view.state = .failed("test")
+        var refreshed = false
+        view.onRefresh = { refreshed = true }
+        XCTAssertTrue(view.accessibilityPerformPress())
+        XCTAssertTrue(refreshed)
+    }
+
     func testAccountEmailCanBeHiddenFromSelectionAndDeletionMenus() throws {
         let view = QuotaOrbView(frame: .zero)
         let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))

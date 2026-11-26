@@ -58,6 +58,10 @@ final class QuotaOrbView: NSView {
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
     var onResetPosition: (() -> Void)?
+    var isPositionLocked = false {
+        didSet { updateAccessibility() }
+    }
+    var onTogglePositionLock: (() -> Void)?
     var sizePreference: OrbSizePreference = .standard
     var onSelectSize: ((OrbSizePreference) -> Void)?
     var resetDisplay: OrbResetDisplay = .time {
@@ -314,13 +318,14 @@ final class QuotaOrbView: NSView {
         let dy = current.y - start.y
         guard dragged || hypot(dx, dy) > 3 else { return }
         dragged = true
+        guard !isPositionLocked else { return }
         window.setFrameOrigin(NSPoint(x: origin.x + dx, y: origin.y + dy))
     }
 
     override func mouseUp(with event: NSEvent) {
         guard mouseDownLocation != nil else { return }
         if dragged {
-            onPositionChanged?()
+            if !isPositionLocked { onPositionChanged?() }
         } else {
             onRefresh?()
         }
@@ -559,6 +564,9 @@ final class QuotaOrbView: NSView {
         pin.state = staysOnTop ? .on : .off
         let reset = submenu.addItem(withTitle: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
         reset.target = self
+        let lock = submenu.addItem(withTitle: "锁定悬浮球位置", action: #selector(togglePositionLock), keyEquivalent: "")
+        lock.target = self
+        lock.state = isPositionLocked ? .on : .off
         submenu.addItem(.separator())
         let menuBarToggle = submenu.addItem(withTitle: "在菜单栏显示额度", action: #selector(toggleMenuBarQuota), keyEquivalent: "")
         menuBarToggle.target = self
@@ -776,6 +784,7 @@ final class QuotaOrbView: NSView {
     @objc private func toggleMenuBarQuota() { onToggleMenuBarQuota?() }
     @objc private func toggleMenuBarSourceName() { onToggleMenuBarSourceName?() }
     @objc private func toggleAccountEmail() { onToggleAccountEmail?() }
+    @objc private func togglePositionLock() { onTogglePositionLock?() }
     @objc private func toggleOrbVisibility() { onToggleOrbVisibility?() }
     @objc private func toggleWindowLevel() { onToggleWindowLevel?() }
     @objc private func raiseOrb() { onRaiseOrb?() }
@@ -1056,7 +1065,8 @@ final class QuotaOrbView: NSView {
         }
         toolTip = description
         setAccessibilityLabel(description)
-        setAccessibilityHelp("可拖动悬浮球，单击刷新，右键切换额度来源或周期")
+        let positionHelp = isPositionLocked ? "悬浮球位置已锁定" : "可拖动悬浮球"
+        setAccessibilityHelp("\(positionHelp)，单击刷新，右键切换额度来源或周期")
         onPresentationChanged?()
     }
 

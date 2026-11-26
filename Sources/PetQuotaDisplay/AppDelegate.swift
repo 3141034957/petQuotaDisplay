@@ -146,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.refreshCadence = displayOptions.refreshCadence ?? QuotaRefreshCadence.load()
         orbView.showsMenuBarQuota = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarEnabledKey)
         orbView.hidesAccountEmail = QuotaPreferences.shared.bool(forKey: QuotaPreferences.hidesAccountEmailKey)
+        orbView.isPositionLocked = QuotaPreferences.shared.bool(forKey: QuotaPreferences.orbPositionLockedKey)
         orbView.showsMenuBarSourceName = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarSourceNameKey)
         orbView.warningThreshold = QuotaWarningThreshold.load()
         orbView.lowQuotaSoundEnabled = QuotaPreferences.shared.bool(forKey: QuotaPreferences.lowQuotaSoundKey)
@@ -170,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onQuit = { [weak self] in self?.quitOrHideOrb() }
         orbView.onPositionChanged = { [weak self] in self?.finishOrbDrag() }
         orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
+        orbView.onTogglePositionLock = { [weak self] in self?.togglePositionLock() }
         orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
         orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
         orbView.onToggleMenuBarQuota = { [weak self] in self?.toggleMenuBarQuota() }
@@ -544,6 +546,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.hidesAccountEmail.toggle()
         QuotaPreferences.shared.set(orbView.hidesAccountEmail, forKey: QuotaPreferences.hidesAccountEmailKey)
         updateHistoryWindowTitle()
+    }
+
+    private func togglePositionLock() {
+        orbView.isPositionLocked.toggle()
+        QuotaPreferences.shared.set(orbView.isPositionLocked, forKey: QuotaPreferences.orbPositionLockedKey)
     }
 
     private func setWarningThreshold(_ threshold: QuotaWarningThreshold) {
