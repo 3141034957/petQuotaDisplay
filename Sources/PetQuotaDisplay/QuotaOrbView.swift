@@ -596,6 +596,9 @@ final class QuotaOrbView: NSView {
             details.addItem(readingListMenuItem(history.readings))
             addHistoryTrend(to: details, context: context)
             addHistoryCopy(to: details, context: context, title: "复制模型的全部记录 JSON")
+            let clear = details.addItem(withTitle: "清除此模型的记录", action: #selector(clearModelQuotaHistory(_:)), keyEquivalent: "")
+            clear.target = self
+            clear.representedObject = context
             model.submenu = details
         }
         models.submenu = submenu
@@ -963,6 +966,12 @@ final class QuotaOrbView: NSView {
               let source = QuotaProvider(rawValue: rawValue) else { return }
         let context = quotaContext(for: source)
         forgetQuota(for: context.provider, account: context.account)
+    }
+
+    @objc private func clearModelQuotaHistory(_ sender: NSMenuItem) {
+        guard let context = sender.representedObject as? QuotaHistoryContext, context.modelID != nil,
+              recentQuotas.removeValue(forKey: context) != nil else { return }
+        onQuotaHistoryChanged?([context: []])
     }
 
     @objc private func copyQuotaHistory(_ sender: NSMenuItem) {
