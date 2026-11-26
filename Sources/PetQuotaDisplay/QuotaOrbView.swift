@@ -21,6 +21,11 @@ final class QuotaOrbView: NSView {
     private static let designDiameter: CGFloat = 148
     private static let displayedWindowDefaultsKey = "quota.displayedWindow"
     private let defaults: UserDefaults
+    private struct QuotaContext: Hashable {
+        let provider: QuotaProvider
+        let account: CodexAccountSlot?
+    }
+    private var recentQuotas: [QuotaContext: QuotaSnapshot] = [:]
 
     private enum DisplayedWindow: String, CaseIterable {
         case fiveHour
@@ -46,6 +51,9 @@ final class QuotaOrbView: NSView {
 
     var state: QuotaDisplayState = .loading {
         didSet {
+            if case .loaded(let snapshot) = state, provider != .codex || selectedAccount != nil {
+                recentQuotas[quotaContext(for: provider)] = snapshot
+            }
             needsDisplay = true
             updateAccessibility()
         }
@@ -336,6 +344,7 @@ final class QuotaOrbView: NSView {
         }
         sourceItem.submenu = sourceMenu
         menu.addItem(sourceItem)
+        menu.addItem(recentQuotasMenuItem())
         if provider == .codex {
             menu.addItem(accountMenuItem())
         } else if provider == .openCodeGo {
@@ -403,6 +412,37 @@ final class QuotaOrbView: NSView {
         let quit = NSMenuItem(title: quitMenuTitle, action: #selector(quitFromMenu), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
+    }
+
+    private func quotaContext(for source: QuotaProvider) -> QuotaContext {
+        QuotaContext(provider: source, account: source == .codex ? selectedAccount : nil)
+    }
+
+    func forgetQuota(for source: QuotaProvider, account: CodexAccountSlot? = nil) {
+        recentQuotas.removeValue(forKey: QuotaContext(provider: source, account: account))
+    }
+
+    private func recentQuotasMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "最近读取的额度", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        submenu.autoenablesItems = false
+        for source in QuotaProvider.allCases {
+            guard let snapshot = recentQuotas[quotaContext(for: source)] else {
+                let empty = submenu.addItem(withTitle: "\(source.title) · 尚无结果", action: nil, keyEquivalent: "")
+                empty.isEnabled = false
+                continue
+            }
+            let entry = submenu.addItem(withTitle: source.title, action: nil, keyEquivalent: "")
+            let details = NSMenu(title: source.title)
+            for line in quotaDetails(in: snapshot) {
+                details.addItem(withTitle: line, action: nil, keyEquivalent: "")
+            }
+            let time = Self.longDateFormatter.string(from: snapshot.fetchedAt)
+            details.addItem(withTitle: "上次采集：\(time)", action: nil, keyEquivalent: "")
+            entry.submenu = details
+        }
+        item.submenu = submenu
+        return item
     }
 
     private func appearanceMenuItem() -> NSMenuItem {

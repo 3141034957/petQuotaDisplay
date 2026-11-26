@@ -251,9 +251,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         client.onAccount = { [weak self, weak client] account in
             guard let self, let client, self.client === client else { return }
+            if case .signedIn(let previous) = self.accountStatuses[clientAccount],
+               let account, previous.email != account.email {
+                self.orbView.forgetQuota(for: .codex, account: clientAccount)
+                self.orbView.state = .loading
+            }
             self.accountStatuses[clientAccount] = account.map(CodexAccountStatus.signedIn) ?? .signedOut
             self.updateAccountMenuState()
             if account == nil {
+                self.orbView.forgetQuota(for: .codex, account: clientAccount)
                 let name = self.accountName(for: clientAccount)
                 self.orbView.state = .failed("\(name)未登录，请右键登录")
             }
@@ -441,6 +447,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         // A changed key may refer to a different account.
+        orbView.forgetQuota(for: .openCodeGo)
         guard orbView.provider == .openCodeGo, orbIsActive else { return }
         stopOrb(hideWindow: false)
         startOrb()
@@ -521,6 +528,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         do {
             try CodexAccountProfile.deleteAccount(account)
+            orbView.forgetQuota(for: .codex, account: account)
             accounts.removeAll { $0 == account }
             accountStatuses.removeValue(forKey: account)
             if pendingAccountLogin == account {
