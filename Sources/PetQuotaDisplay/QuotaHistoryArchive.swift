@@ -52,16 +52,18 @@ struct QuotaHistoryArchive {
         }
     }
 
-    func update(_ context: QuotaHistoryContext, latest: QuotaSnapshot?) throws {
+    @discardableResult
+    func update(_ context: QuotaHistoryContext, latest: QuotaSnapshot?) throws -> Bool {
         try withLock {
             var state = try load()
-            guard state.isEnabled else { return }
+            guard state.isEnabled else { return false }
             if let latest {
                 state.histories[context] = Self.merge(state.histories[context] ?? [], with: [latest])
             } else {
                 state.histories.removeValue(forKey: context)
             }
             try save(state)
+            return true
         }
     }
 
@@ -96,7 +98,7 @@ struct QuotaHistoryArchive {
         try encoder.encode(document).write(to: archiveURL, options: .atomic)
     }
 
-    private func withLock(_ work: () throws -> Void) throws {
+    private func withLock<Value>(_ work: () throws -> Value) throws -> Value {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
         let lockURL = directory.appendingPathComponent("history.lock")
@@ -106,7 +108,7 @@ struct QuotaHistoryArchive {
         while flock(descriptor, LOCK_EX) != 0 {
             if errno != EINTR { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
         }
-        try work()
+        return try work()
     }
 
     private struct Document: Codable {

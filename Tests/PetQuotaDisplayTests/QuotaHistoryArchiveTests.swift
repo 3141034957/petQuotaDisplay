@@ -37,7 +37,7 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertTrue(try archive.export(for: QuotaHistoryContext(provider: .kimiCode, account: nil)).readings.isEmpty)
 
         try archive.setEnabled(false)
-        try archive.update(context, latest: snapshot(at: 101))
+        XCTAssertFalse(try archive.update(context, latest: snapshot(at: 101)))
         XCTAssertFalse(try archive.load().isEnabled)
         XCTAssertTrue(try archive.load().histories.isEmpty)
     }

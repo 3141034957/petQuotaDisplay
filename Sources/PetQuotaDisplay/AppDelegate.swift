@@ -261,7 +261,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let result = Result { try archive.update(context, latest: latest) }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.historyArchiveGeneration == generation else { return }
-                self.applyHistoryArchiveResult(result)
+                if case .success(let enabled) = result {
+                    self.orbView.retainsHistoryAcrossLaunches = enabled
+                }
+                self.applyHistoryArchiveResult(result.map { _ in () })
             }
         }
     }
