@@ -11,12 +11,13 @@ final class QuotaQueryOptionsTests: XCTestCase {
         XCTAssertEqual(try QuotaQueryOptions(arguments: []).format, .json)
         XCTAssertEqual(try QuotaQueryOptions(arguments: ["--format", "text"]).format, .text)
         XCTAssertEqual(try QuotaQueryOptions(arguments: ["--fail-below", "20"]).failBelow, 20)
+        XCTAssertTrue(try QuotaQueryOptions(arguments: ["--require-fresh", "--provider", "claudeCode"]).requireFresh)
     }
 
     func testRejectsUnsupportedFlagsAndInvalidValues() throws {
         for arguments in [["--always-show"], ["--timeout"], ["--timeout", "0"], ["--timeout", "3601"],
                           ["--timeout", "1", "--timeout", "2"], ["--period", "yearly"], ["--provider", "typo"],
-                          ["--format", "markdown"], ["--fail-below", "101"]] {
+                          ["--format", "markdown"], ["--fail-below", "101"], ["--require-fresh", "--require-fresh"]] {
             XCTAssertThrowsError(try QuotaQueryOptions(arguments: arguments), arguments.joined(separator: " "))
         }
     }

@@ -30,6 +30,8 @@ final class QuotaExportTests: XCTestCase {
         let window = QuotaWindow(usedPercent: 35, resetsAt: Date(timeIntervalSince1970: 120))
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: window, fetchedAt: Date(timeIntervalSince1970: 60))
         let export = try XCTUnwrap(QuotaExport(provider: .claudeCode, state: .stale(snapshot, "details")))
+        XCTAssertEqual(export.exitStatus(failBelow: 70, requireFresh: true), 3)
+        XCTAssertEqual(export.exitStatus(failBelow: 70), 2)
         XCTAssertEqual(try export.render(as: .text), """
         Claude Code · 上次结果
         采集时间 1970-01-01T00:01:00Z

@@ -67,7 +67,8 @@ struct QuotaExport: Encodable {
         }
     }
 
-    func exitStatus(failBelow threshold: Int?) -> Int32 {
+    func exitStatus(failBelow threshold: Int?, requireFresh: Bool = false) -> Int32 {
+        if requireFresh, status != .current { return 3 }
         guard let threshold, periods.contains(where: { $0.remainingPercent < threshold }) else { return 0 }
         return 2
     }

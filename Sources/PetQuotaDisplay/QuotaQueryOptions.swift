@@ -8,6 +8,9 @@ struct QuotaQueryOptions {
         case timeout = "--timeout"
         case format = "--format"
         case failBelow = "--fail-below"
+        case requireFresh = "--require-fresh"
+
+        var requiresValue: Bool { self != .requireFresh }
     }
 
     private(set) var provider: QuotaProvider?
@@ -15,33 +18,35 @@ struct QuotaQueryOptions {
     private(set) var timeout: TimeInterval = 65
     private(set) var format: QuotaExport.Format = .json
     private(set) var failBelow: Int?
+    private(set) var requireFresh = false
 
     init(arguments: [String]) throws {
         var arguments = arguments[...]
         var seen = Set<Option>()
         while let argument = arguments.popFirst() {
             guard let option = Option(rawValue: argument) else { throw Failure.unknownOption }
-            guard seen.insert(option).inserted, let value = arguments.popFirst() else {
-                throw Failure.invalidValue(option)
-            }
+            guard seen.insert(option).inserted else { throw Failure.invalidValue(option) }
+            let value = option.requiresValue ? arguments.popFirst() : nil
             switch option {
             case .provider:
-                guard let provider = QuotaProvider(rawValue: value) else { throw Failure.invalidValue(option) }
+                guard let value, let provider = QuotaProvider(rawValue: value) else { throw Failure.invalidValue(option) }
                 self.provider = provider
             case .period:
-                guard QuotaPeriod(rawValue: value) != nil || value == QuotaWindowPreference.lowestRemaining else {
+                guard let value, QuotaPeriod(rawValue: value) != nil || value == QuotaWindowPreference.lowestRemaining else {
                     throw Failure.invalidValue(option)
                 }
                 period = value
             case .timeout:
-                guard let seconds = Int(value), (1...3600).contains(seconds) else { throw Failure.invalidValue(option) }
+                guard let value, let seconds = Int(value), (1...3600).contains(seconds) else { throw Failure.invalidValue(option) }
                 timeout = TimeInterval(seconds)
             case .format:
-                guard let format = QuotaExport.Format(rawValue: value) else { throw Failure.invalidValue(option) }
+                guard let value, let format = QuotaExport.Format(rawValue: value) else { throw Failure.invalidValue(option) }
                 self.format = format
             case .failBelow:
-                guard let percent = Int(value), (0...100).contains(percent) else { throw Failure.invalidValue(option) }
+                guard let value, let percent = Int(value), (0...100).contains(percent) else { throw Failure.invalidValue(option) }
                 failBelow = percent
+            case .requireFresh:
+                requireFresh = true
             }
         }
     }
