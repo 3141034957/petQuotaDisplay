@@ -667,6 +667,13 @@ final class QuotaOrbView: NSView {
         setAccessibilityHelp("可拖动悬浮球，单击刷新，右键切换额度来源或周期")
     }
 
+    func refreshLocalTimeFormatting() {
+        Self.shortDateFormatter.timeZone = .current
+        Self.longDateFormatter.timeZone = .current
+        needsDisplay = true
+        updateAccessibility()
+    }
+
     private static let shortDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")

@@ -50,6 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSApplication.didChangeScreenParametersNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(systemTimeZoneDidChange(_:)),
+            name: .NSSystemTimeZoneDidChange,
+            object: nil
+        )
 
         if followCodex {
             let notifications = NSWorkspace.shared.notificationCenter
@@ -559,6 +565,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func screenParametersDidChange(_ notification: Notification) {
         window?.setFrameOrigin(restoredOrDefaultOrigin())
+    }
+
+    @objc private func systemTimeZoneDidChange(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in self?.orbView.refreshLocalTimeFormatting() }
     }
 
     private func finishOrbDrag() {
