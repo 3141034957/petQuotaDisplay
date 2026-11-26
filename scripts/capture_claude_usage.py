@@ -7,6 +7,8 @@ import sys
 from tempfile import NamedTemporaryFile
 import time
 
+MAX_STATUS_LINE_BYTES = 1024 * 1024
+
 
 def extract_bucket(bucket):
     if not isinstance(bucket, dict):
@@ -23,8 +25,11 @@ def extract_bucket(bucket):
 
 def main():
     captured_at = time.time()
+    data = sys.stdin.buffer.read(MAX_STATUS_LINE_BYTES + 1)
+    if len(data) > MAX_STATUS_LINE_BYTES:
+        return 0
     try:
-        payload = json.load(sys.stdin)
+        payload = json.loads(data)
     except (ValueError, RecursionError):
         return 0
     limits = payload.get("rate_limits") if isinstance(payload, dict) else None
