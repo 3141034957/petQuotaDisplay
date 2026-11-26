@@ -304,29 +304,31 @@ final class QuotaOrbView: NSView {
             } else {
                 title = "\(displayed.title)额度"
             }
+            let detail = timeDetail(resetsAt: displayed.quota.resetsAt, fetchedAt: displaySnapshot(snapshot).fetchedAt)
             drawCentered(
                 quotaMetric == .used ? "已用 · \(title)" : title,
-                y: 28,
+                y: detail == nil ? 33 : 28,
                 font: .systemFont(ofSize: 11, weight: .medium),
                 alpha: 0.82
             )
             drawCentered(
                 "\(quotaMetric.percent(in: displayed.quota))%",
-                y: 43,
-                font: .monospacedDigitSystemFont(ofSize: 38, weight: .bold),
+                y: detail == nil ? 48 : 43,
+                font: .monospacedDigitSystemFont(ofSize: detail == nil ? 43 : 38, weight: .bold),
                 alpha: 1
             )
-            let detail = timeDetail(resetsAt: displayed.quota.resetsAt, fetchedAt: displaySnapshot(snapshot).fetchedAt)
-            drawCentered(
-                detail,
-                y: 92,
-                font: .monospacedDigitSystemFont(ofSize: 17, weight: .semibold),
-                alpha: 0.94
-            )
+            if let detail {
+                drawCentered(
+                    detail,
+                    y: 92,
+                    font: .monospacedDigitSystemFont(ofSize: 17, weight: .semibold),
+                    alpha: 0.94
+                )
+            }
         }
     }
 
-    func timeDetail(resetsAt: Date?, fetchedAt: Date) -> String {
+    func timeDetail(resetsAt: Date?, fetchedAt: Date) -> String? {
         switch resetDisplay {
         case .time:
             return resetsAt.map(Self.shortDateFormatter.string) ?? "时间未知"
@@ -334,6 +336,8 @@ final class QuotaOrbView: NSView {
             return resetsAt.map { OrbResetDisplay.countdownLabel(to: $0) } ?? "时间未知"
         case .capturedAt:
             return "采集 \(Self.captureTimeFormatter.string(from: fetchedAt))"
+        case .hidden:
+            return nil
         }
     }
 

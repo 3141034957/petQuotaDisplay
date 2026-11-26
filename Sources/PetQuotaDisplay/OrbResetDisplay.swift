@@ -1,7 +1,7 @@
 import Foundation
 
 enum OrbResetDisplay: String, CaseIterable {
-    case time, countdown, capturedAt
+    case time, countdown, capturedAt, hidden
 
     static let defaultsKey = "orb.resetDisplay"
 
@@ -10,6 +10,7 @@ enum OrbResetDisplay: String, CaseIterable {
         case .time: return "重置时间"
         case .countdown: return "重置倒计时"
         case .capturedAt: return "最近采集时间"
+        case .hidden: return "隐藏底部时间"
         }
     }
 

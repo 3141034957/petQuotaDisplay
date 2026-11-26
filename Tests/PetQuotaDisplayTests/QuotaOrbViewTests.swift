@@ -126,9 +126,11 @@ final class QuotaOrbViewTests: XCTestCase {
             .item(withTitle: "悬浮球时间显示")?.submenu?.item(withTitle: "最近采集时间"))
         XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(choice.action), to: choice.target, from: choice))
         let fetched = Date(timeIntervalSince1970: 1_800_000_000)
-        let detail = view.timeDetail(resetsAt: nil, fetchedAt: fetched)
+        let detail = try XCTUnwrap(view.timeDetail(resetsAt: nil, fetchedAt: fetched))
         XCTAssertNotNil(detail.range(of: #"^采集 \d{2}:\d{2}$"#, options: .regularExpression))
         XCTAssertEqual(detail, view.timeDetail(resetsAt: fetched.addingTimeInterval(3600), fetchedAt: fetched))
+        view.resetDisplay = .hidden
+        XCTAssertNil(view.timeDetail(resetsAt: fetched, fetchedAt: fetched))
     }
 
     func testProgressRingDrawsEmptyAndFullStatesAndStartsAtTop() throws {
