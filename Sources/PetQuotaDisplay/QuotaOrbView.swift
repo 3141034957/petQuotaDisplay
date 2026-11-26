@@ -17,6 +17,16 @@ enum QuotaProvider: String, CaseIterable {
     var supportsMonthlyQuota: Bool { self == .openCodeGo || self == .kimiCode }
 }
 
+private extension QuotaPeriod {
+    var title: String {
+        switch self {
+        case .fiveHour: return "5 小时"
+        case .weekly: return "本周"
+        case .monthly: return "本月"
+        }
+    }
+}
+
 final class QuotaOrbView: NSView {
     private static let designDiameter: CGFloat = 148
     private let defaults: UserDefaults
@@ -25,28 +35,6 @@ final class QuotaOrbView: NSView {
         let account: CodexAccountSlot?
     }
     private var recentQuotas: [QuotaContext: QuotaSnapshot] = [:]
-
-    private enum DisplayedWindow: String, CaseIterable {
-        case fiveHour
-        case weekly
-        case monthly
-
-        var title: String {
-            switch self {
-            case .fiveHour: return "5 小时"
-            case .weekly: return "本周"
-            case .monthly: return "本月"
-            }
-        }
-
-        func quota(in snapshot: QuotaSnapshot) -> QuotaWindow? {
-            switch self {
-            case .fiveHour: return snapshot.fiveHour
-            case .weekly: return snapshot.weekly
-            case .monthly: return snapshot.monthly
-            }
-        }
-    }
 
     var state: QuotaDisplayState = .loading {
         didSet {
@@ -109,11 +97,11 @@ final class QuotaOrbView: NSView {
     private var windowPreferenceKey: String {
         QuotaWindowPreference.key(for: provider, account: selectedAccount)
     }
-    private var displayedWindow: DisplayedWindow {
+    private var displayedWindow: QuotaPeriod {
         let saved = defaults.string(forKey: windowPreferenceKey)
             ?? defaults.string(forKey: QuotaWindowPreference.key(for: provider))
             ?? defaults.string(forKey: QuotaWindowPreference.legacyKey)
-        return saved.flatMap(DisplayedWindow.init(rawValue:)) ?? .weekly
+        return saved.flatMap(QuotaPeriod.init(rawValue:)) ?? .weekly
     }
 
     override var isFlipped: Bool { true }
@@ -382,7 +370,7 @@ final class QuotaOrbView: NSView {
         let loadedSnapshot = state.snapshot.map(displaySnapshot)
         let effectiveWindow = loadedSnapshot.map(resolvedWindow) ?? displayedWindow
 
-        for period in DisplayedWindow.allCases where period != .monthly || provider.supportsMonthlyQuota {
+        for period in QuotaPeriod.allCases where period != .monthly || provider.supportsMonthlyQuota {
             let prefix = period == .fiveHour ? "展示 " : "展示"
             let item = NSMenuItem(
                 title: "\(prefix)\(period.title)额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: ""
@@ -390,7 +378,7 @@ final class QuotaOrbView: NSView {
             item.target = self
             item.representedObject = period.rawValue
             item.state = effectiveWindow == period ? .on : .off
-            item.isEnabled = loadedSnapshot.flatMap { period.quota(in: $0) } != nil
+            item.isEnabled = loadedSnapshot?[period] != nil
             menu.addItem(item)
         }
         menu.addItem(.separator())
@@ -686,8 +674,8 @@ final class QuotaOrbView: NSView {
     }
 
     private func quotaDetails(in snapshot: QuotaSnapshot) -> [String] {
-        DisplayedWindow.allCases.compactMap { period in
-            guard let quota = period.quota(in: snapshot) else { return nil }
+        QuotaPeriod.allCases.compactMap { period in
+            guard let quota = snapshot[period] else { return nil }
             let reset = quota.resetsAt.map { "\(Self.longDateFormatter.string(from: $0)) 重置" } ?? "重置时间未知"
             return "\(period.title)额度：剩余 \(quota.remainingPercent)% · \(reset)"
         }
@@ -730,7 +718,7 @@ final class QuotaOrbView: NSView {
 
     @objc private func selectDisplayedWindow(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
-              let selected = DisplayedWindow(rawValue: rawValue) else { return }
+              let selected = QuotaPeriod(rawValue: rawValue) else { return }
         defaults.set(selected.rawValue, forKey: windowPreferenceKey)
         needsDisplay = true
         updateAccessibility()
@@ -741,16 +729,16 @@ final class QuotaOrbView: NSView {
     }
 
     /// Falls back to whichever window the current plan actually publishes.
-    private func resolvedWindow(in snapshot: QuotaSnapshot) -> DisplayedWindow {
+    private func resolvedWindow(in snapshot: QuotaSnapshot) -> QuotaPeriod {
         let preferred = displayedWindow
-        if preferred.quota(in: snapshot) != nil { return preferred }
-        return [DisplayedWindow.weekly, .fiveHour, .monthly].first { $0.quota(in: snapshot) != nil } ?? preferred
+        if snapshot[preferred] != nil { return preferred }
+        return [QuotaPeriod.weekly, .fiveHour, .monthly].first { snapshot[$0] != nil } ?? preferred
     }
 
     private func displayedQuota(in snapshot: QuotaSnapshot) -> (title: String, quota: QuotaWindow)? {
         let snapshot = displaySnapshot(snapshot)
         let period = resolvedWindow(in: snapshot)
-        return period.quota(in: snapshot).map { (period.title, $0) }
+        return snapshot[period].map { (period.title, $0) }
     }
 
     private var displayedCodexBucket: CodexMeteredQuota? {

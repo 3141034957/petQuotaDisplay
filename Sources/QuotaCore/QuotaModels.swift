@@ -15,6 +15,10 @@ public struct QuotaWindow: Equatable {
 
 public typealias WeeklyQuota = QuotaWindow
 
+public enum QuotaPeriod: String, CaseIterable {
+    case fiveHour, weekly, monthly
+}
+
 public struct QuotaSnapshot: Equatable {
     public let planType: String?
     /// `nil` on plans that no longer publish a 5-hour window, such as ChatGPT Pro.
@@ -35,6 +39,14 @@ public struct QuotaSnapshot: Equatable {
         self.weekly = weekly
         self.monthly = monthly
         self.fetchedAt = fetchedAt
+    }
+
+    public subscript(period: QuotaPeriod) -> QuotaWindow? {
+        switch period {
+        case .fiveHour: return fiveHour
+        case .weekly: return weekly
+        case .monthly: return monthly
+        }
     }
 }
 
