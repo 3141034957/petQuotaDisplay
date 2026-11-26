@@ -63,6 +63,10 @@ final class QuotaOrbView: NSView {
     var onResetPosition: (() -> Void)?
     var sizePreference: OrbSizePreference = .standard
     var onSelectSize: ((OrbSizePreference) -> Void)?
+    var resetDisplay: OrbResetDisplay = .time {
+        didSet { needsDisplay = true }
+    }
+    var onSelectResetDisplay: ((OrbResetDisplay) -> Void)?
     var onSelectProvider: ((QuotaProvider) -> Void)?
     var onSelectAccount: ((CodexAccountSlot) -> Void)?
     var onAddAccount: (() -> Void)?
@@ -224,7 +228,9 @@ final class QuotaOrbView: NSView {
                 font: .monospacedDigitSystemFont(ofSize: 38, weight: .bold),
                 alpha: 1
             )
-            let reset = displayed.quota.resetsAt.map(Self.shortDateFormatter.string) ?? "时间未知"
+            let reset = displayed.quota.resetsAt.map { date in
+                resetDisplay == .countdown ? OrbResetDisplay.countdownLabel(to: date) : Self.shortDateFormatter.string(from: date)
+            } ?? "时间未知"
             drawCentered(
                 reset,
                 y: 92,
@@ -369,6 +375,7 @@ final class QuotaOrbView: NSView {
         }
 
         menu.addItem(orbSizeMenuItem())
+        menu.addItem(resetDisplayMenuItem())
         let reset = NSMenuItem(title: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
@@ -401,6 +408,20 @@ final class QuotaOrbView: NSView {
             option.target = self
             option.tag = size.rawValue
             option.state = size == sizePreference ? .on : .off
+            submenu.addItem(option)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    private func resetDisplayMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "悬浮球时间显示", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        for mode in OrbResetDisplay.allCases {
+            let option = NSMenuItem(title: mode.title, action: #selector(selectResetDisplay(_:)), keyEquivalent: "")
+            option.target = self
+            option.representedObject = mode.rawValue
+            option.state = mode == resetDisplay ? .on : .off
             submenu.addItem(option)
         }
         item.submenu = submenu
@@ -498,6 +519,11 @@ final class QuotaOrbView: NSView {
     @objc private func selectOrbSize(_ sender: NSMenuItem) {
         guard let size = OrbSizePreference(rawValue: sender.tag) else { return }
         onSelectSize?(size)
+    }
+
+    @objc private func selectResetDisplay(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String, let mode = OrbResetDisplay(rawValue: rawValue) else { return }
+        onSelectResetDisplay?(mode)
     }
 
     @objc private func selectRefreshCadence(_ sender: NSMenuItem) {

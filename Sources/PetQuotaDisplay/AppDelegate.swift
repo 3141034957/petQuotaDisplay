@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow!
     private var orbView: QuotaOrbView!
     private var refreshTimer: Timer?
+    private var countdownTimer: Timer?
     private var orbIsActive = false
     private var cliMonitor: CodexCLIProcessMonitor?
     private var codexGUIRunning = false
@@ -107,6 +108,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.provider = savedProvider.flatMap(QuotaProvider.init(rawValue:)) ?? .codex
         orbView.refreshCadence = QuotaRefreshCadence.load()
         orbView.sizePreference = orbSizePreference
+        let savedResetDisplay = UserDefaults.standard.string(forKey: OrbResetDisplay.defaultsKey)
+        orbView.resetDisplay = savedResetDisplay.flatMap(OrbResetDisplay.init(rawValue:)) ?? .time
         orbView.onSelectProvider = { [weak self] provider in self?.switchProvider(to: provider) }
         orbView.onSelectRefreshCadence = { [weak self] cadence in self?.setRefreshCadence(cadence) }
         orbView.onRefresh = { [weak self] in
@@ -118,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.onPositionChanged = { [weak self] in self?.finishOrbDrag() }
         orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
         orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
+        orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
@@ -143,6 +147,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .kimiCode: startPollingClient(KimiQuotaClient())
         }
         scheduleRefreshTimer()
+        scheduleCountdownTimer()
+    }
+
+    private func setResetDisplay(_ mode: OrbResetDisplay) {
+        guard orbView.resetDisplay != mode else { return }
+        orbView.resetDisplay = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: OrbResetDisplay.defaultsKey)
+        scheduleCountdownTimer()
+    }
+
+    private func scheduleCountdownTimer() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        guard orbIsActive, orbView.resetDisplay == .countdown else { return }
+        let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
+            guard let self, self.orbView.state.snapshot != nil else { return }
+            self.orbView.needsDisplay = true
+        }
+        timer.tolerance = 1
+        countdownTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private func setRefreshCadence(_ cadence: QuotaRefreshCadence) {
@@ -265,6 +290,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbIsActive = false
         refreshTimer?.invalidate()
         refreshTimer = nil
+        countdownTimer?.invalidate()
+        countdownTimer = nil
         client?.stop()
         client = nil
         pollingClient?.stop()
