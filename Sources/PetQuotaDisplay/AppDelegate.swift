@@ -1,13 +1,16 @@
 import AppKit
+import QuotaCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
     private static let selectedAccountDefaultsKey = "quota.selectedAccount"
+    private static let selectedProviderDefaultsKey = "quota.selectedProvider"
     private static let refreshInterval: TimeInterval = 30
 
     private let orbSize = NSSize(width: 111, height: 111)
     private let followCodex: Bool
     private var client: CodexQuotaClient?
+    private var geminiClient: GeminiQuotaClient?
     private var window: NSWindow!
     private var orbView: QuotaOrbView!
     private var refreshTimer: Timer?
@@ -37,6 +40,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             accountStatuses[account] = .stored
         }
         createWindow()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(screenParametersDidChange(_:)),
+            name: NSApplication.didChangeScreenParametersNotification,
+            object: nil
+        )
 
         if followCodex {
             let notifications = NSWorkspace.shared.notificationCenter
@@ -67,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         cliMonitor?.stop()
         cliMonitor = nil
@@ -90,17 +100,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         orbView = QuotaOrbView(frame: NSRect(origin: .zero, size: orbSize))
         orbView.autoresizingMask = [.width, .height]
+        let savedProvider = UserDefaults.standard.string(forKey: Self.selectedProviderDefaultsKey)
+        orbView.provider = savedProvider.flatMap(QuotaProvider.init(rawValue:)) ?? .codex
+        orbView.onSelectProvider = { [weak self] provider in self?.switchProvider(to: provider) }
         orbView.onRefresh = { [weak self] in
             guard let self else { return }
-            guard let client = self.client else {
-                self.orbView.state = .failed("尚未添加额度账号，请右键添加")
-                return
-            }
-            self.orbView.state = .loading
-            client.refresh()
+            if self.client != nil { self.orbView.state.beginRefresh() }
+            self.refreshDisplayedQuota()
         }
         orbView.onQuit = { [weak self] in self?.quitOrHideOrb() }
-        orbView.onPositionChanged = { [weak self] in self?.saveWindowPosition() }
+        orbView.onPositionChanged = { [weak self] in self?.keepOrbOnScreen() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
@@ -111,8 +120,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startOrb() {
+        keepOrbOnScreen()
         window.orderFrontRegardless()
-        guard client == nil else { return }
+        guard refreshTimer == nil else { return }
+
+        switch orbView.provider {
+        case .codex: startCodexClient()
+        case .gemini: startGeminiClient()
+        }
+        guard client != nil || geminiClient != nil else { return }
+
+        let timer = Timer.scheduledTimer(withTimeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
+            self?.refreshDisplayedQuota()
+        }
+        refreshTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func startCodexClient() {
         guard let selectedAccount else {
             orbView.state = .failed("尚未添加额度账号，请右键添加")
             return
@@ -129,12 +154,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.state = .loading
         let clientAccount = selectedAccount
         let client = CodexQuotaClient(codexHome: codexHome)
+        client.onRefreshing = { [weak self, weak client] in
+            guard let self, let client, self.client === client else { return }
+            self.orbView.state.beginRefresh()
+        }
         client.onSnapshot = { [weak self, weak client] snapshot in
-            guard let self, self.client === client else { return }
+            guard let self, let client, self.client === client else { return }
             self.orbView.state = .loaded(snapshot)
         }
         client.onAccount = { [weak self, weak client] account in
-            guard let self, self.client === client else { return }
+            guard let self, let client, self.client === client else { return }
             self.accountStatuses[clientAccount] = account.map(CodexAccountStatus.signedIn) ?? .signedOut
             self.updateAccountMenuState()
             if account == nil {
@@ -143,15 +172,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         client.onLoginURL = { [weak self, weak client] url in
-            guard let self, self.client === client else { return }
+            guard let self, let client, self.client === client else { return }
             NSApp.activate(ignoringOtherApps: true)
             if !NSWorkspace.shared.open(url) {
                 self.orbView.state = .failed("无法打开 ChatGPT 登录页面")
             }
         }
         client.onError = { [weak self, weak client] error in
-            guard let self, self.client === client else { return }
-            self.orbView.state = .failed(error.localizedDescription)
+            guard let self, let client, self.client === client else { return }
+            self.orbView.state.recordFailure(error.localizedDescription)
         }
         self.client = client
         client.start()
@@ -161,12 +190,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             pendingLoginReplacesExisting = false
             client.loginWithChatGPT(replacingExisting: replacingExisting)
         }
+    }
 
-        let timer = Timer.scheduledTimer(withTimeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
-            self?.client?.refresh()
+    private func startGeminiClient() {
+        orbView.state = .loading
+        let client = GeminiQuotaClient()
+        client.onRefreshing = { [weak self] in self?.orbView.state.beginRefresh() }
+        client.onResult = { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let snapshot): self.orbView.state = .loaded(snapshot)
+            case .failure(let error): self.orbView.state.recordFailure(error.localizedDescription)
+            }
         }
-        refreshTimer = timer
-        RunLoop.main.add(timer, forMode: .common)
+        geminiClient = client
+        client.refresh()
+    }
+
+    private func refreshDisplayedQuota() {
+        if let client {
+            client.refresh()
+        } else if let geminiClient {
+            geminiClient.refresh()
+        } else {
+            startOrb()
+        }
     }
 
     private func stopOrb(hideWindow: Bool = true) {
@@ -174,9 +222,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshTimer = nil
         client?.stop()
         client = nil
+        geminiClient?.stop()
+        geminiClient = nil
         if hideWindow {
             window.orderOut(nil)
         }
+    }
+
+    private func switchProvider(to provider: QuotaProvider) {
+        guard orbView.provider != provider else { return }
+        stopOrb(hideWindow: false)
+        orbView.provider = provider
+        UserDefaults.standard.set(provider.rawValue, forKey: Self.selectedProviderDefaultsKey)
+        startOrb()
     }
 
     private func switchAccount(to account: CodexAccountSlot) {
@@ -325,9 +383,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 x: defaults.double(forKey: "orb.x"),
                 y: defaults.double(forKey: "orb.y")
             )
-            let savedFrame = NSRect(origin: point, size: orbSize)
-            if NSScreen.screens.contains(where: { $0.visibleFrame.intersects(savedFrame) }) {
-                return point
+            if point.x.isFinite, point.y.isFinite {
+                return OrbWindowPlacement.constrainedOrigin(
+                    point,
+                    size: orbSize,
+                    visibleFrames: NSScreen.screens.map(\.visibleFrame)
+                )
             }
         }
         let visible = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1_440, height: 900)
@@ -337,5 +398,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func saveWindowPosition() {
         UserDefaults.standard.set(window.frame.origin.x, forKey: "orb.x")
         UserDefaults.standard.set(window.frame.origin.y, forKey: "orb.y")
+    }
+
+    @objc private func screenParametersDidChange(_ notification: Notification) {
+        keepOrbOnScreen()
+    }
+
+    private func keepOrbOnScreen() {
+        guard let window else { return }
+        let origin = OrbWindowPlacement.constrainedOrigin(
+            window.frame.origin,
+            size: window.frame.size,
+            visibleFrames: NSScreen.screens.map(\.visibleFrame)
+        )
+        window.setFrameOrigin(origin)
+        saveWindowPosition()
     }
 }

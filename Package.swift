@@ -13,5 +13,10 @@ let package = Package(
         .target(name: "QuotaCore"),
         .executableTarget(name: "PetQuotaDisplay", dependencies: ["QuotaCore"]),
         .testTarget(name: "QuotaCoreTests", dependencies: ["QuotaCore"]),
+        .testTarget(
+            name: "PetQuotaDisplayTests",
+            dependencies: ["PetQuotaDisplay"],
+            resources: [.copy("Fixtures")]
+        ),
     ]
 )

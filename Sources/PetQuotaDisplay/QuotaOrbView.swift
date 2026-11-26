@@ -1,6 +1,17 @@
 import AppKit
 import QuotaCore
 
+enum QuotaProvider: String, CaseIterable {
+    case codex, gemini
+
+    var title: String {
+        switch self {
+        case .codex: return "Codex"
+        case .gemini: return "Gemini"
+        }
+    }
+}
+
 final class QuotaOrbView: NSView {
     private static let designDiameter: CGFloat = 148
     private static let displayedWindowDefaultsKey = "quota.displayedWindow"
@@ -17,21 +28,21 @@ final class QuotaOrbView: NSView {
         }
     }
 
-    enum State {
-        case loading
-        case loaded(QuotaSnapshot)
-        case failed(String)
-    }
-
-    var state: State = .loading {
+    var state: QuotaDisplayState = .loading {
         didSet {
             needsDisplay = true
             updateAccessibility()
         }
     }
+    var provider: QuotaProvider = .codex {
+        didSet {
+            if provider != oldValue { state = .loading }
+        }
+    }
     var onRefresh: (() -> Void)?
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
+    var onSelectProvider: ((QuotaProvider) -> Void)?
     var onSelectAccount: ((CodexAccountSlot) -> Void)?
     var onAddAccount: (() -> Void)?
     var onLoginAccount: ((CodexAccountSlot) -> Void)?
@@ -106,10 +117,10 @@ final class QuotaOrbView: NSView {
     }
 
     private var accentColor: NSColor {
-        guard case .loaded(let snapshot) = state else {
-            if case .failed = state {
-                return NSColor(calibratedRed: 0.36, green: 0.39, blue: 0.45, alpha: 1)
-            }
+        if state.errorMessage != nil {
+            return NSColor(calibratedRed: 0.36, green: 0.39, blue: 0.45, alpha: 1)
+        }
+        guard let snapshot = state.snapshot else {
             return NSColor(calibratedRed: 0.32, green: 0.37, blue: 0.48, alpha: 1)
         }
         let remaining = displayedQuota(in: snapshot)?.quota.remainingPercent ?? 0
@@ -129,7 +140,7 @@ final class QuotaOrbView: NSView {
         NSColor.white.withAlphaComponent(0.18).setStroke()
         background.stroke()
 
-        guard case .loaded(let snapshot) = state, let displayed = displayedQuota(in: snapshot) else { return }
+        guard let snapshot = state.snapshot, let displayed = displayedQuota(in: snapshot) else { return }
         let center = NSPoint(x: ringRect.midX, y: ringRect.midY)
         let progress = NSBezierPath()
         progress.appendArc(
@@ -150,15 +161,27 @@ final class QuotaOrbView: NSView {
         case .loading:
             drawCentered("正在同步", y: 34, font: .systemFont(ofSize: 12, weight: .medium), alpha: 0.82)
             drawCentered("•••", y: 53, font: .systemFont(ofSize: 30, weight: .bold), alpha: 1)
-            drawCentered("连接 Codex", y: 99, font: .systemFont(ofSize: 11, weight: .medium), alpha: 0.78)
+            drawCentered("连接 \(provider.title)", y: 99, font: .systemFont(ofSize: 11, weight: .medium), alpha: 0.78)
         case .failed:
-            drawCentered("额度暂不可用", y: 34, font: .systemFont(ofSize: 12, weight: .medium), alpha: 0.82)
+            let title = provider == .gemini ? "Gemini 暂不可用" : "额度暂不可用"
+            drawCentered(title, y: 34, font: .systemFont(ofSize: 12, weight: .medium), alpha: 0.82)
             drawCentered("—", y: 51, font: .systemFont(ofSize: 35, weight: .bold), alpha: 1)
             drawCentered("单击重试", y: 100, font: .systemFont(ofSize: 11, weight: .medium), alpha: 0.78)
-        case .loaded(let snapshot):
+        case .loaded(let snapshot), .refreshing(let snapshot), .stale(let snapshot, _):
             guard let displayed = displayedQuota(in: snapshot) else { return }
+            let title: String
+            if provider == .gemini {
+                let status = state.errorMessage != nil ? "上次\(displayed.title)" : displayed.title
+                title = "Gemini · \(status)"
+            } else if state.errorMessage != nil {
+                title = "上次\(displayed.title)额度"
+            } else if state.isRefreshing {
+                title = "\(displayed.title) · 同步中"
+            } else {
+                title = "\(displayed.title)额度"
+            }
             drawCentered(
-                "\(displayed.title)额度",
+                title,
                 y: 28,
                 font: .systemFont(ofSize: 11, weight: .medium),
                 alpha: 0.82
@@ -221,11 +244,80 @@ final class QuotaOrbView: NSView {
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
-        let menu = NSMenu(title: "Codex Token 额度")
+        let menu = NSMenu(title: "\(provider.title) 额度")
+        menu.autoenablesItems = false
         let refresh = NSMenuItem(title: "立即刷新", action: #selector(refreshFromMenu), keyEquivalent: "r")
         refresh.target = self
+        refresh.isEnabled = !state.isRefreshing
         menu.addItem(refresh)
 
+        let sourceItem = NSMenuItem(title: "切换额度来源", action: nil, keyEquivalent: "")
+        let sourceMenu = NSMenu(title: sourceItem.title)
+        for source in QuotaProvider.allCases {
+            let item = NSMenuItem(title: source.title, action: #selector(selectProvider(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = source.rawValue
+            item.state = source == provider ? .on : .off
+            sourceMenu.addItem(item)
+        }
+        sourceItem.submenu = sourceMenu
+        menu.addItem(sourceItem)
+        if provider == .codex {
+            menu.addItem(accountMenuItem())
+        }
+        menu.addItem(.separator())
+
+        let loadedSnapshot = state.snapshot
+        let effectiveWindow = loadedSnapshot.map(resolvedWindow) ?? displayedWindow
+
+        let fiveHour = NSMenuItem(title: "展示 5 小时额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: "")
+        fiveHour.target = self
+        fiveHour.representedObject = DisplayedWindow.fiveHour.rawValue
+        fiveHour.state = effectiveWindow == .fiveHour ? .on : .off
+        fiveHour.isEnabled = loadedSnapshot?.fiveHour != nil
+        menu.addItem(fiveHour)
+
+        let weekly = NSMenuItem(title: "展示本周额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: "")
+        weekly.target = self
+        weekly.representedObject = DisplayedWindow.weekly.rawValue
+        weekly.state = effectiveWindow == .weekly ? .on : .off
+        weekly.isEnabled = loadedSnapshot?.weekly != nil
+        menu.addItem(weekly)
+        menu.addItem(.separator())
+
+        if let snapshot = loadedSnapshot, let displayed = displayedQuota(in: snapshot) {
+            let reset = displayed.quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知"
+            let detail = NSMenuItem(
+                title: "\(displayed.title)额度：剩余 \(displayed.quota.remainingPercent)% · \(reset) 重置",
+                action: nil,
+                keyEquivalent: ""
+            )
+            detail.isEnabled = false
+            menu.addItem(detail)
+            let updated = NSMenuItem(
+                title: "最后更新：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))",
+                action: nil,
+                keyEquivalent: ""
+            )
+            updated.isEnabled = false
+            menu.addItem(updated)
+            menu.addItem(.separator())
+        }
+        if let message = state.errorMessage {
+            let title = loadedSnapshot == nil ? message : "刷新失败（显示上次数据）：\(message)"
+            let detail = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            detail.isEnabled = false
+            menu.addItem(detail)
+            menu.addItem(.separator())
+        }
+
+        let quit = NSMenuItem(title: quitMenuTitle, action: #selector(quitFromMenu), keyEquivalent: "q")
+        quit.target = self
+        menu.addItem(quit)
+        return menu
+    }
+
+    private func accountMenuItem() -> NSMenuItem {
         let accountItem = NSMenuItem(title: "切换额度账号", action: nil, keyEquivalent: "")
         let accountMenu = NSMenu(title: "切换额度账号")
         for slot in accounts {
@@ -281,52 +373,17 @@ final class QuotaOrbView: NSView {
             accountMenu.addItem(deleteItem)
         }
         accountItem.submenu = accountMenu
-        menu.addItem(accountItem)
-        menu.addItem(.separator())
-
-        var loadedSnapshot: QuotaSnapshot?
-        if case .loaded(let snapshot) = state { loadedSnapshot = snapshot }
-
-        let fiveHour = NSMenuItem(title: "展示 5 小时额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: "")
-        fiveHour.target = self
-        fiveHour.representedObject = DisplayedWindow.fiveHour.rawValue
-        fiveHour.state = displayedWindow == .fiveHour ? .on : .off
-        fiveHour.isEnabled = loadedSnapshot?.fiveHour != nil
-        menu.addItem(fiveHour)
-
-        let weekly = NSMenuItem(title: "展示本周额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: "")
-        weekly.target = self
-        weekly.representedObject = DisplayedWindow.weekly.rawValue
-        weekly.state = displayedWindow == .weekly ? .on : .off
-        weekly.isEnabled = loadedSnapshot?.weekly != nil
-        menu.addItem(weekly)
-        menu.addItem(.separator())
-
-        if let snapshot = loadedSnapshot, let displayed = displayedQuota(in: snapshot) {
-            let reset = displayed.quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知"
-            let detail = NSMenuItem(
-                title: "\(displayed.title)额度：剩余 \(displayed.quota.remainingPercent)% · \(reset) 重置",
-                action: nil,
-                keyEquivalent: ""
-            )
-            detail.isEnabled = false
-            menu.addItem(detail)
-            menu.addItem(.separator())
-        } else if case .failed(let message) = state {
-            let detail = NSMenuItem(title: message, action: nil, keyEquivalent: "")
-            detail.isEnabled = false
-            menu.addItem(detail)
-            menu.addItem(.separator())
-        }
-
-        let quit = NSMenuItem(title: quitMenuTitle, action: #selector(quitFromMenu), keyEquivalent: "q")
-        quit.target = self
-        menu.addItem(quit)
-        return menu
+        return accountItem
     }
 
     @objc private func refreshFromMenu() { onRefresh?() }
     @objc private func quitFromMenu() { onQuit?() }
+
+    @objc private func selectProvider(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let provider = QuotaProvider(rawValue: rawValue) else { return }
+        onSelectProvider?(provider)
+    }
 
     @objc private func selectAccount(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
@@ -357,14 +414,19 @@ final class QuotaOrbView: NSView {
     }
 
     /// Falls back to whichever window the current plan actually publishes.
-    private func displayedQuota(in snapshot: QuotaSnapshot) -> (title: String, quota: QuotaWindow)? {
+    private func resolvedWindow(in snapshot: QuotaSnapshot) -> DisplayedWindow {
         switch displayedWindow {
+        case .fiveHour: return snapshot.fiveHour != nil ? .fiveHour : .weekly
+        case .weekly: return snapshot.weekly != nil ? .weekly : .fiveHour
+        }
+    }
+
+    private func displayedQuota(in snapshot: QuotaSnapshot) -> (title: String, quota: QuotaWindow)? {
+        switch resolvedWindow(in: snapshot) {
         case .fiveHour:
             if let fiveHour = snapshot.fiveHour { return (DisplayedWindow.fiveHour.title, fiveHour) }
-            if let weekly = snapshot.weekly { return (DisplayedWindow.weekly.title, weekly) }
         case .weekly:
             if let weekly = snapshot.weekly { return (DisplayedWindow.weekly.title, weekly) }
-            if let fiveHour = snapshot.fiveHour { return (DisplayedWindow.fiveHour.title, fiveHour) }
         }
         return nil
     }
@@ -391,22 +453,29 @@ final class QuotaOrbView: NSView {
     }
 
     private func updateAccessibility() {
-        let description: String
+        var description: String
         switch state {
         case .loading:
-            description = "Codex Token 额度正在同步"
+            description = "\(provider.title) 额度正在同步"
         case .failed(let message):
-            description = "Codex Token 额度不可用，\(message)"
-        case .loaded(let snapshot):
+            description = "\(provider.title) 额度不可用，\(message)"
+        case .loaded(let snapshot), .refreshing(let snapshot), .stale(let snapshot, _):
             if let displayed = displayedQuota(in: snapshot) {
                 let reset = displayed.quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知时间"
-                description = "Codex \(displayed.title)额度剩余 \(displayed.quota.remainingPercent)%，\(reset) 重置"
+                description = "\(provider.title) \(displayed.title)额度剩余 \(displayed.quota.remainingPercent)%，\(reset) 重置"
             } else {
-                description = "Codex 额度已同步"
+                description = "\(provider.title) 额度已同步"
+            }
+            description += "；最后更新：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))"
+            if let message = state.errorMessage {
+                description += "；刷新失败，显示上次数据：\(message)"
+            } else if state.isRefreshing {
+                description += "；正在刷新，显示上次数据"
             }
         }
+        toolTip = description
         setAccessibilityLabel(description)
-        setAccessibilityHelp("可拖动悬浮球；单击刷新；右键切换账号、5 小时或本周额度")
+        setAccessibilityHelp("可拖动悬浮球，单击刷新，右键切换额度来源或周期")
     }
 
     private static let shortDateFormatter: DateFormatter = {

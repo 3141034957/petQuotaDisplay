@@ -1,0 +1,55 @@
+import XCTest
+@testable import QuotaCore
+
+final class OrbWindowPlacementTests: XCTestCase {
+    private let size = CGSize(width: 111, height: 111)
+    private let screen = CGRect(x: 0, y: 30, width: 1440, height: 850)
+
+    func testKeepsFullyVisiblePosition() {
+        let origin = CGPoint(x: 800, y: 200)
+        XCTAssertEqual(place(origin, screens: [screen]), origin)
+    }
+
+    func testClampsPartiallyVisibleOrbInsideUsableScreen() {
+        XCTAssertEqual(
+            place(CGPoint(x: 1430, y: 10), screens: [screen]),
+            CGPoint(x: 1329, y: 30)
+        )
+    }
+
+    func testDisconnectedDisplayMovesOrbToRemainingScreen() {
+        XCTAssertEqual(
+            place(CGPoint(x: 2000, y: 400), screens: [screen]),
+            CGPoint(x: 1329, y: 400)
+        )
+    }
+
+    func testChoosesNearestScreenIncludingNegativeCoordinates() {
+        let left = CGRect(x: -1920, y: -200, width: 1920, height: 1080)
+        XCTAssertEqual(
+            place(CGPoint(x: -50, y: 400), screens: [screen, left]),
+            CGPoint(x: 0, y: 400)
+        )
+        XCTAssertEqual(
+            place(CGPoint(x: -90, y: 400), screens: [screen, left]),
+            CGPoint(x: -111, y: 400)
+        )
+        XCTAssertEqual(
+            place(CGPoint(x: -1800, y: -150), screens: [screen, left]),
+            CGPoint(x: -1800, y: -150)
+        )
+    }
+
+    func testMissingOrUndersizedScreenDoesNotProduceInvalidCoordinates() {
+        let origin = CGPoint(x: 500, y: 500)
+        XCTAssertEqual(place(origin, screens: []), origin)
+        XCTAssertEqual(
+            place(origin, screens: [CGRect(x: 20, y: 30, width: 80, height: 80)]),
+            CGPoint(x: 20, y: 30)
+        )
+    }
+
+    private func place(_ origin: CGPoint, screens: [CGRect]) -> CGPoint {
+        OrbWindowPlacement.constrainedOrigin(origin, size: size, visibleFrames: screens)
+    }
+}

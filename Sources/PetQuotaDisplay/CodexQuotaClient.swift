@@ -6,6 +6,7 @@ final class CodexQuotaClient {
         case codexNotFound
         case processStopped(String)
         case malformedResponse
+        case initializationTimedOut
         case requestTimedOut
         case loginFailed(String)
         case server(String)
@@ -18,8 +19,10 @@ final class CodexQuotaClient {
                 return detail.isEmpty ? "Codex 服务已停止" : detail
             case .malformedResponse:
                 return "Codex 返回了无法识别的数据"
+            case .initializationTimedOut:
+                return "Codex 服务初始化超时，正在重连"
             case .requestTimedOut:
-                return "Codex 额度请求超时"
+                return "Codex 额度请求超时，正在重连"
             case .loginFailed(let detail):
                 return detail.isEmpty ? "ChatGPT 登录失败" : "ChatGPT 登录失败：\(detail)"
             case .server(let message):
@@ -28,12 +31,14 @@ final class CodexQuotaClient {
         }
     }
 
+    var onRefreshing: (() -> Void)?
     var onSnapshot: ((QuotaSnapshot) -> Void)?
     var onAccount: ((CodexAccountSummary?) -> Void)?
     var onLoginURL: ((URL) -> Void)?
     var onError: ((Error) -> Void)?
 
     private enum PendingRequest {
+        case initialize
         case accountRead
         case rateLimits
         case loginStart
@@ -42,6 +47,9 @@ final class CodexQuotaClient {
 
     private let queue = DispatchQueue(label: "com.petquotadisplay.codex-client")
     private let codexHome: URL?
+    private let launchOverride: (executable: String, arguments: [String])?
+    private let requestTimeout: TimeInterval
+    private let restartDelay: TimeInterval
     private var process: Process?
     private var input: FileHandle?
     private var outputBuffer = Data()
@@ -50,7 +58,6 @@ final class CodexQuotaClient {
     private let maximumProtocolBufferBytes = 1_024 * 1_024
     private var initialized = false
     private var nextRequestID = 1
-    private var initializeRequestID: Int?
     private var pendingRequests: [Int: PendingRequest] = [:]
     private var pendingTimeouts: [Int: DispatchWorkItem] = [:]
     private var restartWorkItem: DispatchWorkItem?
@@ -58,8 +65,16 @@ final class CodexQuotaClient {
     private var loginWhenInitialized = false
     private var replaceLoginWhenInitialized = false
 
-    init(codexHome: URL? = nil) {
+    init(
+        codexHome: URL? = nil,
+        launchOverride: (executable: String, arguments: [String])? = nil,
+        requestTimeout: TimeInterval = 20,
+        restartDelay: TimeInterval = 5
+    ) {
         self.codexHome = codexHome
+        self.launchOverride = launchOverride
+        self.requestTimeout = requestTimeout
+        self.restartDelay = restartDelay
     }
 
     func start() {
@@ -94,20 +109,19 @@ final class CodexQuotaClient {
         queue.sync {
             isStopping = true
             restartWorkItem?.cancel()
-            process?.terminationHandler = nil
-            process?.terminate()
+            restartWorkItem = nil
             cleanupLocked()
         }
     }
 
     private func startLocked() {
         guard process?.isRunning != true, !isStopping else { return }
-        let launch = Self.resolveCodexLaunch()
+        restartWorkItem?.cancel()
+        restartWorkItem = nil
+        cleanupLocked()
+        let launch = launchOverride ?? Self.resolveCodexLaunch()
 
-        initialized = false
-        outputBuffer.removeAll(keepingCapacity: true)
         errorBuffer.removeAll(keepingCapacity: true)
-        cancelPendingReadsLocked()
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launch.executable)
@@ -131,29 +145,41 @@ final class CodexQuotaClient {
         process.standardError = stderr
         input = stdin.fileHandleForWriting
 
-        stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        stdout.fileHandleForReading.readabilityHandler = { [weak self, weak process] handle in
             let data = handle.availableData
-            guard !data.isEmpty else { return }
-            self?.queue.async { self?.consumeOutputLocked(data) }
+            guard !data.isEmpty else {
+                handle.readabilityHandler = nil
+                return
+            }
+            self?.queue.async { [weak self, weak process] in
+                guard let self, let process, self.process === process else { return }
+                self.consumeOutputLocked(data)
+            }
         }
-        stderr.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        stderr.fileHandleForReading.readabilityHandler = { [weak self, weak process] handle in
             let data = handle.availableData
-            guard !data.isEmpty else { return }
-            self?.queue.async { self?.appendErrorLocked(data) }
+            guard !data.isEmpty else {
+                handle.readabilityHandler = nil
+                return
+            }
+            self?.queue.async { [weak self, weak process] in
+                guard let self, let process, self.process === process else { return }
+                self.appendErrorLocked(data)
+            }
         }
         process.terminationHandler = { [weak self] stopped in
-            self?.queue.async { self?.processTerminatedLocked(status: stopped.terminationStatus) }
+            self?.queue.async { [weak self] in
+                guard let self, self.process === stopped else { return }
+                self.processTerminatedLocked(status: stopped.terminationStatus)
+            }
         }
 
+        self.process = process
         do {
             try process.run()
-            self.process = process
-            let initializeID = nextIDLocked()
-            initializeRequestID = initializeID
-            sendLocked([
-                "id": initializeID,
-                "method": "initialize",
-                "params": [
+            sendRequestLocked(
+                method: "initialize",
+                params: [
                     "clientInfo": [
                         "name": "pet-quota-display",
                         "title": "Codex 周额度悬浮球",
@@ -161,7 +187,8 @@ final class CodexQuotaClient {
                     ],
                     "capabilities": ["experimentalApi": true],
                 ],
-            ])
+                kind: .initialize
+            )
         } catch {
             cleanupLocked()
             if (error as NSError).code == NSFileNoSuchFileError {
@@ -176,8 +203,7 @@ final class CodexQuotaClient {
     private func consumeOutputLocked(_ data: Data) {
         outputBuffer.append(data)
         guard outputBuffer.count <= maximumProtocolBufferBytes else {
-            outputBuffer.removeAll(keepingCapacity: false)
-            emit(error: ClientError.malformedResponse)
+            restartAfterFailureLocked(ClientError.malformedResponse)
             return
         }
         let newline = Data([0x0A])
@@ -207,35 +233,36 @@ final class CodexQuotaClient {
         }
 
         guard let id = Self.integer(object["id"]) else { return }
-        if !initialized, id == initializeRequestID {
-            if let error = object["error"] as? [String: Any] {
-                emit(error: ClientError.server(Self.serverMessage(error)))
-                return
+        guard let request = pendingRequests.removeValue(forKey: id) else { return }
+        let timeout = pendingTimeouts.removeValue(forKey: id)
+        timeout?.cancel()
+        if let error = object["error"] as? [String: Any] {
+            let failure = ClientError.server(Self.serverMessage(error))
+            if case .initialize = request {
+                restartAfterFailureLocked(failure)
+            } else {
+                emit(error: failure)
             }
+            return
+        }
+        guard let result = object["result"] as? [String: Any] else {
+            if case .initialize = request {
+                restartAfterFailureLocked(ClientError.malformedResponse)
+            } else {
+                emit(error: ClientError.malformedResponse)
+            }
+            return
+        }
+
+        switch request {
+        case .initialize:
+            guard sendLocked(["method": "initialized"]) else { return }
             initialized = true
-            initializeRequestID = nil
-            sendLocked(["method": "initialized"])
             if loginWhenInitialized {
                 beginRequestedLoginLocked()
             } else {
                 requestAccountLocked()
             }
-            return
-        }
-
-        guard let request = pendingRequests.removeValue(forKey: id) else { return }
-        let timeout = pendingTimeouts.removeValue(forKey: id)
-        timeout?.cancel()
-        if let error = object["error"] as? [String: Any] {
-            emit(error: ClientError.server(Self.serverMessage(error)))
-            return
-        }
-        guard let result = object["result"] as? [String: Any] else {
-            emit(error: ClientError.malformedResponse)
-            return
-        }
-
-        switch request {
         case .accountRead:
             let account = CodexAccountParser.parse(result: result)
             emit(account: account)
@@ -267,6 +294,7 @@ final class CodexQuotaClient {
                   if case .accountRead = request { return true }
                   return false
               }) else { return }
+        DispatchQueue.main.async { [weak self] in self?.onRefreshing?() }
         sendRequestLocked(method: "account/read", params: ["refreshToken": true], kind: .accountRead)
     }
 
@@ -318,18 +346,24 @@ final class CodexQuotaClient {
         method: String,
         params: Any,
         kind: PendingRequest,
-        timeoutSeconds: TimeInterval = 20
+        timeoutSeconds: TimeInterval? = nil
     ) {
         let id = nextIDLocked()
         let timeout = DispatchWorkItem { [weak self] in
             guard let self,
                   self.pendingRequests.removeValue(forKey: id) != nil else { return }
             self.pendingTimeouts.removeValue(forKey: id)
-            self.emit(error: ClientError.requestTimedOut)
+            let error: ClientError
+            if case .initialize = kind {
+                error = .initializationTimedOut
+            } else {
+                error = .requestTimedOut
+            }
+            self.restartAfterFailureLocked(error)
         }
         pendingRequests[id] = kind
         pendingTimeouts[id] = timeout
-        queue.asyncAfter(deadline: .now() + timeoutSeconds, execute: timeout)
+        queue.asyncAfter(deadline: .now() + (timeoutSeconds ?? requestTimeout), execute: timeout)
         sendLocked(["id": id, "method": method, "params": params])
     }
 
@@ -341,14 +375,21 @@ final class CodexQuotaClient {
         }
     }
 
-    private func sendLocked(_ object: [String: Any]) {
+    @discardableResult
+    private func sendLocked(_ object: [String: Any]) -> Bool {
         guard JSONSerialization.isValidJSONObject(object),
-              var data = try? JSONSerialization.data(withJSONObject: object) else { return }
+              var data = try? JSONSerialization.data(withJSONObject: object),
+              let input else {
+            restartAfterFailureLocked(ClientError.malformedResponse)
+            return false
+        }
         data.append(0x0A)
         do {
-            try input?.write(contentsOf: data)
+            try input.write(contentsOf: data)
+            return true
         } catch {
-            emit(error: error)
+            restartAfterFailureLocked(error)
+            return false
         }
     }
 
@@ -358,9 +399,14 @@ final class CodexQuotaClient {
             .split(separator: "\n")
             .last
             .map(String.init) ?? ""
-        cleanupLocked()
         let message = detail.isEmpty ? "Codex 服务退出（\(status)）" : detail
-        emit(error: ClientError.processStopped(message))
+        restartAfterFailureLocked(ClientError.processStopped(message))
+    }
+
+    private func restartAfterFailureLocked(_ error: Error) {
+        cleanupLocked()
+        guard !isStopping else { return }
+        emit(error: error)
         scheduleRestartLocked()
     }
 
@@ -368,10 +414,11 @@ final class CodexQuotaClient {
         restartWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in self?.startLocked() }
         restartWorkItem = item
-        queue.asyncAfter(deadline: .now() + 5, execute: item)
+        queue.asyncAfter(deadline: .now() + restartDelay, execute: item)
     }
 
     private func cleanupLocked() {
+        process?.terminationHandler = nil
         if let stdout = process?.standardOutput as? Pipe {
             stdout.fileHandleForReading.readabilityHandler = nil
         }
@@ -380,13 +427,16 @@ final class CodexQuotaClient {
         }
         try? input?.close()
         input = nil
+        if process?.isRunning == true {
+            process?.terminate()
+        }
         process = nil
         initialized = false
-        initializeRequestID = nil
-        cancelPendingReadsLocked()
+        outputBuffer.removeAll(keepingCapacity: false)
+        cancelPendingRequestsLocked()
     }
 
-    private func cancelPendingReadsLocked() {
+    private func cancelPendingRequestsLocked() {
         for timeout in pendingTimeouts.values {
             timeout.cancel()
         }
