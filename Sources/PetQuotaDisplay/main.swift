@@ -138,7 +138,7 @@ case _ where arguments.first == "--query":
     } catch let interruption as QuotaQuery.Interrupted {
         exit(interruption.exitStatus)
     } catch {
-        FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
+        FileHandle.standardError.write(Data("\(QuotaQuery.publicErrorDescription(error))\n".utf8))
         exit(1)
     }
 case ["-h"], ["--help"]:

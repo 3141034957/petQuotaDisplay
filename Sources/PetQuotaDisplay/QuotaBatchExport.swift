@@ -14,11 +14,7 @@ struct QuotaBatchExport: Encodable {
                 error = nil
             case .failure(let failure):
                 quota = nil
-                switch failure as? CodexQuotaClient.ClientError {
-                case .processStopped: error = "Codex 服务已停止"
-                case .server: error = "Codex 服务无法返回额度"
-                default: error = failure.localizedDescription
-                }
+                error = QuotaQuery.publicErrorDescription(failure)
             }
         }
     }

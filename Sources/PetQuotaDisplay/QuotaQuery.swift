@@ -10,6 +10,15 @@ enum QuotaQuery {
         var exitStatus: Int32 { 128 + signal }
     }
 
+    static func publicErrorDescription(_ error: Error) -> String {
+        switch error as? CodexQuotaClient.ClientError {
+        case .processStopped: return "Codex 服务已停止"
+        case .server: return "Codex 服务无法返回额度"
+        case .loginFailed: return "ChatGPT 登录失败"
+        default: return error.localizedDescription
+        }
+    }
+
     static func snapshot(from provider: QuotaProvider, timeout: TimeInterval, modelID: String? = nil,
                          accountSelector: String? = nil) throws -> QuotaExport {
         try waitForResult(timeout: timeout) { complete in

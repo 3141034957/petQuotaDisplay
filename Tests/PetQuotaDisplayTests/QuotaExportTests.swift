@@ -47,6 +47,8 @@ final class QuotaExportTests: XCTestCase {
         let report = try partial.render(as: .json)
         XCTAssertTrue(report.contains("Codex 服务无法返回额度"))
         XCTAssertFalse(report.contains("server details"))
+        XCTAssertEqual(QuotaQuery.publicErrorDescription(CodexQuotaClient.ClientError.processStopped("process details")),
+                       "Codex 服务已停止")
         XCTAssertEqual(try partial.render(as: .csv), """
         provider,codexLimitID,status,fetchedAt,period,remainingPercent,resetsAt,error
         codex,,,,,,,Codex 服务无法返回额度
