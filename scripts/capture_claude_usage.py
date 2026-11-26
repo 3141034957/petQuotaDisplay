@@ -9,6 +9,7 @@ from tempfile import NamedTemporaryFile
 import time
 
 MAX_STATUS_LINE_BYTES = 1024 * 1024
+MAX_CLOCK_SKEW_SECONDS = 60
 
 
 def extract_bucket(bucket):
@@ -36,7 +37,7 @@ def save_snapshot(directory, snapshot):
         except (OSError, ValueError, RecursionError):
             previous = None
         previous_time = previous.get("capturedAt") if isinstance(previous, dict) else None
-        if type(previous_time) in (int, float) and snapshot["capturedAt"] <= previous_time <= 253402300799:
+        if type(previous_time) in (int, float) and snapshot["capturedAt"] <= previous_time <= time.time() + MAX_CLOCK_SKEW_SECONDS:
             return
 
         temporary_path = None

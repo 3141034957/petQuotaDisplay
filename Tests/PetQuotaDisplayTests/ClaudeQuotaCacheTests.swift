@@ -35,6 +35,14 @@ final class ClaudeQuotaCacheTests: XCTestCase {
         XCTAssertThrowsError(try ClaudeQuotaCache.parse(Data(#"{"capturedAt":100}"#.utf8)))
     }
 
+    func testCacheAllowsSmallClockSkewButRejectsFarFutureCaptures() throws {
+        let slightlyBehind = try ClaudeQuotaCache.parse(report, now: Date(timeIntervalSince1970: 40))
+        XCTAssertNil(slightlyBehind.errorMessage)
+        XCTAssertThrowsError(try ClaudeQuotaCache.parse(report, now: Date(timeIntervalSince1970: 39))) {
+            XCTAssertTrue($0.localizedDescription.contains("晚于本机时间"))
+        }
+    }
+
     func testMissingResetTimeExpiresAfterTheWindowDuration() throws {
         let data = Data(#"{"capturedAt":100,"fiveHour":{"usedPercentage":20},"sevenDay":{"usedPercentage":30,"resetsAt":0}}"#.utf8)
         let afterFiveHours = try ClaudeQuotaCache.parse(data, now: Date(timeIntervalSince1970: 100 + 5 * 3_600))

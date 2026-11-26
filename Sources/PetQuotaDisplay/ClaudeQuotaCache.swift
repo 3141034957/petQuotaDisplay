@@ -4,6 +4,7 @@ import QuotaCore
 enum ClaudeQuotaCache {
     private static let url = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Caches/PetQuotaDisplay/claude-usage.json")
+    private static let maximumClockSkew: TimeInterval = 60
 
     static func read() throws -> QuotaDisplayState {
         let data: Data
@@ -21,6 +22,7 @@ enum ClaudeQuotaCache {
             throw Failure.invalidSnapshot
         }
         let fetchedAt = Date(timeIntervalSince1970: report.capturedAt)
+        guard fetchedAt <= now.addingTimeInterval(maximumClockSkew) else { throw Failure.futureSnapshot }
         let fiveHour = report.fiveHour?.quota
         let weekly = report.sevenDay?.quota
         guard fiveHour != nil || weekly != nil else { throw Failure.invalidSnapshot }
@@ -42,12 +44,13 @@ enum ClaudeQuotaCache {
     }
 
     private enum Failure: LocalizedError {
-        case noSnapshot, invalidSnapshot
+        case noSnapshot, invalidSnapshot, futureSnapshot
 
         var errorDescription: String? {
             switch self {
             case .noSnapshot: return "等待 Claude Code 状态栏数据。请按 README 接入后进行一次正常对话"
             case .invalidSnapshot: return "Claude Code 状态栏额度数据无法识别"
+            case .futureSnapshot: return "Claude Code 额度采集时间晚于本机时间，等待新的状态栏数据"
             }
         }
     }
