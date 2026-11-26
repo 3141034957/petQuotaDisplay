@@ -37,9 +37,9 @@ struct QuotaQueryOptions {
     init(arguments: [String], purpose: Purpose = .live) throws {
         var arguments = arguments[...]
         var seen = Set<Option>()
+        let historyOptions: Set<Option> = [.provider, .account, .period, .since, .until, .format]
         while let argument = arguments.popFirst() {
             guard let option = Option(rawValue: argument) else { throw Failure.unknownOption }
-            let historyOptions: Set<Option> = [.provider, .account, .period, .since, .until]
             if purpose == .savedHistory, !historyOptions.contains(option) {
                 throw Failure.unsupportedHistoryOption
             }
@@ -100,7 +100,7 @@ struct QuotaQueryOptions {
             case .unknownOption: return "--query 接受 \(Option.allCases.map(\.rawValue).joined(separator: "、")) 选项。"
             case .invalidValue(let option): return "请为 \(option.rawValue) 指定一个有效的值。"
             case .incompatibleModelList: return "模型列表仅支持 Codex 来源、账号、超时和输出格式选项。"
-            case .unsupportedHistoryOption: return "--history 接受 --provider、--account、--period、--since 和 --until 选项。"
+            case .unsupportedHistoryOption: return "--history 不支持该选项。"
             case .dateOnlyForHistory: return "--since 和 --until 仅适用于历史查询。"
             case .invalidDateRange: return "历史查询的起始时间不能晚于结束时间。"
             }

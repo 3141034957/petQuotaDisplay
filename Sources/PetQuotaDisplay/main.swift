@@ -17,7 +17,7 @@ let usage = """
   --diagnose      在终端检查各额度来源的本机配置
   --query         在终端读取一次额度并输出 JSON
   --timeout       单次查询等待秒数，默认 65 秒
-  --format        终端查询格式：\(QuotaExport.Format.allCases.map(\.rawValue).joined(separator: ", "))，默认 json
+  --format        查询及历史输出格式：\(QuotaExport.Format.allCases.map(\.rawValue).joined(separator: ", "))，默认 json
   --fail-below    输出周期的余量低于指定百分比时，退出码为 2
   --require-fresh  结果已过期时，退出码为 3
   --model         查询指定标识的 Codex 模型额度
@@ -64,7 +64,7 @@ case _ where arguments.first == "--history":
         exit(64)
     }
     do {
-        print(try QuotaOutput.json(QuotaHistoryCommand.read(options: options)))
+        print(try QuotaHistoryCommand.read(options: options).render(as: options.format))
         exit(0)
     } catch {
         FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))

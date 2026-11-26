@@ -38,13 +38,12 @@ struct QuotaHistorySeries {
     }
 
     func csv(provider: QuotaProvider, period: QuotaPeriod) -> String {
-        let fields = ["provider", "period", "fetchedAt", "remainingPercent", "resetsAt"]
         let formatter = ISO8601DateFormatter()
         let rows = points.map { point in
             [provider.rawValue, period.rawValue, formatter.string(from: point.time),
              String(point.remainingPercent), point.resetsAt.map(formatter.string(from:)) ?? ""]
         }
-        return QuotaOutput.csv([fields] + rows)
+        return QuotaOutput.csv([QuotaHistoryExport.csvColumns] + rows)
     }
 
     let points: [Point]

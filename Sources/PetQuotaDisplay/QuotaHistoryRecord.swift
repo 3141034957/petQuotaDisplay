@@ -46,6 +46,7 @@ struct QuotaHistoryRecord: Codable {
 }
 
 struct QuotaHistoryExport: Encodable {
+    static let csvColumns = ["provider", "period", "fetchedAt", "remainingPercent", "resetsAt"]
     let schemaVersion = 1
     let provider: String
     let readings: [QuotaHistoryRecord]
@@ -53,5 +54,32 @@ struct QuotaHistoryExport: Encodable {
     init(provider: QuotaProvider, snapshots: [QuotaSnapshot], selecting period: String? = nil) {
         self.provider = provider.rawValue
         readings = snapshots.map { QuotaHistoryRecord($0, selecting: period) }.filter { !$0.periods.isEmpty }
+    }
+
+    func render(as format: QuotaExport.Format) throws -> String {
+        let formatter = ISO8601DateFormatter()
+        switch format {
+        case .json:
+            return try QuotaOutput.json(self)
+        case .text:
+            let title = QuotaProvider(rawValue: provider)?.title ?? provider
+            guard !readings.isEmpty else { return "\(title) · 暂无保存记录" }
+            let lines = readings.map { reading in
+                let periods = reading.periods.map { item in
+                    let period = QuotaPeriod(rawValue: item.id)?.title ?? item.id
+                    return "\(period)剩余 \(item.remainingPercent)%"
+                }
+                return ([formatter.string(from: reading.fetchedAt)] + periods).joined(separator: " · ")
+            }
+            return (["\(title) · 额度历史"] + lines).joined(separator: "\n")
+        case .csv:
+            let rows = readings.flatMap { reading in
+                reading.periods.map { item in
+                    [provider, item.id, formatter.string(from: reading.fetchedAt), String(item.remainingPercent),
+                     item.resetsAt.map(formatter.string(from:)) ?? ""]
+                }
+            }
+            return QuotaOutput.csv([Self.csvColumns] + rows)
+        }
     }
 }

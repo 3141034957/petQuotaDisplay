@@ -19,6 +19,8 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         let exported = try archive.export(for: context)
         XCTAssertEqual(exported.provider, "gemini")
         XCTAssertEqual(exported.readings.first?.snapshot, original)
+        XCTAssertTrue(try exported.render(as: .text).contains("本周剩余 80%"))
+        XCTAssertTrue(try exported.render(as: .csv).contains("gemini,weekly,1970-01-01T00:01:40Z,80,"))
         XCTAssertEqual(try archive.export(for: context, selecting: "lowestRemaining").readings.first?.periods.first?.id, "weekly")
         XCTAssertTrue(try archive.export(for: context, selecting: "monthly").readings.isEmpty)
         XCTAssertEqual(try archive.export(for: context, since: original.fetchedAt, until: original.fetchedAt).readings.count, 1)
