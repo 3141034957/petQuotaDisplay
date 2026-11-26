@@ -440,6 +440,9 @@ final class QuotaOrbView: NSView {
         let copy = submenu.addItem(withTitle: "复制最近额度总览", action: #selector(copyRecentQuotaSummary), keyEquivalent: "")
         copy.target = self
         copy.isEnabled = recentQuotaSummary != nil
+        let clear = submenu.addItem(withTitle: "清空最近额度记录", action: #selector(clearRecentQuotas), keyEquivalent: "")
+        clear.target = self
+        clear.isEnabled = !recentQuotas.isEmpty
         submenu.addItem(.separator())
         for source in QuotaProvider.allCases {
             let lines = recentQuotaDetails(for: source)
@@ -639,6 +642,10 @@ final class QuotaOrbView: NSView {
 
     @objc private func copyRecentQuotaSummary() {
         copyText(recentQuotaSummary)
+    }
+
+    @objc private func clearRecentQuotas() {
+        recentQuotas.removeAll()
     }
 
     private func copyText(_ text: String?) {

@@ -265,6 +265,20 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertNotNil(cleared.item(withTitle: "Codex · 尚无结果"))
     }
 
+    func testClearingRecentQuotaLeavesTheCurrentDisplayIntact() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.provider = .gemini
+        view.state = .loaded(QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 30, resetsAt: nil)))
+        let recent = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu)
+        let clear = try XCTUnwrap(recent.item(withTitle: "清空最近额度记录"))
+        XCTAssertTrue(clear.isEnabled)
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(clear.action), to: clear.target, from: clear))
+        XCTAssertNil(view.recentQuotaSummary)
+        XCTAssertEqual(view.menuBarTitle, "70%")
+        let updated = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu)
+        XCTAssertFalse(try XCTUnwrap(updated.item(withTitle: "清空最近额度记录")).isEnabled)
+    }
+
     func testCopySummaryIsAvailableForSnapshotsAndIdentifiesStaleData() throws {
         let view = QuotaOrbView(frame: .zero)
         XCTAssertNil(view.quotaSummary)
