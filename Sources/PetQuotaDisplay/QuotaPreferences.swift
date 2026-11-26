@@ -11,6 +11,7 @@ enum QuotaPreferences {
     static let lowQuotaPauseUntilKey = "quota.lowQuotaPauseUntil"
     static let hidesAccountEmailKey = "quota.hidesAccountEmail"
     static let orbPositionLockedKey = "orb.positionLocked"
+    static let orbAllSpacesKey = "orb.showsOnAllSpaces"
     static let menuBarOnlyKey = "orb.menuBarOnly"
 
     static let shared: UserDefaults = {

@@ -135,7 +135,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         window.hasShadow = false
         let staysOnTop = forceOrbVisible || (QuotaPreferences.shared.object(forKey: Self.floatingOrbDefaultsKey) as? Bool ?? true)
         window.level = staysOnTop ? .floating : .normal
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isReleasedWhenClosed = false
         window.animationBehavior = .utilityWindow
 
@@ -161,6 +160,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.opacityPreference = OrbOpacityPreference.load()
         window.alphaValue = orbView.opacityPreference.alpha
         orbView.staysOnTop = staysOnTop
+        orbView.showsOnAllSpaces = QuotaPreferences.shared.object(forKey: QuotaPreferences.orbAllSpacesKey) as? Bool ?? true
+        applyOrbSpacePreference()
         let savedResetDisplay = QuotaPreferences.shared.string(forKey: OrbResetDisplay.defaultsKey)
         orbView.resetDisplay = savedResetDisplay.flatMap(OrbResetDisplay.init(rawValue:)) ?? .time
         orbView.onSelectProvider = { [weak self] provider in self?.switchProvider(to: provider) }
@@ -188,6 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onToggleReminderPause = { [weak self] in self?.toggleReminderPause() }
         orbView.onFreshQuota = { [weak self] scope, snapshot in self?.handleLowQuota(scope, snapshot: snapshot) }
         orbView.onToggleWindowLevel = { [weak self] in self?.toggleWindowLevel() }
+        orbView.onToggleSpaces = { [weak self] in self?.toggleOrbSpaces() }
         orbView.onRaiseOrb = { [weak self] in self?.reconcileWindowVisibility() }
         orbView.onToggleOrbVisibility = { [weak self] in
             guard let self, self.orbView.showsMenuBarQuota else { return }
@@ -656,6 +658,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         QuotaPreferences.shared.set(orbView.staysOnTop, forKey: Self.floatingOrbDefaultsKey)
         window.level = orbView.staysOnTop ? .floating : .normal
         reconcileWindowVisibility()
+    }
+
+    private func toggleOrbSpaces() {
+        orbView.showsOnAllSpaces.toggle()
+        QuotaPreferences.shared.set(orbView.showsOnAllSpaces, forKey: QuotaPreferences.orbAllSpacesKey)
+        applyOrbSpacePreference()
+    }
+
+    private func applyOrbSpacePreference() {
+        window.collectionBehavior = orbView.showsOnAllSpaces
+            ? [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+            : [.stationary, .fullScreenDisallowsTiling]
     }
 
     private func reconcileWindowVisibility() {

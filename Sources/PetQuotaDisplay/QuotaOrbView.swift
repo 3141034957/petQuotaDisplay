@@ -79,9 +79,11 @@ final class QuotaOrbView: NSView {
     }
     var menuBarOnly = false
     var staysOnTop = true
+    var showsOnAllSpaces = true
     var onToggleMenuBarQuota: (() -> Void)?
     var onToggleMenuBarSourceName: (() -> Void)?
     var onToggleWindowLevel: (() -> Void)?
+    var onToggleSpaces: (() -> Void)?
     var onRaiseOrb: (() -> Void)?
     var onToggleOrbVisibility: (() -> Void)?
     var onPresentationChanged: (() -> Void)?
@@ -567,6 +569,9 @@ final class QuotaOrbView: NSView {
         let pin = submenu.addItem(withTitle: "保持悬浮球置顶", action: #selector(toggleWindowLevel), keyEquivalent: "")
         pin.target = self
         pin.state = staysOnTop ? .on : .off
+        let spaces = submenu.addItem(withTitle: "在所有桌面及全屏空间显示", action: #selector(toggleSpaces), keyEquivalent: "")
+        spaces.target = self
+        spaces.state = showsOnAllSpaces ? .on : .off
         let reset = submenu.addItem(withTitle: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
         reset.target = self
         submenu.addItem(orbCornerMenuItem())
@@ -831,6 +836,7 @@ final class QuotaOrbView: NSView {
     @objc private func togglePositionLock() { onTogglePositionLock?() }
     @objc private func toggleOrbVisibility() { onToggleOrbVisibility?() }
     @objc private func toggleWindowLevel() { onToggleWindowLevel?() }
+    @objc private func toggleSpaces() { onToggleSpaces?() }
     @objc private func raiseOrb() { onRaiseOrb?() }
 
     @objc private func selectOrbSize(_ sender: NSMenuItem) {
