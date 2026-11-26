@@ -10,7 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let floatingOrbDefaultsKey = "orb.staysOnTop"
 
     private var orbSizePreference = OrbSizePreference(
-        rawValue: UserDefaults.standard.integer(forKey: OrbSizePreference.defaultsKey)
+        rawValue: QuotaPreferences.shared.integer(forKey: OrbSizePreference.defaultsKey)
     ) ?? .standard
     private var orbSize: NSSize { orbSizePreference.size }
     private let displayOptions: QuotaDisplayOptions
@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.displayOptions = displayOptions
         let accounts = CodexAccountProfile.loadAccounts()
         self.accounts = accounts
-        let savedAccount = UserDefaults.standard.string(forKey: Self.selectedAccountDefaultsKey)
+        let savedAccount = QuotaPreferences.shared.string(forKey: Self.selectedAccountDefaultsKey)
         let restoredAccount = savedAccount.flatMap(CodexAccountSlot.init(rawValue:))
         self.selectedAccount = restoredAccount.flatMap { accounts.contains($0) ? $0 : nil } ?? accounts.first
         super.init()
@@ -116,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
-        let staysOnTop = forceOrbVisible || (UserDefaults.standard.object(forKey: Self.floatingOrbDefaultsKey) as? Bool ?? true)
+        let staysOnTop = forceOrbVisible || (QuotaPreferences.shared.object(forKey: Self.floatingOrbDefaultsKey) as? Bool ?? true)
         window.level = staysOnTop ? .floating : .normal
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isReleasedWhenClosed = false
@@ -124,16 +124,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         orbView = QuotaOrbView(frame: NSRect(origin: .zero, size: orbSize))
         orbView.autoresizingMask = [.width, .height]
-        let savedProvider = UserDefaults.standard.string(forKey: Self.selectedProviderDefaultsKey)
+        let savedProvider = QuotaPreferences.shared.string(forKey: Self.selectedProviderDefaultsKey)
         orbView.provider = displayOptions.provider ?? savedProvider.flatMap(QuotaProvider.init(rawValue:)) ?? .codex
         orbView.startupPeriodOverride = displayOptions.period
         orbView.refreshCadence = displayOptions.refreshCadence ?? QuotaRefreshCadence.load()
-        orbView.showsMenuBarQuota = UserDefaults.standard.bool(forKey: Self.showsMenuBarQuotaDefaultsKey)
+        orbView.showsMenuBarQuota = QuotaPreferences.shared.bool(forKey: Self.showsMenuBarQuotaDefaultsKey)
         orbView.menuBarOnly = !forceOrbVisible && orbView.showsMenuBarQuota
-            && UserDefaults.standard.bool(forKey: Self.menuBarOnlyDefaultsKey)
+            && QuotaPreferences.shared.bool(forKey: Self.menuBarOnlyDefaultsKey)
         orbView.sizePreference = orbSizePreference
         orbView.staysOnTop = staysOnTop
-        let savedResetDisplay = UserDefaults.standard.string(forKey: OrbResetDisplay.defaultsKey)
+        let savedResetDisplay = QuotaPreferences.shared.string(forKey: OrbResetDisplay.defaultsKey)
         orbView.resetDisplay = savedResetDisplay.flatMap(OrbResetDisplay.init(rawValue:)) ?? .time
         orbView.onSelectProvider = { [weak self] provider in self?.switchProvider(to: provider) }
         orbView.onSelectRefreshCadence = { [weak self] cadence in self?.setRefreshCadence(cadence) }
@@ -187,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func setResetDisplay(_ mode: OrbResetDisplay) {
         guard orbView.resetDisplay != mode else { return }
         orbView.resetDisplay = mode
-        UserDefaults.standard.set(mode.rawValue, forKey: OrbResetDisplay.defaultsKey)
+        QuotaPreferences.shared.set(mode.rawValue, forKey: OrbResetDisplay.defaultsKey)
         scheduleCountdownTimer()
     }
 
@@ -205,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func setRefreshCadence(_ cadence: QuotaRefreshCadence) {
-        UserDefaults.standard.set(cadence.rawValue, forKey: QuotaRefreshCadence.defaultsKey)
+        QuotaPreferences.shared.set(cadence.rawValue, forKey: QuotaRefreshCadence.defaultsKey)
         guard orbView.refreshCadence != cadence else { return }
         orbView.refreshCadence = cadence
         scheduleRefreshTimer()
@@ -352,7 +352,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func toggleMenuBarQuota() {
         orbView.showsMenuBarQuota.toggle()
-        UserDefaults.standard.set(orbView.showsMenuBarQuota, forKey: Self.showsMenuBarQuotaDefaultsKey)
+        QuotaPreferences.shared.set(orbView.showsMenuBarQuota, forKey: Self.showsMenuBarQuotaDefaultsKey)
         if !orbView.showsMenuBarQuota { setMenuBarOnly(false) }
         reconcileStatusItem()
     }
@@ -360,14 +360,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func setMenuBarOnly(_ menuBarOnly: Bool) {
         guard orbView.menuBarOnly != menuBarOnly else { return }
         orbView.menuBarOnly = menuBarOnly
-        UserDefaults.standard.set(menuBarOnly, forKey: Self.menuBarOnlyDefaultsKey)
+        QuotaPreferences.shared.set(menuBarOnly, forKey: Self.menuBarOnlyDefaultsKey)
         reconcileWindowVisibility()
         scheduleCountdownTimer()
     }
 
     private func toggleWindowLevel() {
         orbView.staysOnTop.toggle()
-        UserDefaults.standard.set(orbView.staysOnTop, forKey: Self.floatingOrbDefaultsKey)
+        QuotaPreferences.shared.set(orbView.staysOnTop, forKey: Self.floatingOrbDefaultsKey)
         window.level = orbView.staysOnTop ? .floating : .normal
         reconcileWindowVisibility()
     }
@@ -420,7 +420,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stopOrb(hideWindow: false)
         orbView.startupPeriodOverride = nil
         orbView.provider = provider
-        UserDefaults.standard.set(provider.rawValue, forKey: Self.selectedProviderDefaultsKey)
+        QuotaPreferences.shared.set(provider.rawValue, forKey: Self.selectedProviderDefaultsKey)
         startOrb()
     }
 
@@ -475,7 +475,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard accounts.contains(account), account != selectedAccount else { return }
         if selectedAccount != nil { orbView.startupPeriodOverride = nil }
         selectedAccount = account
-        UserDefaults.standard.set(account.rawValue, forKey: Self.selectedAccountDefaultsKey)
+        QuotaPreferences.shared.set(account.rawValue, forKey: Self.selectedAccountDefaultsKey)
         updateAccountMenuState()
         stopOrb(hideWindow: false)
         startOrb()
@@ -551,9 +551,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 orbView.startupPeriodOverride = nil
                 selectedAccount = accounts.first
                 if let selectedAccount {
-                    UserDefaults.standard.set(selectedAccount.rawValue, forKey: Self.selectedAccountDefaultsKey)
+                    QuotaPreferences.shared.set(selectedAccount.rawValue, forKey: Self.selectedAccountDefaultsKey)
                 } else {
-                    UserDefaults.standard.removeObject(forKey: Self.selectedAccountDefaultsKey)
+                    QuotaPreferences.shared.removeObject(forKey: Self.selectedAccountDefaultsKey)
                 }
             }
             updateAccountMenuState()
@@ -646,7 +646,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var savedOrbOrigin: NSPoint? {
-        let defaults = UserDefaults.standard
+        let defaults = QuotaPreferences.shared
         guard let x = defaults.object(forKey: "orb.x") as? Double, x.isFinite,
               let y = defaults.object(forKey: "orb.y") as? Double, y.isFinite else { return nil }
         return NSPoint(x: x, y: y)
@@ -677,13 +677,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         orbSizePreference = preference
         orbView.sizePreference = preference
-        UserDefaults.standard.set(preference.rawValue, forKey: OrbSizePreference.defaultsKey)
+        QuotaPreferences.shared.set(preference.rawValue, forKey: OrbSizePreference.defaultsKey)
         window.setFrame(NSRect(origin: restoredOrDefaultOrigin(), size: orbSize), display: true)
     }
 
     private func saveOrbOrigin(_ origin: NSPoint) {
-        UserDefaults.standard.set(origin.x, forKey: "orb.x")
-        UserDefaults.standard.set(origin.y, forKey: "orb.y")
+        QuotaPreferences.shared.set(origin.x, forKey: "orb.x")
+        QuotaPreferences.shared.set(origin.y, forKey: "orb.y")
     }
 
     @objc private func screenParametersDidChange(_ notification: Notification) {

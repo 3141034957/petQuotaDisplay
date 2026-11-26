@@ -152,3 +152,7 @@ swift build -c release
 ```
 
 测试覆盖额度解析、刷新状态、屏幕位置校正和本地服务的故障恢复。连接测试使用本地模拟进程或模拟 HTTP 响应，无需账号凭据和网络。
+
+## 构建 macOS 应用
+
+运行 `zsh scripts/package_app.sh` 会在 `.build/distribution` 下生成一个本机签名的 `PetQuotaDisplay.app`，并打印路径。也可传入其他输出目录。双击打开时会沿用本机已有的悬浮球设置和 Codex 额度账号。

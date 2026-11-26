@@ -34,7 +34,7 @@ enum CodexAccountStatus: Equatable {
 enum CodexAccountProfile {
     private static let additionalAccountsDefaultsKey = "quota.additionalAccounts"
 
-    static func loadAccounts(defaults: UserDefaults = .standard) -> [CodexAccountSlot] {
+    static func loadAccounts(defaults: UserDefaults = QuotaPreferences.shared) -> [CodexAccountSlot] {
         var seen = Set<CodexAccountSlot>()
         var additional = (defaults.stringArray(forKey: additionalAccountsDefaultsKey) ?? [])
             .compactMap(CodexAccountSlot.init(rawValue:))
@@ -53,7 +53,7 @@ enum CodexAccountProfile {
         return additional
     }
 
-    static func createAccount(defaults: UserDefaults = .standard) -> CodexAccountSlot {
+    static func createAccount(defaults: UserDefaults = QuotaPreferences.shared) -> CodexAccountSlot {
         let slot = CodexAccountSlot(rawValue: UUID().uuidString)!
         var accounts = loadAccounts(defaults: defaults)
         accounts.append(slot)
@@ -61,7 +61,7 @@ enum CodexAccountProfile {
         return slot
     }
 
-    static func deleteAccount(_ slot: CodexAccountSlot, defaults: UserDefaults = .standard) throws {
+    static func deleteAccount(_ slot: CodexAccountSlot, defaults: UserDefaults = QuotaPreferences.shared) throws {
         guard !slot.isPrimary else { return }
         let fileManager = FileManager.default
         let home = try accountHomeURL(for: slot, create: false)
@@ -79,11 +79,11 @@ enum CodexAccountProfile {
         "quota.codexLimit.\(slot.rawValue)"
     }
 
-    static func name(for slot: CodexAccountSlot, defaults: UserDefaults = .standard) -> String? {
+    static func name(for slot: CodexAccountSlot, defaults: UserDefaults = QuotaPreferences.shared) -> String? {
         defaults.string(forKey: nameKey(for: slot))
     }
 
-    static func setName(_ name: String, for slot: CodexAccountSlot, defaults: UserDefaults = .standard) {
+    static func setName(_ name: String, for slot: CodexAccountSlot, defaults: UserDefaults = QuotaPreferences.shared) {
         let singleLine = name.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         if singleLine.isEmpty {
             defaults.removeObject(forKey: nameKey(for: slot))

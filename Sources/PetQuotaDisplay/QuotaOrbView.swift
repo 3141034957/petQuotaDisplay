@@ -110,7 +110,7 @@ final class QuotaOrbView: NSView {
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    init(frame frameRect: NSRect, defaults: UserDefaults = .standard) {
+    init(frame frameRect: NSRect, defaults: UserDefaults = QuotaPreferences.shared) {
         self.defaults = defaults
         super.init(frame: frameRect)
         wantsLayer = true

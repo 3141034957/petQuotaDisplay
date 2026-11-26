@@ -9,7 +9,7 @@ enum QuotaRefreshCadence: Int, CaseIterable {
 
     static let defaultsKey = "quota.refreshCadence"
 
-    static func load(defaults: UserDefaults = .standard) -> Self {
+    static func load(defaults: UserDefaults = QuotaPreferences.shared) -> Self {
         guard let seconds = defaults.object(forKey: defaultsKey) as? Int else { return .thirtySeconds }
         return Self(rawValue: seconds) ?? .thirtySeconds
     }
