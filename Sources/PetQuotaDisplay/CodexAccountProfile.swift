@@ -33,6 +33,12 @@ enum CodexAccountStatus: Equatable {
 
 enum CodexAccountProfile {
     private static let additionalAccountsDefaultsKey = "quota.additionalAccounts"
+    static let selectedAccountDefaultsKey = "quota.selectedAccount"
+
+    static func selectedAccount(in accounts: [CodexAccountSlot], defaults: UserDefaults = QuotaPreferences.shared) -> CodexAccountSlot? {
+        let saved = defaults.string(forKey: selectedAccountDefaultsKey).flatMap(CodexAccountSlot.init(rawValue:))
+        return saved.flatMap { accounts.contains($0) ? $0 : nil } ?? accounts.first
+    }
 
     static func loadAccounts(defaults: UserDefaults = QuotaPreferences.shared) -> [CodexAccountSlot] {
         var seen = Set<CodexAccountSlot>()

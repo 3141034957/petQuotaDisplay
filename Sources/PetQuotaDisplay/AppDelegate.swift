@@ -3,7 +3,6 @@ import QuotaCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
-    private static let selectedAccountDefaultsKey = "quota.selectedAccount"
     private static let floatingOrbDefaultsKey = "orb.staysOnTop"
 
     private var orbSizePreference = OrbSizePreference.load()
@@ -35,9 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         self.displayOptions = displayOptions
         let accounts = CodexAccountProfile.loadAccounts()
         self.accounts = accounts
-        let savedAccount = QuotaPreferences.shared.string(forKey: Self.selectedAccountDefaultsKey)
-        let restoredAccount = savedAccount.flatMap(CodexAccountSlot.init(rawValue:))
-        self.selectedAccount = restoredAccount.flatMap { accounts.contains($0) ? $0 : nil } ?? accounts.first
+        self.selectedAccount = CodexAccountProfile.selectedAccount(in: accounts)
         super.init()
     }
 
@@ -475,7 +472,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard accounts.contains(account), account != selectedAccount else { return }
         if selectedAccount != nil { orbView.startupPeriodOverride = nil }
         selectedAccount = account
-        QuotaPreferences.shared.set(account.rawValue, forKey: Self.selectedAccountDefaultsKey)
+        QuotaPreferences.shared.set(account.rawValue, forKey: CodexAccountProfile.selectedAccountDefaultsKey)
         updateAccountMenuState()
         stopOrb(hideWindow: false)
         startOrb()
@@ -551,9 +548,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 orbView.startupPeriodOverride = nil
                 selectedAccount = accounts.first
                 if let selectedAccount {
-                    QuotaPreferences.shared.set(selectedAccount.rawValue, forKey: Self.selectedAccountDefaultsKey)
+                    QuotaPreferences.shared.set(selectedAccount.rawValue, forKey: CodexAccountProfile.selectedAccountDefaultsKey)
                 } else {
-                    QuotaPreferences.shared.removeObject(forKey: Self.selectedAccountDefaultsKey)
+                    QuotaPreferences.shared.removeObject(forKey: CodexAccountProfile.selectedAccountDefaultsKey)
                 }
             }
             updateAccountMenuState()
