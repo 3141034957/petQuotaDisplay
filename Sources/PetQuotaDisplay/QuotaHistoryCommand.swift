@@ -16,7 +16,8 @@ enum QuotaHistoryCommand {
             account = nil
         }
         return try QuotaHistoryArchive.local.export(for: QuotaHistoryContext(provider: provider, account: account),
-                                                  selecting: options.period, since: options.since, until: options.until)
+                                                  selecting: options.period, since: options.since, until: options.until,
+                                                  limit: options.limit)
     }
 
     private enum Failure: LocalizedError {

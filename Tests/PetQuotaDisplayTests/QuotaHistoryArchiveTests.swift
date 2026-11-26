@@ -3,6 +3,15 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaHistoryArchiveTests: XCTestCase {
+    func testHistoryLimitUsesTheNewestMatchingReadings() {
+        let older = snapshot(at: 10)
+        let matching = snapshot(at: 20)
+        let otherPeriod = QuotaSnapshot(planType: nil, fiveHour: QuotaWindow(usedPercent: 90, resetsAt: nil), weekly: nil,
+                                        fetchedAt: Date(timeIntervalSince1970: 30))
+        let report = QuotaHistoryExport(provider: .gemini, snapshots: [older, matching, otherPeriod], selecting: "weekly", limit: 1)
+        XCTAssertEqual(report.readings.map(\.fetchedAt), [matching.fetchedAt])
+    }
+
     func testArchiveRequiresOptInAndCanBeDisabled() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

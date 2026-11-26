@@ -51,9 +51,10 @@ struct QuotaHistoryExport: Encodable {
     let provider: String
     let readings: [QuotaHistoryRecord]
 
-    init(provider: QuotaProvider, snapshots: [QuotaSnapshot], selecting period: String? = nil) {
+    init(provider: QuotaProvider, snapshots: [QuotaSnapshot], selecting period: String? = nil, limit: Int? = nil) {
         self.provider = provider.rawValue
-        readings = snapshots.map { QuotaHistoryRecord($0, selecting: period) }.filter { !$0.periods.isEmpty }
+        let filtered = snapshots.map { QuotaHistoryRecord($0, selecting: period) }.filter { !$0.periods.isEmpty }
+        readings = limit.map { Array(filtered.suffix($0)) } ?? filtered
     }
 
     func render(as format: QuotaExport.Format) throws -> String {

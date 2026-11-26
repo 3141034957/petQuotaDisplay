@@ -73,13 +73,13 @@ struct QuotaHistoryArchive {
     }
 
     func export(for context: QuotaHistoryContext, selecting period: String? = nil,
-                since: Date? = nil, until: Date? = nil) throws -> QuotaHistoryExport {
+                since: Date? = nil, until: Date? = nil, limit: Int? = nil) throws -> QuotaHistoryExport {
         let state = try load()
         guard state.isEnabled else { throw Failure.notEnabled }
         let filtered = (state.histories[context] ?? []).filter { sample in
             (since.map { sample.fetchedAt >= $0 } ?? true) && (until.map { sample.fetchedAt <= $0 } ?? true)
         }
-        return QuotaHistoryExport(provider: context.provider, snapshots: filtered, selecting: period)
+        return QuotaHistoryExport(provider: context.provider, snapshots: filtered, selecting: period, limit: limit)
     }
 
     private static func merge(_ existing: [QuotaSnapshot], with incoming: [QuotaSnapshot]) -> [QuotaSnapshot] {

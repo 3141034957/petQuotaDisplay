@@ -18,6 +18,7 @@ struct QuotaQueryOptions {
         case listModels = "--list-models"
         case since = "--since"
         case until = "--until"
+        case limit = "--limit"
 
         var requiresValue: Bool { self != .requireFresh && self != .listModels }
     }
@@ -33,17 +34,19 @@ struct QuotaQueryOptions {
     private(set) var listModels = false
     private(set) var since: Date?
     private(set) var until: Date?
+    private(set) var limit: Int?
 
     init(arguments: [String], purpose: Purpose = .live) throws {
         var arguments = arguments[...]
         var seen = Set<Option>()
-        let historyOptions: Set<Option> = [.provider, .account, .period, .since, .until, .format]
+        let historyOptions: Set<Option> = [.provider, .account, .period, .since, .until, .format, .limit]
         while let argument = arguments.popFirst() {
             guard let option = Option(rawValue: argument) else { throw Failure.unknownOption }
             if purpose == .savedHistory, !historyOptions.contains(option) {
                 throw Failure.unsupportedHistoryOption
             }
             if purpose == .live, option == .since || option == .until { throw Failure.dateOnlyForHistory }
+            if purpose == .live, option == .limit { throw Failure.limitOnlyForHistory }
             guard seen.insert(option).inserted else { throw Failure.invalidValue(option) }
             let value = option.requiresValue ? arguments.popFirst() : nil
             switch option {
@@ -84,6 +87,9 @@ struct QuotaQueryOptions {
             case .until:
                 guard let value, let date = QuotaHTTP.resetDate(value) else { throw Failure.invalidValue(option) }
                 until = date
+            case .limit:
+                guard let value, let count = Int(value), count > 0 else { throw Failure.invalidValue(option) }
+                limit = count
             }
         }
         if listModels, (provider != nil && provider != .codex || modelID != nil || period != nil || failBelow != nil || requireFresh) {
@@ -93,7 +99,8 @@ struct QuotaQueryOptions {
     }
 
     private enum Failure: LocalizedError {
-        case unknownOption, invalidValue(Option), incompatibleModelList, unsupportedHistoryOption, dateOnlyForHistory, invalidDateRange
+        case unknownOption, invalidValue(Option), incompatibleModelList, unsupportedHistoryOption
+        case dateOnlyForHistory, invalidDateRange, limitOnlyForHistory
 
         var errorDescription: String? {
             switch self {
@@ -103,6 +110,7 @@ struct QuotaQueryOptions {
             case .unsupportedHistoryOption: return "--history 不支持该选项。"
             case .dateOnlyForHistory: return "--since 和 --until 仅适用于历史查询。"
             case .invalidDateRange: return "历史查询的起始时间不能晚于结束时间。"
+            case .limitOnlyForHistory: return "--limit 仅适用于历史查询。"
             }
         }
     }

@@ -33,6 +33,8 @@ final class QuotaQueryOptionsTests: XCTestCase {
         let history = try QuotaQueryOptions(arguments: ["--provider", "codex", "--account", "Work", "--format", "csv"], purpose: .savedHistory)
         XCTAssertEqual(history.account, "Work")
         XCTAssertEqual(history.format, .csv)
+        XCTAssertEqual(try QuotaQueryOptions(arguments: ["--limit", "3"], purpose: .savedHistory).limit, 3)
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--limit", "0"], purpose: .savedHistory))
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--timeout", "1"], purpose: .savedHistory))
     }
 

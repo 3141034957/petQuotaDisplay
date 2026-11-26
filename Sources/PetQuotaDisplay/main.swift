@@ -26,6 +26,7 @@ let usage = """
   --list-codex-accounts  输出已配置的 Codex 账号标识及本地名称
   --history       在终端读取本机保存的采集记录
   --since/--until  历史采集时间范围，使用带时区的 ISO 8601 时间
+  --limit         历史查询最多返回最近指定数量的采集记录
   --json          将诊断输出为 JSON，供脚本读取
   --version       输出版本和可用的构建提交标识
   -h, --help      显示帮助
