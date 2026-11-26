@@ -5,6 +5,18 @@ import XCTest
 
 @MainActor
 final class QuotaOrbViewTests: XCTestCase {
+    func testReminderPauseExpiresAtItsEndTimeAndExposesAResumeAction() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.lowQuotaSoundEnabled = true
+        let end = Date().addingTimeInterval(3_600)
+        view.reminderPausedUntil = end
+        XCTAssertTrue(view.isReminderPaused(at: end.addingTimeInterval(-1)))
+        XCTAssertFalse(view.isReminderPaused(at: end))
+        let appearance = try XCTUnwrap(menu(view).item(withTitle: "外观")?.submenu)
+        XCTAssertNotNil(appearance.item(withTitle: "恢复低额度提醒"))
+        XCTAssertNil(appearance.item(withTitle: "暂停低额度提醒 1 小时"))
+    }
+
     func testWarningThresholdMenuUsesAnInclusiveLimit() throws {
         let view = QuotaOrbView(frame: .zero)
         let appearance = try XCTUnwrap(menu(view).item(withTitle: "外观")?.submenu)

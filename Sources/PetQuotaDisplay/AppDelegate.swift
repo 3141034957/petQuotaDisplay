@@ -149,6 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.warningThreshold = QuotaWarningThreshold.load()
         orbView.lowQuotaSoundEnabled = QuotaPreferences.shared.bool(forKey: QuotaPreferences.lowQuotaSoundKey)
         orbView.reminderPeriods = QuotaPreferences.reminderPeriods()
+        orbView.reminderPausedUntil = QuotaPreferences.shared.object(forKey: QuotaPreferences.lowQuotaPauseUntilKey) as? Date
         orbView.supportsLowQuotaNotifications = QuotaNotificationService.isSupported
         orbView.lowQuotaNotificationEnabled = orbView.supportsLowQuotaNotifications
             && QuotaPreferences.shared.bool(forKey: QuotaPreferences.lowQuotaNotificationKey)
@@ -176,6 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onToggleLowQuotaSound = { [weak self] in self?.toggleLowQuotaSound() }
         orbView.onToggleLowQuotaNotifications = { [weak self] in self?.toggleLowQuotaNotifications() }
         orbView.onToggleReminderPeriod = { [weak self] period in self?.toggleReminderPeriod(period) }
+        orbView.onToggleReminderPause = { [weak self] in self?.toggleReminderPause() }
         orbView.onFreshQuota = { [weak self] scope, snapshot in self?.handleLowQuota(scope, snapshot: snapshot) }
         orbView.onToggleWindowLevel = { [weak self] in self?.toggleWindowLevel() }
         orbView.onRaiseOrb = { [weak self] in self?.reconcileWindowVisibility() }
@@ -586,7 +588,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func handleLowQuota(_ scope: QuotaReminderScope, snapshot: QuotaSnapshot) {
-        guard orbView.lowQuotaSoundEnabled || orbView.lowQuotaNotificationEnabled else { return }
+        guard orbView.lowQuotaSoundEnabled || orbView.lowQuotaNotificationEnabled, !orbView.isReminderPaused() else { return }
         let events = lowQuotaReminder.events(for: scope, snapshot: snapshot, threshold: orbView.warningThreshold,
                                              periods: orbView.reminderPeriods)
         guard !events.isEmpty else { return }
@@ -601,6 +603,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
             }
         }
+    }
+
+    private func toggleReminderPause() {
+        let now = Date()
+        let end = orbView.isReminderPaused(at: now) ? nil : now.addingTimeInterval(3_600)
+        orbView.reminderPausedUntil = end
+        QuotaPreferences.shared.set(end, forKey: QuotaPreferences.lowQuotaPauseUntilKey)
     }
 
     private func toggleReminderPeriod(_ period: QuotaPeriod) {

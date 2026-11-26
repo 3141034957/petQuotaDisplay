@@ -52,6 +52,8 @@ final class QuotaOrbView: NSView {
     var onToggleLowQuotaNotifications: (() -> Void)?
     var reminderPeriods = Set(QuotaPeriod.allCases)
     var onToggleReminderPeriod: ((QuotaPeriod) -> Void)?
+    var reminderPausedUntil: Date?
+    var onToggleReminderPause: (() -> Void)?
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
@@ -584,6 +586,17 @@ final class QuotaOrbView: NSView {
                 status.isEnabled = false
             }
         }
+        if lowQuotaSoundEnabled || lowQuotaNotificationEnabled {
+            let paused = isReminderPaused()
+            let title = paused ? "恢复低额度提醒" : "暂停低额度提醒 1 小时"
+            let pause = submenu.addItem(withTitle: title, action: #selector(toggleReminderPause), keyEquivalent: "")
+            pause.target = self
+            if paused, let reminderPausedUntil {
+                let end = Self.shortDateFormatter.string(from: reminderPausedUntil)
+                let status = submenu.addItem(withTitle: "低额度提醒暂停至 \(end)", action: nil, keyEquivalent: "")
+                status.isEnabled = false
+            }
+        }
         item.submenu = submenu
         return item
     }
@@ -608,6 +621,11 @@ final class QuotaOrbView: NSView {
 
     @objc private func toggleLowQuotaSound() { onToggleLowQuotaSound?() }
     @objc private func toggleLowQuotaNotifications() { onToggleLowQuotaNotifications?() }
+    @objc private func toggleReminderPause() { onToggleReminderPause?() }
+
+    func isReminderPaused(at now: Date = Date()) -> Bool {
+        reminderPausedUntil.map { $0 > now } ?? false
+    }
 
     @objc private func toggleReminderPeriod(_ sender: NSMenuItem) {
         guard let value = sender.representedObject as? String, let period = QuotaPeriod(rawValue: value) else { return }
