@@ -20,6 +20,7 @@ enum QuotaProvider: String, CaseIterable {
 final class QuotaOrbView: NSView {
     private static let designDiameter: CGFloat = 148
     private static let displayedWindowDefaultsKey = "quota.displayedWindow"
+    private let defaults: UserDefaults
 
     private enum DisplayedWindow: String, CaseIterable {
         case fiveHour
@@ -72,11 +73,9 @@ final class QuotaOrbView: NSView {
     private var windowOriginAtMouseDown: NSPoint?
     private var dragged = false
     private var windowPreferenceKey: String {
-        let key = Self.displayedWindowDefaultsKey
-        return provider.supportsMonthlyQuota ? "\(key).\(provider.rawValue)" : key
+        "\(Self.displayedWindowDefaultsKey).\(provider.rawValue)"
     }
     private var displayedWindow: DisplayedWindow {
-        let defaults = UserDefaults.standard
         let saved = defaults.string(forKey: windowPreferenceKey)
             ?? defaults.string(forKey: Self.displayedWindowDefaultsKey)
         return saved.flatMap(DisplayedWindow.init(rawValue:)) ?? .weekly
@@ -85,7 +84,8 @@ final class QuotaOrbView: NSView {
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    override init(frame frameRect: NSRect) {
+    init(frame frameRect: NSRect, defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         super.init(frame: frameRect)
         wantsLayer = true
         setAccessibilityElement(true)
@@ -450,7 +450,7 @@ final class QuotaOrbView: NSView {
     @objc private func selectDisplayedWindow(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
               let selected = DisplayedWindow(rawValue: rawValue) else { return }
-        UserDefaults.standard.set(selected.rawValue, forKey: windowPreferenceKey)
+        defaults.set(selected.rawValue, forKey: windowPreferenceKey)
         needsDisplay = true
         updateAccessibility()
     }

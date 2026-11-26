@@ -60,6 +60,28 @@ final class QuotaOrbViewTests: XCTestCase {
         }
     }
 
+    func testProvidersRememberIndependentPeriodsAndHonorLegacyPreference() throws {
+        let suite = "QuotaOrbViewTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("fiveHour", forKey: "quota.displayedWindow")
+        let view = QuotaOrbView(frame: .zero, defaults: defaults)
+        let quota = QuotaWindow(usedPercent: 10, resetsAt: nil)
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: quota, weekly: quota)
+
+        view.state = .loaded(snapshot)
+        XCTAssertEqual(try menu(view).item(withTitle: "展示 5 小时额度")?.state, .on)
+        let weekly = try XCTUnwrap(menu(view).item(withTitle: "展示本周额度"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(weekly.action), to: weekly.target, from: weekly))
+
+        view.provider = .gemini
+        view.state = .loaded(snapshot)
+        XCTAssertEqual(try menu(view).item(withTitle: "展示 5 小时额度")?.state, .on)
+        view.provider = .codex
+        view.state = .loaded(snapshot)
+        XCTAssertEqual(try menu(view).item(withTitle: "展示本周额度")?.state, .on)
+    }
+
     func testSwitchingToGeminiClearsCodexSnapshotAndUpdatesMenu() throws {
         let view = QuotaOrbView(frame: NSRect(x: 0, y: 0, width: 111, height: 111))
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 20, resetsAt: nil))
