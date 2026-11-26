@@ -3,6 +3,20 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class GeminiQuotaClientTests: XCTestCase {
+    func testGeminiKeepsValidQuotaWhenAnotherBucketHasInvalidFields() throws {
+        let data = Data("""
+        {"status":"SUCCESS","command":{"name":"usage","data":{"groups":[{"buckets":[
+          {"id":"gemini-5h","remaining_fraction":"unknown"},
+          {"id":"gemini-weekly","remaining_fraction":0.62,"reset_time":123},
+          null
+        ]}]}}}
+        """.utf8)
+        let snapshot = try GeminiQuotaClient.parseReport(data)
+        XCTAssertNil(snapshot.fiveHour)
+        XCTAssertEqual(snapshot.weekly?.remainingPercent, 62)
+        XCTAssertNil(snapshot.weekly?.resetsAt)
+    }
+
     func testReadsSharedGeminiQuotaAndResetTimes() throws {
         let snapshot = try GeminiQuotaClient.parseReport(Data("""
             {

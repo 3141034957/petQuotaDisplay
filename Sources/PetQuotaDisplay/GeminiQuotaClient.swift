@@ -133,17 +133,13 @@ final class GeminiQuotaClient: PollingQuotaClient {
               report.status == "SUCCESS", let command = report.command, command.name == "usage" else {
             throw Failure.invalidReport
         }
-        let iso8601 = ISO8601DateFormatter()
-        let iso8601WithFraction = ISO8601DateFormatter()
-        iso8601WithFraction.formatOptions.insert(.withFractionalSeconds)
-
         var fiveHour: QuotaWindow?
         var weekly: QuotaWindow?
         for bucket in command.data.groups.flatMap(\.buckets) {
-            guard let fraction = bucket.remainingFraction, (0...1).contains(fraction) else { continue }
-            let resetsAt = bucket.resetTime.flatMap { iso8601.date(from: $0) ?? iso8601WithFraction.date(from: $0) }
+            guard let id = bucket.id, let fraction = bucket.remainingFraction, (0...1).contains(fraction) else { continue }
+            let resetsAt = bucket.resetTime.flatMap(QuotaHTTP.resetDate)
             let quota = QuotaWindow(usedPercent: 100 - Int((fraction * 100).rounded()), resetsAt: resetsAt)
-            switch bucket.id {
+            switch id {
             case "gemini-5h": fiveHour = quota
             case "gemini-weekly": weekly = quota
             default: break
@@ -171,7 +167,7 @@ final class GeminiQuotaClient: PollingQuotaClient {
         }
 
         struct Bucket: Decodable {
-            let id: String
+            let id: String?
             let remainingFraction: Double?
             let resetTime: String?
 
@@ -179,6 +175,13 @@ final class GeminiQuotaClient: PollingQuotaClient {
                 case id
                 case remainingFraction = "remaining_fraction"
                 case resetTime = "reset_time"
+            }
+
+            init(from decoder: Decoder) {
+                let values = try? decoder.container(keyedBy: CodingKeys.self)
+                id = try? values?.decode(String.self, forKey: .id)
+                remainingFraction = try? values?.decode(Double.self, forKey: .remainingFraction)
+                resetTime = try? values?.decode(String.self, forKey: .resetTime)
             }
         }
     }
