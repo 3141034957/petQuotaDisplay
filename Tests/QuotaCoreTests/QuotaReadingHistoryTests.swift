@@ -23,6 +23,17 @@ final class QuotaReadingHistoryTests: XCTestCase {
         XCTAssertEqual(history.change(in: .weekly), .resetTimeChanged)
     }
 
+    func testHistoryKeepsOnlyTheLatestBoundedNumberOfReadings() {
+        var history = QuotaReadingHistory()
+        let maximum = QuotaReadingHistory.maximumReadings
+        for time in 0...maximum {
+            history.record(snapshot(at: TimeInterval(time), used: time % 100, reset: 1000))
+        }
+        XCTAssertEqual(history.readings.count, maximum)
+        XCTAssertEqual(history.readings.first?.fetchedAt, Date(timeIntervalSince1970: 1))
+        XCTAssertEqual(history.latest?.fetchedAt, Date(timeIntervalSince1970: TimeInterval(maximum)))
+    }
+
     private func snapshot(at time: TimeInterval, used: Int, reset: TimeInterval) -> QuotaSnapshot {
         QuotaSnapshot(
             planType: nil, fiveHour: nil,

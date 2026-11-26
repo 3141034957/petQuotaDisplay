@@ -6,21 +6,28 @@ public struct QuotaReadingHistory {
         case resetTimeChanged
     }
 
-    public private(set) var latest: QuotaSnapshot?
-    private var previous: QuotaSnapshot?
+    public static let maximumReadings = 120
+    public private(set) var readings: [QuotaSnapshot] = []
+    public var latest: QuotaSnapshot? { readings.last }
 
     public init() {}
 
     public mutating func record(_ snapshot: QuotaSnapshot) {
         if let latest {
             guard snapshot.fetchedAt >= latest.fetchedAt else { return }
-            if snapshot.fetchedAt > latest.fetchedAt { previous = latest }
+            if snapshot.fetchedAt == latest.fetchedAt {
+                readings[readings.count - 1] = snapshot
+                return
+            }
         }
-        latest = snapshot
+        readings.append(snapshot)
+        if readings.count > Self.maximumReadings {
+            readings.removeFirst(readings.count - Self.maximumReadings)
+        }
     }
 
     public func change(in period: QuotaPeriod) -> Change? {
-        guard let before = previous?[period], let after = latest?[period] else { return nil }
+        guard let before = readings.dropLast().last?[period], let after = latest?[period] else { return nil }
         if let previousReset = before.resetsAt, let latestReset = after.resetsAt, previousReset != latestReset {
             return .resetTimeChanged
         }

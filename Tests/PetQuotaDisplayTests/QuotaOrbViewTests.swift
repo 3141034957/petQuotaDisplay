@@ -315,6 +315,22 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(updated.item(withTitle: "清空最近额度记录")).isEnabled)
     }
 
+    func testRecentMenuShowsEightReadingsWithTheNewestFirst() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.provider = .gemini
+        for offset in 1...10 {
+            let window = QuotaWindow(usedPercent: offset, resetsAt: nil)
+            view.state = .loaded(QuotaSnapshot(planType: nil, fiveHour: nil, weekly: window,
+                                               fetchedAt: Date(timeIntervalSince1970: TimeInterval(offset))))
+        }
+
+        let list = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu?
+            .item(withTitle: "Gemini")?.submenu?.item(withTitle: "最近采集记录")?.submenu)
+        XCTAssertEqual(list.items.count, 8)
+        XCTAssertTrue(list.items.first?.title.hasSuffix("本周 90%") == true)
+        XCTAssertTrue(list.items.last?.title.hasSuffix("本周 97%") == true)
+    }
+
     func testCopySummaryIsAvailableForSnapshotsAndIdentifiesStaleData() throws {
         let view = QuotaOrbView(frame: .zero)
         XCTAssertNil(view.quotaSummary)

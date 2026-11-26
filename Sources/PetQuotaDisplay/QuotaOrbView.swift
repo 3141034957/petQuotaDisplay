@@ -460,9 +460,27 @@ final class QuotaOrbView: NSView {
             for line in lines {
                 details.addItem(withTitle: line, action: nil, keyEquivalent: "")
             }
+            if let history = recentQuotas[quotaContext(for: source)], history.readings.count > 1 {
+                details.addItem(.separator())
+                details.addItem(readingListMenuItem(history.readings))
+            }
             entry.submenu = details
         }
         item.submenu = submenu
+        return item
+    }
+
+    private func readingListMenuItem(_ readings: [QuotaSnapshot]) -> NSMenuItem {
+        let item = NSMenuItem(title: "最近采集记录", action: nil, keyEquivalent: "")
+        let list = NSMenu(title: item.title)
+        for snapshot in readings.suffix(8).reversed() {
+            let timestamp = Self.longDateFormatter.string(from: snapshot.fetchedAt)
+            let quotas = QuotaPeriod.allCases.compactMap { period in
+                snapshot[period].map { "\(period.title) \($0.remainingPercent)%" }
+            }
+            list.addItem(withTitle: ([timestamp] + quotas).joined(separator: " · "), action: nil, keyEquivalent: "")
+        }
+        item.submenu = list
         return item
     }
 
