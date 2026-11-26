@@ -44,6 +44,8 @@ swift run PetQuotaDisplay
 
 Codex 查询可加 `--model <额度标识>` 获取独立模型额度。省略 `--model` 或用 `--model codex` 时读取主要额度。
 
+用 `python3 main.py --query --list-models --format text` 可查看账号当前可用的额度标识及其周期。
+
 多个 Codex 账号共用这台 Mac 时，可用 `--account '工作账号'` 指定本次查询的账号名，也可使用账号标识。此次选择只用于当前命令。
 
 用 `python3 main.py --list-codex-accounts` 可查看已配置的标识、本地名称、选中项和凭据是否已保存。该列表只读取本机配置，不包含凭据内容。

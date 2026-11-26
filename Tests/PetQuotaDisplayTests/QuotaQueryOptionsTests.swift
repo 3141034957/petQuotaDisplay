@@ -22,4 +22,10 @@ final class QuotaQueryOptionsTests: XCTestCase {
             XCTAssertThrowsError(try QuotaQueryOptions(arguments: arguments), arguments.joined(separator: " "))
         }
     }
+
+    func testModelListRejectsIncompatibleOptions() throws {
+        XCTAssertTrue(try QuotaQueryOptions(arguments: ["--list-models", "--account", "Work", "--format", "text"]).listModels)
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--list-models", "--provider", "gemini"]))
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--list-models", "--period", "weekly"]))
+    }
 }

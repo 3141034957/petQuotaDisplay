@@ -20,6 +20,7 @@ let usage = """
   --fail-below    输出周期的余量低于指定百分比时，退出码为 2
   --require-fresh  结果已过期时，退出码为 3
   --model         查询指定标识的 Codex 模型额度
+  --list-models   列出 Codex 返回的额度标识和周期
   --account       本次查询的 Codex 账号名称或标识
   --list-codex-accounts  输出已配置的 Codex 账号标识及本地名称
   --json          将诊断输出为 JSON，供脚本读取
@@ -56,6 +57,11 @@ case _ where arguments.first == "--query":
         exit(64)
     }
     do {
+        if options.listModels {
+            let report = try QuotaQuery.codexReport(timeout: options.timeout, accountSelector: options.account)
+            print(try CodexModelCatalog(report).render(as: options.format))
+            exit(0)
+        }
         let provider = options.provider ?? QuotaPreferences.selectedProvider()
         var export = try QuotaQuery.snapshot(from: provider, timeout: options.timeout,
                                              modelID: options.modelID, accountSelector: options.account)

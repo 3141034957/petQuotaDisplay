@@ -11,8 +11,9 @@ struct QuotaQueryOptions {
         case requireFresh = "--require-fresh"
         case model = "--model"
         case account = "--account"
+        case listModels = "--list-models"
 
-        var requiresValue: Bool { self != .requireFresh }
+        var requiresValue: Bool { self != .requireFresh && self != .listModels }
     }
 
     private(set) var provider: QuotaProvider?
@@ -23,6 +24,7 @@ struct QuotaQueryOptions {
     private(set) var requireFresh = false
     private(set) var modelID: String?
     private(set) var account: String?
+    private(set) var listModels = false
 
     init(arguments: [String]) throws {
         var arguments = arguments[...]
@@ -61,17 +63,23 @@ struct QuotaQueryOptions {
                 let name = value.split(whereSeparator: \.isWhitespace).joined(separator: " ")
                 guard !name.isEmpty else { throw Failure.invalidValue(option) }
                 account = name
+            case .listModels:
+                listModels = true
             }
+        }
+        if listModels, (provider != nil && provider != .codex || modelID != nil || period != nil || failBelow != nil || requireFresh) {
+            throw Failure.incompatibleModelList
         }
     }
 
     private enum Failure: LocalizedError {
-        case unknownOption, invalidValue(Option)
+        case unknownOption, invalidValue(Option), incompatibleModelList
 
         var errorDescription: String? {
             switch self {
             case .unknownOption: return "--query 接受 \(Option.allCases.map(\.rawValue).joined(separator: "、")) 选项。"
             case .invalidValue(let option): return "请为 \(option.rawValue) 指定一个有效的值。"
+            case .incompatibleModelList: return "模型列表仅支持 Codex 来源、账号、超时和输出格式选项。"
             }
         }
     }

@@ -12,20 +12,7 @@ enum QuotaQuery {
         case .claudeCode:
             state = try ClaudeQuotaCache.read()
         case .codex:
-            let accounts = CodexAccountProfile.loadAccounts(persistNormalization: false)
-            let requested = try accountSelector.map { try CodexAccountProfile.account(matching: $0, in: accounts) }
-            guard let account = requested ?? CodexAccountProfile.selectedAccount(in: accounts),
-                  CodexAccountProfile.hasStoredCredentials(for: account) else { throw Failure.codexAccountRequired }
-            let client = CodexQuotaClient(codexHome: try CodexAccountProfile.homeURL(for: account, create: false))
-            defer { client.stop() }
-            let report: CodexQuotaReport = try waitForResult(timeout: timeout) { complete in
-                client.onAccount = { account in
-                    if account == nil { complete(.failure(Failure.codexAccountRequired)) }
-                }
-                client.onError = { complete(.failure($0)) }
-                client.onReport = { complete(.success($0)) }
-                client.start()
-            }
+            let report = try codexReport(timeout: timeout, accountSelector: accountSelector)
             return try codexExport(from: report, modelID: modelID)
         case .gemini:
             state = try run(GeminiQuotaClient(), timeout: timeout)
@@ -38,6 +25,26 @@ enum QuotaQuery {
 
         guard let export = QuotaExport(provider: provider, state: state) else { throw Failure.noResult }
         return export
+    }
+
+    static func codexReport(timeout: TimeInterval, accountSelector: String?) throws -> CodexQuotaReport {
+        let accounts = CodexAccountProfile.loadAccounts(persistNormalization: false)
+        let requested = try accountSelector.map { try CodexAccountProfile.account(matching: $0, in: accounts) }
+        guard let account = requested ?? CodexAccountProfile.selectedAccount(in: accounts),
+              CodexAccountProfile.hasStoredCredentials(for: account) else { throw Failure.codexAccountRequired }
+        let client = CodexQuotaClient(codexHome: try CodexAccountProfile.homeURL(for: account, create: false))
+        defer {
+            client.stop()
+            QuotaChildProcess.waitForTerminations()
+        }
+        return try waitForResult(timeout: timeout) { complete in
+            client.onAccount = { account in
+                if account == nil { complete(.failure(Failure.codexAccountRequired)) }
+            }
+            client.onError = { complete(.failure($0)) }
+            client.onReport = { complete(.success($0)) }
+            client.start()
+        }
     }
 
     static func codexExport(from report: CodexQuotaReport, modelID: String?) throws -> QuotaExport {

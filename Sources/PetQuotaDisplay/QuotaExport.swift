@@ -77,13 +77,7 @@ struct QuotaExport: Encodable {
         let rows = periods.map { period in
             prefix + [period.id, String(period.remainingPercent), period.resetsAt.map(formatter.string(from:)) ?? ""]
         }
-        let special = CharacterSet(charactersIn: ",\"\r\n")
-        return ([fields] + rows).map { row in
-            row.map { field in
-                guard field.rangeOfCharacter(from: special) != nil else { return field }
-                return "\"\(field.replacingOccurrences(of: "\"", with: "\"\""))\""
-            }.joined(separator: ",")
-        }.joined(separator: "\n")
+        return QuotaOutput.csv([fields] + rows)
     }
 
     private func text() -> String {

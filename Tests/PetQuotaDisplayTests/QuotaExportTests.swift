@@ -15,6 +15,10 @@ final class QuotaExportTests: XCTestCase {
         XCTAssertEqual(extra.codexLimitID, "extra")
         XCTAssertEqual(extra.periods.first?.remainingPercent, 50)
         XCTAssertThrowsError(try QuotaQuery.codexExport(from: report, modelID: "typo"))
+        let catalog = CodexModelCatalog(report)
+        XCTAssertEqual(catalog.models.map(\.id), ["primary-model", "extra"])
+        XCTAssertEqual(catalog.models.map(\.isPrimary), [true, false])
+        XCTAssertEqual(catalog.models.map(\.periods), [["fiveHour"], ["fiveHour"]])
     }
 
     func testLowQuotaStatusUsesTheExportedWindowsAndStrictThreshold() throws {
