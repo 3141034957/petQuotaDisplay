@@ -80,6 +80,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             name: NSWorkspace.didWakeNotification,
             object: nil
         )
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(accessibilityDisplayOptionsDidChange(_:)),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil
+        )
 
         if monitorsCodexDesktop {
             let notifications = NSWorkspace.shared.notificationCenter
@@ -160,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             && QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarOnlyKey)
         orbView.sizePreference = orbSizePreference
         orbView.opacityPreference = OrbOpacityPreference.load()
-        window.alphaValue = orbView.opacityPreference.alpha
+        applyOrbOpacity()
         orbView.quotaMetric = QuotaPreferences.shared.string(forKey: OrbQuotaMetric.defaultsKey)
             .flatMap(OrbQuotaMetric.init(rawValue:)) ?? .remaining
         orbView.staysOnTop = staysOnTop
@@ -622,8 +628,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     private func setOrbOpacity(_ opacity: OrbOpacityPreference) {
         orbView.opacityPreference = opacity
-        window.alphaValue = opacity.alpha
+        applyOrbOpacity()
         QuotaPreferences.shared.set(opacity.rawValue, forKey: OrbOpacityPreference.defaultsKey)
+    }
+
+    private func applyOrbOpacity() {
+        window.alphaValue = orbView.opacityPreference.alpha(
+            reduceTransparency: NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+        )
+    }
+
+    @objc private func accessibilityDisplayOptionsDidChange(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in self?.applyOrbOpacity() }
     }
 
     private func setWarningThreshold(_ threshold: QuotaWarningThreshold) {

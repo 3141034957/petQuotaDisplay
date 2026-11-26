@@ -5,6 +5,13 @@ import XCTest
 
 @MainActor
 final class QuotaOrbViewTests: XCTestCase {
+    func testReducedTransparencyKeepsTheOrbOpaqueWithoutReplacingThePreference() {
+        let setting = OrbOpacityPreference.medium
+        XCTAssertEqual(setting.alpha(reduceTransparency: true), 1)
+        XCTAssertEqual(setting.alpha(reduceTransparency: false), 0.7, accuracy: 0.001)
+        XCTAssertEqual(setting.rawValue, 70)
+    }
+
     func testPositionLockRemainsAccessibleAndLeavesClickRefreshAvailable() throws {
         let view = QuotaOrbView(frame: .zero)
         view.isPositionLocked = true

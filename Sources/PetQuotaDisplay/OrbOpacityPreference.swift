@@ -11,6 +11,9 @@ enum OrbOpacityPreference: Int, CaseIterable {
         Self(rawValue: defaults.integer(forKey: defaultsKey)) ?? .full
     }
 
-    var alpha: CGFloat { CGFloat(rawValue) / 100 }
+    func alpha(reduceTransparency: Bool) -> CGFloat {
+        reduceTransparency ? 1 : CGFloat(rawValue) / 100
+    }
+
     var title: String { "\(rawValue)%" }
 }
