@@ -57,6 +57,21 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(chosen, .thirtyPercent)
         XCTAssertTrue(chosen?.includes(remainingPercent: 30) == true)
         XCTAssertFalse(chosen?.includes(remainingPercent: 31) == true)
+        view.warningThreshold = try XCTUnwrap(QuotaWarningThreshold(rawValue: 15))
+        let customMenu = try XCTUnwrap(menu(view).item(withTitle: "外观")?.submenu?
+            .item(withTitle: "低额度警戒线")?.submenu)
+        XCTAssertEqual(customMenu.item(withTitle: "自定义 15%…")?.state, .on)
+    }
+
+    func testWarningPreferenceDistinguishesZeroFromAnUnsetValue() throws {
+        let suite = "QuotaOrbViewTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        XCTAssertEqual(QuotaWarningThreshold.load(defaults: defaults), .twentyPercent)
+        defaults.set(0, forKey: QuotaWarningThreshold.defaultsKey)
+        XCTAssertEqual(QuotaWarningThreshold.load(defaults: defaults).rawValue, 0)
+        defaults.set(101, forKey: QuotaWarningThreshold.defaultsKey)
+        XCTAssertEqual(QuotaWarningThreshold.load(defaults: defaults), .twentyPercent)
     }
 
     func testLowQuotaMarkerIsAvailableToAccessibilityAndIgnoresStaleData() {

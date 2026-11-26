@@ -56,6 +56,7 @@ final class QuotaOrbView: NSView {
         }
     }
     var onSelectWarningThreshold: ((QuotaWarningThreshold) -> Void)?
+    var onEditWarningThreshold: (() -> Void)?
     var lowQuotaSoundEnabled = false
     var onToggleLowQuotaSound: (() -> Void)?
     var supportsLowQuotaNotifications = false
@@ -737,12 +738,18 @@ final class QuotaOrbView: NSView {
     private func warningThresholdMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "低额度警戒线", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: item.title)
-        for threshold in QuotaWarningThreshold.allCases {
+        for threshold in QuotaWarningThreshold.presets {
             let choice = submenu.addItem(withTitle: threshold.title, action: #selector(selectWarningThreshold(_:)), keyEquivalent: "")
             choice.target = self
             choice.tag = threshold.rawValue
             choice.state = threshold == warningThreshold ? .on : .off
         }
+        submenu.addItem(.separator())
+        let custom = !QuotaWarningThreshold.presets.contains(warningThreshold)
+        let customTitle = custom ? "自定义 \(warningThreshold.title)…" : "自定义…"
+        let edit = submenu.addItem(withTitle: customTitle, action: #selector(editWarningThreshold), keyEquivalent: "")
+        edit.target = self
+        edit.state = custom ? .on : .off
         item.submenu = submenu
         return item
     }
@@ -751,6 +758,8 @@ final class QuotaOrbView: NSView {
         guard let threshold = QuotaWarningThreshold(rawValue: item.tag) else { return }
         onSelectWarningThreshold?(threshold)
     }
+
+    @objc private func editWarningThreshold() { onEditWarningThreshold?() }
 
     @objc private func toggleLowQuotaSound() { onToggleLowQuotaSound?() }
     @objc private func toggleLowQuotaNotifications() { onToggleLowQuotaNotifications?() }

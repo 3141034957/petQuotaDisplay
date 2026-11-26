@@ -187,6 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.onToggleMenuBarSourceName = { [weak self] in self?.toggleMenuBarSourceName() }
         orbView.onToggleAccountEmail = { [weak self] in self?.toggleAccountEmail() }
         orbView.onSelectWarningThreshold = { [weak self] threshold in self?.setWarningThreshold(threshold) }
+        orbView.onEditWarningThreshold = { [weak self] in self?.editWarningThreshold() }
         orbView.onToggleLowQuotaSound = { [weak self] in self?.toggleLowQuotaSound() }
         orbView.onToggleLowQuotaNotifications = { [weak self] in self?.toggleLowQuotaNotifications() }
         orbView.onToggleReminderPeriod = { [weak self] period in self?.toggleReminderPeriod(period) }
@@ -622,6 +623,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.warningThreshold = threshold
         for window in historyWindows.values { window.model.warningThreshold = threshold }
         QuotaPreferences.shared.set(threshold.rawValue, forKey: QuotaWarningThreshold.defaultsKey)
+    }
+
+    private func editWarningThreshold() {
+        let alert = NSAlert()
+        alert.messageText = "设置低额度警戒线"
+        alert.informativeText = "输入 0 到 100 之间的整数百分比。"
+        alert.addButton(withTitle: "保存")
+        alert.addButton(withTitle: "取消")
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 180, height: 24))
+        input.integerValue = orbView.warningThreshold.rawValue
+        input.setAccessibilityLabel("低额度警戒线百分比")
+        alert.accessoryView = input
+        alert.window.initialFirstResponder = input
+        NSApp.activate(ignoringOtherApps: true)
+        while alert.runModal() == .alertFirstButtonReturn {
+            let text = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let percent = Int(text), let threshold = QuotaWarningThreshold(rawValue: percent) {
+                setWarningThreshold(threshold)
+                return
+            }
+            alert.informativeText = "请输入 0 到 100 之间的整数百分比，例如 15。"
+        }
     }
 
     private func toggleLowQuotaSound() {
