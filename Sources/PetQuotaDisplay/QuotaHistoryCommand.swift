@@ -7,7 +7,7 @@ enum QuotaHistoryCommand {
             let account = providers.contains(.codex) ? try codexAccount(matching: options.account) : nil
             let contexts = providers.map { QuotaHistoryContext(provider: $0, account: $0 == .codex ? account : nil) }
             let report = try archive.exportBatch(for: contexts, selecting: options.period, since: options.since,
-                                                 until: options.until, limit: options.limit)
+                                                 until: options.until, limit: options.limit, includesModels: options.includesModels)
             return try report.render(as: options.format)
         }
         let provider = options.provider ?? (options.listModels ? .codex : QuotaPreferences.selectedProvider())

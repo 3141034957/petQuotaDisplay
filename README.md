@@ -68,6 +68,8 @@ Codex 查询可加 `--model <额度标识>` 获取独立模型额度。省略 `-
 
 用 `--history --all` 可一次读取所有来源的历史，也可用 `--history --providers gemini,kimiCode` 指定来源。Codex 默认读取选定账号的主要额度，`--limit` 分别应用到每个来源。
 
+批量历史查询包含 Codex 时可加 `--include-models`，在主要额度之后输出该账号保存的独立模型。`--limit` 分别应用到主要额度和每个模型。
+
 用 `--history --provider codex --model <额度标识>` 查询独立模型的采集记录。省略模型或指定 `--model codex` 时读取主要额度。
 
 用 `--history --list-models --format text` 离线列出 Codex 账号已存档的额度标识，以及每个标识采集过的周期。

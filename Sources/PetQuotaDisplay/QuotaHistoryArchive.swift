@@ -82,9 +82,15 @@ struct QuotaHistoryArchive {
     }
 
     func exportBatch(for contexts: [QuotaHistoryContext], selecting period: String?,
-                     since: Date?, until: Date?, limit: Int?) throws -> QuotaHistoryBatchExport {
+                     since: Date?, until: Date?, limit: Int?, includesModels: Bool = false) throws -> QuotaHistoryBatchExport {
         let state = try loadEnabled()
-        let sources = contexts.map {
+        let scopes = contexts.flatMap { context -> [QuotaHistoryContext] in
+            guard includesModels, context.provider == .codex, context.account != nil else { return [context] }
+            let models = state.histories.keys.filter { $0.primary == context && $0.modelID != nil }
+                .sorted { ($0.modelID ?? "") < ($1.modelID ?? "") }
+            return [context] + models
+        }
+        let sources = scopes.map {
             export(for: $0, in: state, selecting: period, since: since, until: until, limit: limit)
         }
         return QuotaHistoryBatchExport(sources: sources)

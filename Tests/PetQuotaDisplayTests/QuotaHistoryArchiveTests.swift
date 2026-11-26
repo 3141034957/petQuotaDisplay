@@ -58,10 +58,13 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
         let another = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
         let selected = QuotaHistoryContext(provider: .codex, account: account)
+        let model = QuotaHistoryContext(provider: .codex, account: account, modelID: "extra")
         let gemini = QuotaHistoryContext(provider: .gemini, account: nil)
         try archive.setEnabled(true, initial: [
             selected: [snapshot(at: 10), snapshot(at: 11)],
+            model: [snapshot(at: 15)],
             QuotaHistoryContext(provider: .codex, account: another): [snapshot(at: 12)],
+            QuotaHistoryContext(provider: .codex, account: another, modelID: "other"): [snapshot(at: 16)],
             gemini: [snapshot(at: 13), snapshot(at: 14)],
         ])
         let report = try archive.exportBatch(for: [gemini, selected], selecting: "weekly",
@@ -69,6 +72,10 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertEqual(report.sources.map(\.provider), ["gemini", "codex"])
         XCTAssertEqual(report.sources.map { $0.readings.first?.fetchedAt }, [snapshot(at: 14).fetchedAt, snapshot(at: 11).fetchedAt])
         XCTAssertEqual(try report.render(as: .csv).split(separator: "\n").count, 3)
+        let withModels = try archive.exportBatch(for: [gemini, selected], selecting: nil,
+                                                 since: nil, until: nil, limit: 1, includesModels: true)
+        XCTAssertEqual(withModels.sources.map(\.modelID), [nil, nil, "extra"])
+        XCTAssertTrue(try withModels.render(as: .csv).hasSuffix(",extra"))
     }
 
     func testArchiveRequiresOptInAndCanBeDisabled() throws {

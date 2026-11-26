@@ -20,11 +20,12 @@ struct QuotaQueryOptions {
         case model = "--model"
         case account = "--account"
         case listModels = "--list-models"
+        case includeModels = "--include-models"
         case since = "--since"
         case until = "--until"
         case limit = "--limit"
 
-        var requiresValue: Bool { self != .requireFresh && self != .listModels && self != .all }
+        var requiresValue: Bool { self != .requireFresh && self != .listModels && self != .includeModels && self != .all }
     }
 
     private(set) var provider: QuotaProvider?
@@ -37,6 +38,7 @@ struct QuotaQueryOptions {
     private(set) var modelID: String?
     private(set) var account: String?
     private(set) var listModels = false
+    private(set) var includesModels = false
     private(set) var since: Date?
     private(set) var until: Date?
     private(set) var limit: Int?
@@ -45,7 +47,7 @@ struct QuotaQueryOptions {
         var arguments = arguments[...]
         var seen = Set<Option>()
         let historyOptions: Set<Option> = [
-            .provider, .providers, .all, .account, .model, .listModels, .period, .since, .until, .format, .limit,
+            .provider, .providers, .all, .account, .model, .listModels, .includeModels, .period, .since, .until, .format, .limit,
         ]
         while let argument = arguments.popFirst() {
             guard let option = Option(rawValue: argument) else { throw Failure.unknownOption(purpose) }
@@ -54,6 +56,7 @@ struct QuotaQueryOptions {
             }
             if purpose == .live, option == .since || option == .until { throw Failure.dateOnlyForHistory }
             if purpose == .live, option == .limit { throw Failure.limitOnlyForHistory }
+            if purpose == .live, option == .includeModels { throw Failure.includeModelsRequiresHistoryBatch }
             guard seen.insert(option).inserted else { throw Failure.duplicateOption(option) }
             if option.requiresValue {
                 guard let next = arguments.first, Option(rawValue: next) == nil, next != "--help", next != "-h" else {
@@ -103,6 +106,8 @@ struct QuotaQueryOptions {
                 account = name
             case .listModels:
                 listModels = true
+            case .includeModels:
+                includesModels = true
             case .since:
                 guard let value, let date = QuotaHTTP.resetDate(value) else { throw Failure.invalidValue(option) }
                 since = date
@@ -120,6 +125,9 @@ struct QuotaQueryOptions {
             }
             guard account == nil || batchProviders.contains(.codex) else { throw Failure.missingBatchCodex }
         }
+        if includesModels, batchProviders?.contains(.codex) != true {
+            throw Failure.includeModelsRequiresHistoryBatch
+        }
         if listModels {
             var allowed: Set<Option> = [.listModels, .provider, .account, .format]
             if purpose == .live { allowed.insert(.timeout) }
@@ -134,6 +142,7 @@ struct QuotaQueryOptions {
         case unknownOption(Purpose), duplicateOption(Option), missingValue(Option), invalidValue(Option)
         case incompatibleModelList(Purpose), unsupportedHistoryOption(Option)
         case incompatibleBatch, missingBatchCodex
+        case includeModelsRequiresHistoryBatch
         case dateOnlyForHistory, invalidDateRange, limitOnlyForHistory
 
         var errorDescription: String? {
@@ -144,6 +153,8 @@ struct QuotaQueryOptions {
             case .invalidValue(let option): return "请为 \(option.rawValue) 指定一个有效的值。"
             case .incompatibleBatch: return "请在 --all、--providers 和 --provider 中选择其一。批量查询不支持 --model 或 --list-models。"
             case .missingBatchCodex: return "使用 --account 时，批量查询的来源必须包含 codex。"
+            case .includeModelsRequiresHistoryBatch:
+                return "--include-models 需要使用包含 Codex 的批量历史查询。"
             case .incompatibleModelList(let purpose):
                 let timeout = purpose == .live ? "、超时" : ""
                 return "模型列表仅支持 Codex 来源、账号\(timeout)和输出格式选项。"

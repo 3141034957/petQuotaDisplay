@@ -59,6 +59,9 @@ final class QuotaQueryOptionsTests: XCTestCase {
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--providers", "gemini,"]))
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--providers", "gemini", "--account", "Work"]))
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--providers", "gemini", "--all"]))
+        XCTAssertTrue(try QuotaQueryOptions(arguments: ["--all", "--include-models"], purpose: .savedHistory).includesModels)
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--providers", "gemini", "--include-models"], purpose: .savedHistory))
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all", "--include-models"]))
     }
 
     func testSavedHistoryRejectsLiveQueryOptions() throws {
