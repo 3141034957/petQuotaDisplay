@@ -7,6 +7,15 @@ struct QuotaHistoryStatistics: Encodable {
         let minimumRemainingPercent: Int
         let maximumRemainingPercent: Int
         let latestRemainingPercent: Int
+
+        init?(id: String, values: [Int]) {
+            guard let latest = values.last, let minimum = values.min(), let maximum = values.max() else { return nil }
+            self.id = id
+            readingCount = values.count
+            minimumRemainingPercent = minimum
+            maximumRemainingPercent = maximum
+            latestRemainingPercent = latest
+        }
     }
 
     struct Source: Encodable {
@@ -23,9 +32,7 @@ struct QuotaHistoryStatistics: Encodable {
                 let values = export.readings.compactMap { reading in
                     reading.periods.first { $0.id == period.rawValue }?.remainingPercent
                 }
-                guard let latest = values.last, let minimum = values.min(), let maximum = values.max() else { return nil }
-                return Period(id: period.rawValue, readingCount: values.count, minimumRemainingPercent: minimum,
-                              maximumRemainingPercent: maximum, latestRemainingPercent: latest)
+                return Period(id: period.rawValue, values: values)
             }
         }
     }

@@ -167,11 +167,7 @@ struct QuotaHistoryView: View {
             if let point = highlightedPoint ?? series.points.last {
                 details(for: point, in: series)
             }
-            if series.points.contains(where: \.resetChanged) {
-                Label("虚线表示采集报告中的重置时间发生变化", systemImage: "line.diagonal")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            chartFooter(for: series)
         }
         .padding(20)
         .frame(minWidth: 400, minHeight: 320)
@@ -197,6 +193,32 @@ struct QuotaHistoryView: View {
     private func clearSelection() {
         hoveredTime = nil
         pinnedTime = nil
+    }
+
+    @ViewBuilder
+    private func chartFooter(for series: QuotaHistorySeries) -> some View {
+        if let summary = QuotaHistoryStatistics.Period(id: selectedPeriod.rawValue, values: series.points.map(\.remainingPercent)) {
+            let totals = Text("\(summary.readingCount) 条采集 · 余量 \(summary.minimumRemainingPercent)–\(summary.maximumRemainingPercent)%")
+                .monospacedDigit()
+            let containsReset = series.points.contains(where: \.resetChanged)
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    totals
+                    if containsReset {
+                        Spacer(minLength: 12)
+                        Label("报告的重置时间变化", systemImage: "line.diagonal")
+                    }
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    totals
+                    if containsReset {
+                        Label("报告的重置时间变化", systemImage: "line.diagonal")
+                    }
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
     }
 
     private func details(for point: QuotaHistorySeries.Point, in series: QuotaHistorySeries) -> some View {
