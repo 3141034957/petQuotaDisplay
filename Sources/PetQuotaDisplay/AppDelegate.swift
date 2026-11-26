@@ -111,7 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.refreshDisplayedQuota()
         }
         orbView.onQuit = { [weak self] in self?.quitOrHideOrb() }
-        orbView.onPositionChanged = { [weak self] in self?.keepOrbOnScreen() }
+        orbView.onPositionChanged = { [weak self] in self?.finishOrbDrag() }
         orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
@@ -127,7 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startOrb() {
         guard !orbIsActive else { return }
         orbIsActive = true
-        keepOrbOnScreen()
+        window.setFrameOrigin(restoredOrDefaultOrigin())
         window.orderFrontRegardless()
 
         switch orbView.provider {
@@ -519,11 +519,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func screenParametersDidChange(_ notification: Notification) {
-        keepOrbOnScreen()
+        window?.setFrameOrigin(restoredOrDefaultOrigin())
     }
 
-    private func keepOrbOnScreen() {
-        guard let window else { return }
+    private func finishOrbDrag() {
         let origin = OrbWindowPlacement.constrainedOrigin(
             window.frame.origin,
             size: window.frame.size,
