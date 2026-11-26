@@ -14,7 +14,7 @@ final class CodexQuotaClient {
         var errorDescription: String? {
             switch self {
             case .codexNotFound:
-                return "未找到 Codex CLI"
+                return "未找到 Codex CLI，请安装 codex 或检查 CODEX_CLI_PATH"
             case .processStopped(let detail):
                 return detail.isEmpty ? "Codex 服务已停止" : detail
             case .malformedResponse:
@@ -120,7 +120,11 @@ final class CodexQuotaClient {
         restartWorkItem?.cancel()
         restartWorkItem = nil
         cleanupLocked()
-        let launch = launchOverride ?? Self.resolveCodexLaunch()
+        guard let launch = launchOverride ?? Self.resolveCodexLaunch() else {
+            emit(error: ClientError.codexNotFound)
+            scheduleRestartLocked()
+            return
+        }
 
         errorBuffer.removeAll(keepingCapacity: true)
 
@@ -457,27 +461,23 @@ final class CodexQuotaClient {
         DispatchQueue.main.async { [weak self] in self?.onAccount?(account) }
     }
 
-    private static func resolveCodexLaunch() -> (executable: String, arguments: [String]) {
-        let environment = ProcessInfo.processInfo.environment
-        if let override = environment["CODEX_CLI_PATH"],
-           FileManager.default.isExecutableFile(atPath: override) {
-            return (override, [])
-        }
-        let homebrewLaunches = [
-            (node: "/opt/homebrew/bin/node", codex: "/opt/homebrew/bin/codex"),
-            (node: "/usr/local/bin/node", codex: "/usr/local/bin/codex"),
-        ]
-        for launch in homebrewLaunches {
-            if FileManager.default.isExecutableFile(atPath: launch.node),
-               FileManager.default.isReadableFile(atPath: launch.codex) {
-                return (launch.node, [launch.codex])
+    static func resolveCodexLaunch(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> (executable: String, arguments: [String])? {
+        if let cli = QuotaCLI.find("codex", override: "CODEX_CLI_PATH", environment: environment) {
+            let extensionName = cli.resolvingSymlinksInPath().pathExtension.lowercased()
+            let siblingNode = cli.deletingLastPathComponent().appendingPathComponent("node")
+            if ["js", "mjs", "cjs"].contains(extensionName), QuotaCLI.executableURL(at: siblingNode.path) != nil {
+                return (siblingNode.path, [cli.path])
             }
+            return (cli.path, [])
         }
-        let bundledCodex = "/Applications/ChatGPT.app/Contents/Resources/codex"
-        if FileManager.default.isExecutableFile(atPath: bundledCodex) {
-            return (bundledCodex, [])
+        guard environment["CODEX_CLI_PATH"] == nil else { return nil }
+        for bundle in ["ChatGPT", "Codex"] {
+            let path = "/Applications/\(bundle).app/Contents/Resources/codex"
+            if let cli = QuotaCLI.executableURL(at: path) { return (cli.path, []) }
         }
-        return ("/usr/bin/env", ["codex"])
+        return nil
     }
 
     private static func integer(_ value: Any?) -> Int? {
