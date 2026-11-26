@@ -2,12 +2,18 @@ import Foundation
 
 enum QuotaHistoryCommand {
     static func render(options: QuotaQueryOptions) throws -> String {
+        let archive = QuotaHistoryArchive.local
+        if let providers = options.batchProviders {
+            let account = providers.contains(.codex) ? try codexAccount(matching: options.account) : nil
+            let contexts = providers.map { QuotaHistoryContext(provider: $0, account: $0 == .codex ? account : nil) }
+            let report = try archive.exportBatch(for: contexts, selecting: options.period, since: options.since,
+                                                 until: options.until, limit: options.limit)
+            return try report.render(as: options.format)
+        }
         let provider = options.provider ?? (options.listModels ? .codex : QuotaPreferences.selectedProvider())
         let account: CodexAccountSlot?
         if provider == .codex {
-            let accounts = CodexAccountProfile.loadAccounts(persistNormalization: false)
-            let requested = try options.account.map { try CodexAccountProfile.account(matching: $0, in: accounts) }
-            guard let selected = requested ?? CodexAccountProfile.selectedAccount(in: accounts) else {
+            guard let selected = try codexAccount(matching: options.account) else {
                 throw Failure.accountRequired
             }
             account = selected
@@ -16,7 +22,6 @@ enum QuotaHistoryCommand {
             guard options.modelID == nil else { throw Failure.modelOnlyForCodex }
             account = nil
         }
-        let archive = QuotaHistoryArchive.local
         if options.listModels, let account {
             return try archive.modelCatalog(for: account).render(as: options.format)
         }
@@ -25,6 +30,12 @@ enum QuotaHistoryCommand {
         let export = try archive.export(for: context, selecting: options.period, since: options.since,
                                         until: options.until, limit: options.limit)
         return try export.render(as: options.format)
+    }
+
+    private static func codexAccount(matching selector: String?) throws -> CodexAccountSlot? {
+        let accounts = CodexAccountProfile.loadAccounts(persistNormalization: false)
+        if let selector { return try CodexAccountProfile.account(matching: selector, in: accounts) }
+        return CodexAccountProfile.selectedAccount(in: accounts)
     }
 
     private enum Failure: LocalizedError {

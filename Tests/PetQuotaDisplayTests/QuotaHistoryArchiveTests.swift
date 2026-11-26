@@ -51,6 +51,26 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertEqual(report.readings.map(\.fetchedAt), [matching.fetchedAt])
     }
 
+    func testBatchHistoryPreservesSourceOrderFiltersAndAccountScope() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = QuotaHistoryArchive(directory: root)
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let another = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let selected = QuotaHistoryContext(provider: .codex, account: account)
+        let gemini = QuotaHistoryContext(provider: .gemini, account: nil)
+        try archive.setEnabled(true, initial: [
+            selected: [snapshot(at: 10), snapshot(at: 11)],
+            QuotaHistoryContext(provider: .codex, account: another): [snapshot(at: 12)],
+            gemini: [snapshot(at: 13), snapshot(at: 14)],
+        ])
+        let report = try archive.exportBatch(for: [gemini, selected], selecting: "weekly",
+                                             since: nil, until: nil, limit: 1)
+        XCTAssertEqual(report.sources.map(\.provider), ["gemini", "codex"])
+        XCTAssertEqual(report.sources.map { $0.readings.first?.fetchedAt }, [snapshot(at: 14).fetchedAt, snapshot(at: 11).fetchedAt])
+        XCTAssertEqual(try report.render(as: .csv).split(separator: "\n").count, 3)
+    }
+
     func testArchiveRequiresOptInAndCanBeDisabled() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

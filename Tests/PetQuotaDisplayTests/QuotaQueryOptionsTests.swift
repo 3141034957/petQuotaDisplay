@@ -48,7 +48,8 @@ final class QuotaQueryOptionsTests: XCTestCase {
         XCTAssertEqual(batch.period, "weekly")
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all", "--provider", "codex"]))
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all", "--list-models"]))
-        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all"], purpose: .savedHistory))
+        XCTAssertEqual(try QuotaQueryOptions(arguments: ["--all"], purpose: .savedHistory).batchProviders,
+                       QuotaProvider.allCases)
     }
 
     func testBatchCanSelectAnOrderedSetOfProviders() throws {

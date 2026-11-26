@@ -66,6 +66,8 @@ Codex 查询可加 `--model <额度标识>` 获取独立模型额度。省略 `-
 
 启用“跨启动保留采集记录”后，用 `python3 main.py --history --provider gemini` 可直接输出本机存档的 JSON。省略 `--provider` 时读取保存的来源，Codex 支持 `--account` 切换读取的账号。读取历史无需网络。运行 `python3 main.py --history --help` 可查看所有历史查询参数。
 
+用 `--history --all` 可一次读取所有来源的历史，也可用 `--history --providers gemini,kimiCode` 指定来源。Codex 默认读取选定账号的主要额度，`--limit` 分别应用到每个来源。
+
 用 `--history --provider codex --model <额度标识>` 查询独立模型的采集记录。省略模型或指定 `--model codex` 时读取主要额度。
 
 用 `--history --list-models --format text` 离线列出 Codex 账号已存档的额度标识，以及每个标识采集过的周期。

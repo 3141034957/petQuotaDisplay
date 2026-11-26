@@ -46,6 +46,7 @@ struct QuotaHistoryRecord: Codable {
 }
 
 struct QuotaHistoryExport: Encodable {
+    static let csvColumns = ["provider", "period", "fetchedAt", "remainingPercent", "resetsAt"]
     let schemaVersion = 1
     let provider: String
     let modelID: String?
@@ -76,21 +77,40 @@ struct QuotaHistoryExport: Encodable {
             }
             return (["\(title) · 额度历史"] + lines).joined(separator: "\n")
         case .csv:
-            let rows = readings.flatMap { reading in
-                reading.periods.map { item in
-                    [provider, item.id, formatter.string(from: reading.fetchedAt), String(item.remainingPercent),
-                     item.resetsAt.map(formatter.string(from:)) ?? ""]
-                }
+            return Self.csv(csvRows(), modelID: modelID)
+        }
+    }
+
+    func csvRows() -> [[String]] {
+        let formatter = ISO8601DateFormatter()
+        return readings.flatMap { reading in
+            reading.periods.map { item in
+                [provider, item.id, formatter.string(from: reading.fetchedAt), String(item.remainingPercent),
+                 item.resetsAt.map(formatter.string(from:)) ?? ""]
             }
-            return Self.csv(rows, modelID: modelID)
         }
     }
 
     static func csv(_ rows: [[String]], modelID: String?) -> String {
-        let columns = ["provider", "period", "fetchedAt", "remainingPercent", "resetsAt"]
         if let modelID {
-            return QuotaOutput.csv([columns + ["modelID"]] + rows.map { $0 + [modelID] })
+            return QuotaOutput.csv([csvColumns + ["modelID"]] + rows.map { $0 + [modelID] })
         }
-        return QuotaOutput.csv([columns] + rows)
+        return QuotaOutput.csv([csvColumns] + rows)
+    }
+}
+
+struct QuotaHistoryBatchExport: Encodable {
+    let sources: [QuotaHistoryExport]
+
+    func render(as format: QuotaExport.Format) throws -> String {
+        switch format {
+        case .json:
+            return try QuotaOutput.json(self)
+        case .text:
+            return try sources.map { try $0.render(as: .text) }.joined(separator: "\n\n")
+        case .csv:
+            let rows = sources.flatMap { source in source.csvRows().map { $0 + [source.modelID ?? ""] } }
+            return QuotaOutput.csv([QuotaHistoryExport.csvColumns + ["modelID"]] + rows)
+        }
     }
 }

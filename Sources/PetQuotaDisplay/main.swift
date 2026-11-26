@@ -43,6 +43,8 @@ let queryUsage = """
 let historyUsage = """
 用法：PetQuotaDisplay --history [历史选项]
   --provider      来源：\(sourceHelp)，默认使用保存的来源
+  --all           输出所有来源的历史
+  --providers     输出逗号分隔的来源历史，按输入顺序输出
   --period        只输出指定周期：\(periodHelp)
   --account       Codex 账号本地名称或标识
   --model         读取指定标识的 Codex 模型记录，codex 表示主要额度

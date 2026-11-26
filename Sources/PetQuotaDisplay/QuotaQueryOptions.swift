@@ -44,7 +44,9 @@ struct QuotaQueryOptions {
     init(arguments: [String], purpose: Purpose = .live) throws {
         var arguments = arguments[...]
         var seen = Set<Option>()
-        let historyOptions: Set<Option> = [.provider, .account, .model, .listModels, .period, .since, .until, .format, .limit]
+        let historyOptions: Set<Option> = [
+            .provider, .providers, .all, .account, .model, .listModels, .period, .since, .until, .format, .limit,
+        ]
         while let argument = arguments.popFirst() {
             guard let option = Option(rawValue: argument) else { throw Failure.unknownOption(purpose) }
             if purpose == .savedHistory, !historyOptions.contains(option) {

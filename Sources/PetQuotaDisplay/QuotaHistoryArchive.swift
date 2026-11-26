@@ -78,7 +78,20 @@ struct QuotaHistoryArchive {
 
     func export(for context: QuotaHistoryContext, selecting period: String? = nil,
                 since: Date? = nil, until: Date? = nil, limit: Int? = nil) throws -> QuotaHistoryExport {
+        try export(for: context, in: loadEnabled(), selecting: period, since: since, until: until, limit: limit)
+    }
+
+    func exportBatch(for contexts: [QuotaHistoryContext], selecting period: String?,
+                     since: Date?, until: Date?, limit: Int?) throws -> QuotaHistoryBatchExport {
         let state = try loadEnabled()
+        let sources = contexts.map {
+            export(for: $0, in: state, selecting: period, since: since, until: until, limit: limit)
+        }
+        return QuotaHistoryBatchExport(sources: sources)
+    }
+
+    private func export(for context: QuotaHistoryContext, in state: State, selecting period: String?,
+                        since: Date?, until: Date?, limit: Int?) -> QuotaHistoryExport {
         let filtered = (state.histories[context] ?? []).filter { sample in
             (since.map { sample.fetchedAt >= $0 } ?? true) && (until.map { sample.fetchedAt <= $0 } ?? true)
         }
