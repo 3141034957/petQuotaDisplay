@@ -15,4 +15,12 @@ final class QuotaDisplayOptionsTests: XCTestCase {
         XCTAssertThrowsError(try QuotaDisplayOptions(arguments: ["--always-show", "--follow-codex"]))
         XCTAssertThrowsError(try QuotaDisplayOptions(arguments: ["--provider", "codex", "--provider", "gemini"]))
     }
+
+    func testAcceptsConcreteAndAdaptiveStartupPeriods() throws {
+        let display = try QuotaDisplayOptions(arguments: ["--period", "monthly", "--provider", "openCodeGo"])
+        XCTAssertEqual(display.period, "monthly")
+        XCTAssertEqual(display.provider, .openCodeGo)
+        XCTAssertEqual(try QuotaDisplayOptions(arguments: ["--period", "lowestRemaining"]).period, "lowestRemaining")
+        XCTAssertThrowsError(try QuotaDisplayOptions(arguments: ["--period", "hourly"]))
+    }
 }

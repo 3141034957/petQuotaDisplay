@@ -97,8 +97,9 @@ final class QuotaOrbView: NSView {
     private var windowPreferenceKey: String {
         QuotaWindowPreference.key(for: provider, account: selectedAccount)
     }
+    var startupPeriodOverride: String?
     private var windowPreferenceValue: String? {
-        defaults.string(forKey: windowPreferenceKey)
+        startupPeriodOverride ?? defaults.string(forKey: windowPreferenceKey)
             ?? defaults.string(forKey: QuotaWindowPreference.key(for: provider))
             ?? defaults.string(forKey: QuotaWindowPreference.legacyKey)
     }
@@ -756,6 +757,7 @@ final class QuotaOrbView: NSView {
     }
 
     private func saveWindowPreference(_ value: String) {
+        startupPeriodOverride = nil
         defaults.set(value, forKey: windowPreferenceKey)
         needsDisplay = true
         updateAccessibility()
