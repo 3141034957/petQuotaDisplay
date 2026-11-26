@@ -161,6 +161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.sizePreference = orbSizePreference
         orbView.opacityPreference = OrbOpacityPreference.load()
         window.alphaValue = orbView.opacityPreference.alpha
+        orbView.quotaMetric = QuotaPreferences.shared.string(forKey: OrbQuotaMetric.defaultsKey)
+            .flatMap(OrbQuotaMetric.init(rawValue:)) ?? .remaining
         orbView.staysOnTop = staysOnTop
         orbView.showsOnAllSpaces = QuotaPreferences.shared.object(forKey: QuotaPreferences.orbAllSpacesKey) as? Bool ?? true
         applyOrbSpacePreference()
@@ -182,6 +184,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.onTogglePositionLock = { [weak self] in self?.togglePositionLock() }
         orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
         orbView.onSelectOpacity = { [weak self] opacity in self?.setOrbOpacity(opacity) }
+        orbView.onSelectQuotaMetric = { [weak self] metric in
+            self?.orbView.quotaMetric = metric
+            QuotaPreferences.shared.set(metric.rawValue, forKey: OrbQuotaMetric.defaultsKey)
+        }
         orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
         orbView.onToggleMenuBarQuota = { [weak self] in self?.toggleMenuBarQuota() }
         orbView.onToggleMenuBarSourceName = { [weak self] in self?.toggleMenuBarSourceName() }

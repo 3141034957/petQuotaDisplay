@@ -97,16 +97,31 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(view.menuBarTitle, "~60%")
     }
 
+    func testUsedPercentageChangesPresentationAndKeepsTheLowQuotaRule() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.provider = .gemini
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 90, resetsAt: nil))
+        view.state = .loaded(snapshot)
+        view.onSelectQuotaMetric = { [weak view] in view?.quotaMetric = $0 }
+        let used = try XCTUnwrap(menu(view).item(withTitle: "外观")?.submenu?
+            .item(withTitle: "百分比显示方式")?.submenu?.item(withTitle: "已用百分比"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(used.action), to: used.target, from: used))
+        XCTAssertEqual(view.menuBarTitle, "已用 90%")
+        XCTAssertTrue(view.isDisplayedQuotaLow)
+        XCTAssertTrue(view.accessibilityLabel()?.contains("已用 90%，剩余 10%") == true)
+        XCTAssertTrue(view.quotaSummary?.contains("剩余 10%") == true)
+    }
+
     func testProgressRingDrawsEmptyAndFullStatesAndStartsAtTop() throws {
         let rect = NSRect(x: 10, y: 10, width: 100, height: 100)
-        XCTAssertNil(QuotaOrbView.progressPath(remainingPercent: 0, in: rect))
-        let full = try XCTUnwrap(QuotaOrbView.progressPath(remainingPercent: 100, in: rect)).bounds
+        XCTAssertNil(QuotaOrbView.progressPath(percent: 0, in: rect))
+        let full = try XCTUnwrap(QuotaOrbView.progressPath(percent: 100, in: rect)).bounds
         XCTAssertEqual(full.minX, rect.minX, accuracy: 0.001)
         XCTAssertEqual(full.minY, rect.minY, accuracy: 0.001)
         XCTAssertEqual(full.width, rect.width, accuracy: 0.001)
         XCTAssertEqual(full.height, rect.height, accuracy: 0.001)
 
-        let quarter = try XCTUnwrap(QuotaOrbView.progressPath(remainingPercent: 25, in: rect)).bounds
+        let quarter = try XCTUnwrap(QuotaOrbView.progressPath(percent: 25, in: rect)).bounds
         XCTAssertEqual(quarter.minX, rect.midX, accuracy: 0.001)
         XCTAssertEqual(quarter.minY, rect.minY, accuracy: 0.001)
         XCTAssertEqual(quarter.maxX, rect.maxX, accuracy: 0.001)

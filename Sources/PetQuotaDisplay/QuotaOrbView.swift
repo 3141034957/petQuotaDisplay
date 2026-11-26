@@ -81,6 +81,13 @@ final class QuotaOrbView: NSView {
     var onSelectSize: ((OrbSizePreference) -> Void)?
     var opacityPreference: OrbOpacityPreference = .full
     var onSelectOpacity: ((OrbOpacityPreference) -> Void)?
+    var quotaMetric: OrbQuotaMetric = .remaining {
+        didSet {
+            needsDisplay = true
+            updateAccessibility()
+        }
+    }
+    var onSelectQuotaMetric: ((OrbQuotaMetric) -> Void)?
     var resetDisplay: OrbResetDisplay = .time {
         didSet { needsDisplay = true }
     }
@@ -219,22 +226,22 @@ final class QuotaOrbView: NSView {
         background.stroke()
 
         guard let snapshot = state.snapshot, let displayed = displayedQuota(in: snapshot),
-              let progress = Self.progressPath(remainingPercent: displayed.quota.remainingPercent, in: ringRect) else { return }
+              let progress = Self.progressPath(percent: quotaMetric.percent(in: displayed.quota), in: ringRect) else { return }
         progress.lineWidth = 5
         progress.lineCapStyle = .round
         NSColor.white.withAlphaComponent(0.92).setStroke()
         progress.stroke()
     }
 
-    static func progressPath(remainingPercent: Int, in rect: NSRect) -> NSBezierPath? {
-        guard remainingPercent > 0 else { return nil }
-        if remainingPercent >= 100 { return NSBezierPath(ovalIn: rect) }
+    static func progressPath(percent: Int, in rect: NSRect) -> NSBezierPath? {
+        guard percent > 0 else { return nil }
+        if percent >= 100 { return NSBezierPath(ovalIn: rect) }
         let progress = NSBezierPath()
         progress.appendArc(
             withCenter: NSPoint(x: rect.midX, y: rect.midY),
             radius: rect.width / 2,
             startAngle: -90,
-            endAngle: -90 + CGFloat(remainingPercent) * 3.6,
+            endAngle: -90 + CGFloat(percent) * 3.6,
             clockwise: false
         )
         return progress
@@ -280,13 +287,13 @@ final class QuotaOrbView: NSView {
                 title = "\(displayed.title)额度"
             }
             drawCentered(
-                title,
+                quotaMetric == .used ? "已用 · \(title)" : title,
                 y: 28,
                 font: .systemFont(ofSize: 11, weight: .medium),
                 alpha: 0.82
             )
             drawCentered(
-                "\(displayed.quota.remainingPercent)%",
+                "\(quotaMetric.percent(in: displayed.quota))%",
                 y: 43,
                 font: .monospacedDigitSystemFont(ofSize: 38, weight: .bold),
                 alpha: 1
@@ -668,6 +675,7 @@ final class QuotaOrbView: NSView {
         let submenu = NSMenu(title: item.title)
         submenu.addItem(orbSizeMenuItem())
         submenu.addItem(orbOpacityMenuItem())
+        submenu.addItem(orbQuotaMetricMenuItem())
         submenu.addItem(resetDisplayMenuItem())
         let pin = submenu.addItem(withTitle: "保持悬浮球置顶", action: #selector(toggleWindowLevel), keyEquivalent: "")
         pin.target = self
@@ -847,6 +855,19 @@ final class QuotaOrbView: NSView {
         return item
     }
 
+    private func orbQuotaMetricMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "百分比显示方式", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        for metric in OrbQuotaMetric.allCases {
+            let choice = submenu.addItem(withTitle: metric.title, action: #selector(selectOrbQuotaMetric(_:)), keyEquivalent: "")
+            choice.target = self
+            choice.representedObject = metric.rawValue
+            choice.state = metric == quotaMetric ? .on : .off
+        }
+        item.submenu = submenu
+        return item
+    }
+
     private func accountMenuItem() -> NSMenuItem {
         let accountItem = NSMenuItem(title: "切换额度账号", action: nil, keyEquivalent: "")
         let accountMenu = NSMenu(title: "切换额度账号")
@@ -965,6 +986,11 @@ final class QuotaOrbView: NSView {
     @objc private func selectOrbOpacity(_ sender: NSMenuItem) {
         guard let opacity = OrbOpacityPreference(rawValue: sender.tag) else { return }
         onSelectOpacity?(opacity)
+    }
+
+    @objc private func selectOrbQuotaMetric(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? String, let metric = OrbQuotaMetric(rawValue: value) else { return }
+        onSelectQuotaMetric?(metric)
     }
 
     @objc private func selectResetDisplay(_ sender: NSMenuItem) {
@@ -1195,7 +1221,7 @@ final class QuotaOrbView: NSView {
     }
 
     var menuBarTitle: String {
-        let percent = state.snapshot.flatMap(displayedQuota).map { "\($0.quota.remainingPercent)%" }
+        let percent = state.snapshot.flatMap(displayedQuota).map { "\(quotaMetric.percent(in: $0.quota))%" }
         let title: String
         switch state {
         case .loading: title = "额度…"
@@ -1204,7 +1230,8 @@ final class QuotaOrbView: NSView {
         case .refreshing: title = percent.map { "\($0)…" } ?? "额度…"
         case .stale: title = percent.map { "~\($0)" } ?? "额度 —"
         }
-        return showsMenuBarSourceName ? "\(provider.title) \(title)" : title
+        let labeled = quotaMetric == .used && percent != nil ? "已用 \(title)" : title
+        return showsMenuBarSourceName ? "\(provider.title) \(labeled)" : labeled
     }
 
     var isDisplayedQuotaLow: Bool {
@@ -1248,7 +1275,9 @@ final class QuotaOrbView: NSView {
         case .loaded(let snapshot), .refreshing(let snapshot), .stale(let snapshot, _):
             if let displayed = displayedQuota(in: snapshot) {
                 let reset = displayed.quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知时间"
-                description = "\(displaySourceTitle) \(displayed.title)额度剩余 \(displayed.quota.remainingPercent)%，\(reset) 重置"
+                let remaining = "剩余 \(displayed.quota.remainingPercent)%"
+                let amount = quotaMetric == .used ? "已用 \(displayed.quota.usedPercent)%，\(remaining)" : remaining
+                description = "\(displaySourceTitle) \(displayed.title)额度\(amount)，\(reset) 重置"
             } else {
                 description = "\(provider.title) 额度已同步"
             }
