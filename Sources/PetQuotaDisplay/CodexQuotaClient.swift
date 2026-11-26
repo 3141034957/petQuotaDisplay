@@ -286,8 +286,7 @@ final class CodexQuotaClient {
                 emit(error: error)
             }
         case .loginStart:
-            guard let authURLString = result["authUrl"] as? String,
-                  let authURL = URL(string: authURLString) else {
+            guard let authURL = Self.browserLoginURL(result["authUrl"]) else {
                 emit(error: ClientError.malformedResponse)
                 return
             }
@@ -478,6 +477,15 @@ final class CodexQuotaClient {
             if let cli = QuotaCLI.executableURL(at: path) { return (cli.path, []) }
         }
         return nil
+    }
+
+    static func browserLoginURL(_ value: Any?) -> URL? {
+        guard let address = value as? String,
+              let components = URLComponents(string: address),
+              let scheme = components.scheme?.lowercased(), ["https", "http"].contains(scheme),
+              let host = components.host, !host.isEmpty,
+              components.user == nil, components.password == nil else { return nil }
+        return components.url
     }
 
     private static func integer(_ value: Any?) -> Int? {

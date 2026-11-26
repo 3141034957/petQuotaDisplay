@@ -2,6 +2,14 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class CodexQuotaClientTests: XCTestCase {
+    func testBrowserLoginURLAcceptsWebAddressesOnly() {
+        let address = "https://auth.example.com/oauth?state=fixture"
+        XCTAssertEqual(CodexQuotaClient.browserLoginURL(address)?.absoluteString, address)
+        for invalid in ["file:///tmp/fixture", "codex://login", "https:/relative", "https://user@example.com/login"] {
+            XCTAssertNil(CodexQuotaClient.browserLoginURL(invalid), invalid)
+        }
+    }
+
     func testInitializationTimeoutRestartsAndRecovers() throws {
         try assertRecovers(scenario: "initialize-timeout") { error in
             guard case CodexQuotaClient.ClientError.initializationTimedOut = error else {
