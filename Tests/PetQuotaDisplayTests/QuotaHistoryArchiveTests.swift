@@ -127,9 +127,12 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         let export = QuotaHistoryExport(provider: .codex, snapshots: [oldest, duplicate], modelID: "extra")
         let portable = try QuotaPortableHistory(data: Data(export.render(as: .json).utf8))
         XCTAssertTrue(portable.hasCodexReadings)
-        XCTAssertTrue(portable.snapshots(codexAccount: nil).isEmpty)
-        let mapped = portable.snapshots(codexAccount: account)
+        XCTAssertTrue(portable.importableSnapshots(codexAccount: nil).snapshots.isEmpty)
+        let mapped = portable.importableSnapshots(codexAccount: account).snapshots
         XCTAssertEqual(mapped[context], [oldest, duplicate])
+        let limited = portable.importableSnapshots(codexAccount: account, now: oldest.fetchedAt)
+        XCTAssertEqual(limited.snapshots[context], [oldest])
+        XCTAssertEqual(limited.futureReadings, 1)
 
         XCTAssertFalse(try archive.mergeImported(mapped))
         try archive.setEnabled(true, initial: [context: [local]])

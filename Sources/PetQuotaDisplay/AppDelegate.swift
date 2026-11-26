@@ -444,13 +444,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     private func applyImportedHistory(_ history: QuotaPortableHistory) throws {
         let account = selectedAccount
-        let imported = history.snapshots(codexAccount: account)
+        let (imported, futureReadings) = history.importableSnapshots(codexAccount: account)
+        let skipped = futureReadings > 0 ? "已跳过 \(futureReadings) 条采集时间晚于本机的记录。" : ""
         guard !imported.isEmpty else {
-            let detail = history.hasCodexReadings ? "请先选择或添加接收记录的 Codex 额度账号。" : "该文件中没有采集记录。"
-            showHistoryImportMessage("暂无可导入的采集记录", detail: detail)
+            let detail = history.hasCodexReadings && account == nil
+                ? "请先选择或添加接收记录的 Codex 额度账号。"
+                : "该文件中没有可合并的采集记录。"
+            showHistoryImportMessage("暂无可导入的采集记录", detail: detail + skipped)
             return
         }
-        if history.hasCodexReadings {
+        if imported.keys.contains(where: { $0.provider == .codex }) || (account == nil && history.hasCodexReadings) {
             let confirm = NSAlert()
             confirm.messageText = "导入额度采集记录？"
             if let account {
@@ -471,7 +474,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
         orbView.mergeImportedHistory(imported)
         updateQuotaHistory(after: imported)
-        showHistoryImportMessage("采集记录已合并", detail: "可从“最近读取的额度”查看导入的来源和趋势。")
+        showHistoryImportMessage("采集记录已合并", detail: "可从“最近读取的额度”查看导入的来源和趋势。" + skipped)
     }
 
     private func showHistoryImportMessage(_ title: String, detail: String) {

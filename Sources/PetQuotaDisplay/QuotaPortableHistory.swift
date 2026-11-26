@@ -9,16 +9,21 @@ struct QuotaPortableHistory {
         sources.contains { $0.provider == QuotaProvider.codex.rawValue && !$0.readings.isEmpty }
     }
 
-    func snapshots(codexAccount: CodexAccountSlot?) -> [QuotaHistoryContext: [QuotaSnapshot]] {
+    func importableSnapshots(codexAccount: CodexAccountSlot?, now: Date = Date())
+        -> (snapshots: [QuotaHistoryContext: [QuotaSnapshot]], futureReadings: Int) {
         var result: [QuotaHistoryContext: [QuotaSnapshot]] = [:]
+        var futureReadings = 0
         for source in sources {
             guard let provider = QuotaProvider(rawValue: source.provider), !source.readings.isEmpty,
                   provider != .codex || codexAccount != nil else { continue }
             let context = QuotaHistoryContext(provider: provider, account: provider == .codex ? codexAccount : nil,
                                               modelID: source.modelID)
-            result[context, default: []].append(contentsOf: source.readings.compactMap(\.snapshot))
+            let snapshots = source.readings.compactMap(\.snapshot)
+            let valid = snapshots.filter { $0.fetchedAt <= now }
+            futureReadings += snapshots.count - valid.count
+            if !valid.isEmpty { result[context, default: []].append(contentsOf: valid) }
         }
-        return result
+        return (result, futureReadings)
     }
 
     static func read(from url: URL) throws -> Self {
