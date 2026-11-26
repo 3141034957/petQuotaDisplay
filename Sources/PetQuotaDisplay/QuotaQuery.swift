@@ -2,7 +2,8 @@ import Foundation
 import QuotaCore
 
 enum QuotaQuery {
-    static func snapshot(from provider: QuotaProvider, timeout: TimeInterval) throws -> QuotaExport {
+    static func snapshot(from provider: QuotaProvider, timeout: TimeInterval, modelID: String? = nil) throws -> QuotaExport {
+        guard modelID == nil || provider == .codex else { throw Failure.modelOnlyForCodex }
         defer { QuotaChildProcess.waitForTerminations() }
         let state: QuotaDisplayState
         switch provider {
@@ -14,14 +15,15 @@ enum QuotaQuery {
                   CodexAccountProfile.hasStoredCredentials(for: account) else { throw Failure.codexAccountRequired }
             let client = CodexQuotaClient(codexHome: try CodexAccountProfile.homeURL(for: account))
             defer { client.stop() }
-            state = try waitForResult(timeout: timeout) { complete in
+            let report: CodexQuotaReport = try waitForResult(timeout: timeout) { complete in
                 client.onAccount = { account in
                     if account == nil { complete(.failure(Failure.codexAccountRequired)) }
                 }
                 client.onError = { complete(.failure($0)) }
-                client.onReport = { complete(.success($0.primary)) }
+                client.onReport = { complete(.success($0)) }
                 client.start()
             }
+            return try codexExport(from: report, modelID: modelID)
         case .gemini:
             state = try run(GeminiQuotaClient(), timeout: timeout)
         case .openCodeGo:
@@ -35,20 +37,35 @@ enum QuotaQuery {
         return export
     }
 
+    static func codexExport(from report: CodexQuotaReport, modelID: String?) throws -> QuotaExport {
+        let model: CodexMeteredQuota?
+        if let modelID, modelID != "codex", modelID != report.primaryID {
+            guard let selected = report.additional.first(where: { $0.id == modelID }) else { throw Failure.unknownModel }
+            model = selected
+        } else {
+            model = nil
+        }
+        guard let export = QuotaExport(provider: .codex, state: .loaded(report.primary), model: model) else {
+            throw Failure.noResult
+        }
+        return export
+    }
+
     private static func run(_ client: PollingQuotaClient, timeout: TimeInterval) throws -> QuotaDisplayState {
         defer { client.stop() }
-        return try waitForResult(timeout: timeout) { complete in
+        let snapshot: QuotaSnapshot = try waitForResult(timeout: timeout) { complete in
             client.onResult = complete
             client.refresh()
         }
+        return .loaded(snapshot)
     }
 
-    private static func waitForResult(
+    private static func waitForResult<Value>(
         timeout: TimeInterval,
-        start: (@escaping (Result<QuotaSnapshot, Error>) -> Void) -> Void
-    ) throws -> QuotaDisplayState {
-        var result: Result<QuotaSnapshot, Error>?
-        func complete(_ response: Result<QuotaSnapshot, Error>) {
+        start: (@escaping (Result<Value, Error>) -> Void) -> Void
+    ) throws -> Value {
+        var result: Result<Value, Error>?
+        func complete(_ response: Result<Value, Error>) {
             if result == nil { result = response }
         }
 
@@ -61,17 +78,19 @@ enum QuotaQuery {
             _ = RunLoop.main.run(mode: .default, before: deadline)
         }
         guard let result else { throw Failure.timedOut }
-        return .loaded(try result.get())
+        return try result.get()
     }
 
     private enum Failure: LocalizedError {
-        case codexAccountRequired, timedOut, noResult
+        case codexAccountRequired, timedOut, noResult, modelOnlyForCodex, unknownModel
 
         var errorDescription: String? {
             switch self {
             case .codexAccountRequired: return "请先在悬浮球添加并登录 Codex 额度账号"
             case .timedOut: return "读取额度超时"
             case .noResult: return "没有可导出的额度结果"
+            case .modelOnlyForCodex: return "--model 仅适用于 Codex 额度查询"
+            case .unknownModel: return "Codex 未返回指定模型的独立额度"
             }
         }
     }

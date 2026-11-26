@@ -9,6 +9,7 @@ struct QuotaQueryOptions {
         case format = "--format"
         case failBelow = "--fail-below"
         case requireFresh = "--require-fresh"
+        case model = "--model"
 
         var requiresValue: Bool { self != .requireFresh }
     }
@@ -19,6 +20,7 @@ struct QuotaQueryOptions {
     private(set) var format: QuotaExport.Format = .json
     private(set) var failBelow: Int?
     private(set) var requireFresh = false
+    private(set) var modelID: String?
 
     init(arguments: [String]) throws {
         var arguments = arguments[...]
@@ -47,6 +49,11 @@ struct QuotaQueryOptions {
                 failBelow = percent
             case .requireFresh:
                 requireFresh = true
+            case .model:
+                guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw Failure.invalidValue(option)
+                }
+                modelID = value
             }
         }
     }

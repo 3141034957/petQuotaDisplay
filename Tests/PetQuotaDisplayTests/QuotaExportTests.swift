@@ -3,6 +3,20 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaExportTests: XCTestCase {
+    func testCodexQueryCanSelectNamedModelsWithoutFallingBackOnTypos() throws {
+        let report = try QuotaParser.parseReport(result: [
+            "rateLimits": ["limitId": "primary-model", "primary": ["usedPercent": 20, "windowDurationMins": 300]],
+            "rateLimitsByLimitId": ["extra": ["primary": ["usedPercent": 50, "windowDurationMins": 300]]],
+        ])
+        let primary = try QuotaQuery.codexExport(from: report, modelID: "primary-model")
+        XCTAssertNil(primary.codexLimitID)
+        XCTAssertEqual(primary.periods.first?.remainingPercent, 80)
+        let extra = try QuotaQuery.codexExport(from: report, modelID: "extra")
+        XCTAssertEqual(extra.codexLimitID, "extra")
+        XCTAssertEqual(extra.periods.first?.remainingPercent, 50)
+        XCTAssertThrowsError(try QuotaQuery.codexExport(from: report, modelID: "typo"))
+    }
+
     func testLowQuotaStatusUsesTheExportedWindowsAndStrictThreshold() throws {
         let snapshot = QuotaSnapshot(planType: nil,
                                      fiveHour: QuotaWindow(usedPercent: 95, resetsAt: nil),

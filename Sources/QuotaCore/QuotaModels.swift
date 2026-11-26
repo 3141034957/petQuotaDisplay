@@ -102,6 +102,7 @@ public struct CodexMeteredQuota: Equatable {
 
 public struct CodexQuotaReport: Equatable {
     public let primary: QuotaSnapshot
+    public let primaryID: String
     public let additional: [CodexMeteredQuota]
 }
 
@@ -124,7 +125,7 @@ public enum QuotaParser {
             let name = (bucket["limitName"] as? String)?.split(whereSeparator: \.isWhitespace).joined(separator: " ")
             return CodexMeteredQuota(id: id, name: name.flatMap { $0.isEmpty ? nil : $0 } ?? id, snapshot: snapshot)
         }
-        return CodexQuotaReport(primary: primary.snapshot, additional: additional)
+        return CodexQuotaReport(primary: primary.snapshot, primaryID: primary.id ?? "codex", additional: additional)
     }
 
     private static func primaryQuota(_ result: [String: Any], now: Date) throws -> (snapshot: QuotaSnapshot, id: String?) {

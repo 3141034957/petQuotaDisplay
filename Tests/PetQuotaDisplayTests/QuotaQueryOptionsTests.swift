@@ -12,6 +12,7 @@ final class QuotaQueryOptionsTests: XCTestCase {
         XCTAssertEqual(try QuotaQueryOptions(arguments: ["--format", "text"]).format, .text)
         XCTAssertEqual(try QuotaQueryOptions(arguments: ["--fail-below", "20"]).failBelow, 20)
         XCTAssertTrue(try QuotaQueryOptions(arguments: ["--require-fresh", "--provider", "claudeCode"]).requireFresh)
+        XCTAssertEqual(try QuotaQueryOptions(arguments: ["--model", "extra"]).modelID, "extra")
     }
 
     func testRejectsUnsupportedFlagsAndInvalidValues() throws {
