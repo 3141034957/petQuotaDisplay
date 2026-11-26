@@ -52,6 +52,8 @@ Codex 查询可加 `--model <额度标识>` 获取独立模型额度。省略 `-
 
 启用“跨启动保留采集记录”后，用 `python3 main.py --history --provider gemini` 可直接输出本机存档的 JSON。省略 `--provider` 时读取保存的来源，Codex 支持 `--account` 切换读取的账号。读取历史无需网络。
 
+历史查询可加 `--period weekly` 只保留周额度记录，也可用 `--period lowestRemaining` 为每次采集选择当时余量最低的周期。
+
 如果 OpenCode Go 的钥匙串密钥需要交互授权，终端查询会提示先在悬浮球授权。
 
 首次运行会编译原生程序，后续启动会快很多。悬浮球默认置顶，程序不会出现在 Dock 中：

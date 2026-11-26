@@ -35,7 +35,7 @@ struct QuotaQueryOptions {
         var seen = Set<Option>()
         while let argument = arguments.popFirst() {
             guard let option = Option(rawValue: argument) else { throw Failure.unknownOption }
-            if purpose == .savedHistory, option != .provider, option != .account {
+            if purpose == .savedHistory, option != .provider, option != .account, option != .period {
                 throw Failure.unsupportedHistoryOption
             }
             guard seen.insert(option).inserted else { throw Failure.invalidValue(option) }
@@ -87,7 +87,7 @@ struct QuotaQueryOptions {
             case .unknownOption: return "--query 接受 \(Option.allCases.map(\.rawValue).joined(separator: "、")) 选项。"
             case .invalidValue(let option): return "请为 \(option.rawValue) 指定一个有效的值。"
             case .incompatibleModelList: return "模型列表仅支持 Codex 来源、账号、超时和输出格式选项。"
-            case .unsupportedHistoryOption: return "--history 接受 --provider 和 --account 选项。"
+            case .unsupportedHistoryOption: return "--history 接受 --provider、--account 和 --period 选项。"
             }
         }
     }

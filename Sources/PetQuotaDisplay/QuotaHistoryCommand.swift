@@ -15,7 +15,8 @@ enum QuotaHistoryCommand {
             guard options.account == nil else { throw Failure.accountOnlyForCodex }
             account = nil
         }
-        return try QuotaHistoryArchive.local.export(for: QuotaHistoryContext(provider: provider, account: account))
+        return try QuotaHistoryArchive.local.export(for: QuotaHistoryContext(provider: provider, account: account),
+                                                    selecting: options.period)
     }
 
     private enum Failure: LocalizedError {

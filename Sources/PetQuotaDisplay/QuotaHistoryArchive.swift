@@ -72,10 +72,10 @@ struct QuotaHistoryArchive {
         }
     }
 
-    func export(for context: QuotaHistoryContext) throws -> QuotaHistoryExport {
+    func export(for context: QuotaHistoryContext, selecting period: String? = nil) throws -> QuotaHistoryExport {
         let state = try load()
         guard state.isEnabled else { throw Failure.notEnabled }
-        return QuotaHistoryExport(provider: context.provider, snapshots: state.histories[context] ?? [])
+        return QuotaHistoryExport(provider: context.provider, snapshots: state.histories[context] ?? [], selecting: period)
     }
 
     private static func merge(_ existing: [QuotaSnapshot], with incoming: [QuotaSnapshot]) -> [QuotaSnapshot] {
@@ -119,7 +119,7 @@ struct QuotaHistoryArchive {
         init(context: QuotaHistoryContext, snapshots: [QuotaSnapshot]) {
             provider = context.provider.rawValue
             accountID = context.account?.rawValue
-            readings = snapshots.map(QuotaHistoryRecord.init)
+            readings = snapshots.map { QuotaHistoryRecord($0) }
         }
 
         var context: QuotaHistoryContext? {

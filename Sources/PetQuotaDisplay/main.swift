@@ -6,7 +6,7 @@ let usage = """
       PetQuotaDisplay --diagnose [--json]
       PetQuotaDisplay --query [查询选项]
       PetQuotaDisplay --list-codex-accounts
-      PetQuotaDisplay --history [--provider 来源] [--account 账号]
+      PetQuotaDisplay --history [--provider 来源] [--account 账号] [--period 周期]
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端

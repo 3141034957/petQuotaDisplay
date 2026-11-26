@@ -11,9 +11,18 @@ struct QuotaHistoryRecord: Codable {
     let fetchedAt: Date
     let periods: [Period]
 
-    init(_ snapshot: QuotaSnapshot) {
+    init(_ snapshot: QuotaSnapshot, selecting selection: String? = nil) {
         fetchedAt = snapshot.fetchedAt
-        periods = QuotaPeriod.allCases.compactMap { period in
+        let selected: [QuotaPeriod]
+        if selection == QuotaWindowPreference.lowestRemaining {
+            let lowest = QuotaWindowPreference.lowestPeriod { snapshot[$0]?.remainingPercent }
+            selected = lowest.map { [$0] } ?? []
+        } else if let selection {
+            selected = QuotaPeriod(rawValue: selection).map { [$0] } ?? []
+        } else {
+            selected = QuotaPeriod.allCases
+        }
+        periods = selected.compactMap { period in
             snapshot[period].map { Period(id: period.rawValue, remainingPercent: $0.remainingPercent, resetsAt: $0.resetsAt) }
         }
     }
@@ -41,8 +50,8 @@ struct QuotaHistoryExport: Encodable {
     let provider: String
     let readings: [QuotaHistoryRecord]
 
-    init(provider: QuotaProvider, snapshots: [QuotaSnapshot]) {
+    init(provider: QuotaProvider, snapshots: [QuotaSnapshot], selecting period: String? = nil) {
         self.provider = provider.rawValue
-        readings = snapshots.map(QuotaHistoryRecord.init)
+        readings = snapshots.map { QuotaHistoryRecord($0, selecting: period) }.filter { !$0.periods.isEmpty }
     }
 }
