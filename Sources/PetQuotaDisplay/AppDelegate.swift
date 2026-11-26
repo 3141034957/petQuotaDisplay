@@ -56,6 +56,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         createWindow()
         restoreHistoryArchive()
+        checkNotificationAuthorization()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screenParametersDidChange(_:)),
@@ -550,8 +551,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setLowQuotaNotifications(_ enabled: Bool) {
         orbView.lowQuotaNotificationEnabled = enabled
+        orbView.lowQuotaNotificationMessage = nil
         if !orbView.lowQuotaSoundEnabled { lowQuotaReminder = QuotaLowReminder() }
         QuotaPreferences.shared.set(enabled, forKey: QuotaPreferences.lowQuotaNotificationKey)
+    }
+
+    private func checkNotificationAuthorization() {
+        guard orbView.lowQuotaNotificationEnabled else { return }
+        quotaNotifications.checkAuthorization { [weak self] enabled in
+            guard let self, self.orbView.lowQuotaNotificationEnabled, !enabled else { return }
+            self.recordNotificationPermissionLoss()
+        }
+    }
+
+    private func recordNotificationPermissionLoss() {
+        setLowQuotaNotifications(false)
+        orbView.lowQuotaNotificationMessage = "macOS 通知权限已关闭"
     }
 
     private func handleLowQuota(_ scope: QuotaReminderScope, snapshot: QuotaSnapshot) {
@@ -560,7 +575,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                              periods: orbView.reminderPeriods)
         guard !events.isEmpty else { return }
         if orbView.lowQuotaSoundEnabled { NSSound.beep() }
-        if orbView.lowQuotaNotificationEnabled { quotaNotifications.post(provider: scope.context.provider, events: events) }
+        if orbView.lowQuotaNotificationEnabled {
+            quotaNotifications.post(provider: scope.context.provider, events: events) { [weak self] error in
+                guard let self, self.orbView.lowQuotaNotificationEnabled else { return }
+                if let error, QuotaNotificationService.isAuthorizationError(error) {
+                    self.recordNotificationPermissionLoss()
+                } else {
+                    self.orbView.lowQuotaNotificationMessage = error.map { "通知发送失败：\($0.localizedDescription)" }
+                }
+            }
+        }
     }
 
     private func toggleReminderPeriod(_ period: QuotaPeriod) {
@@ -830,6 +854,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func workspaceDidWake(_ notification: Notification) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            self.checkNotificationAuthorization()
             let wasActive = self.orbIsActive
             if self.monitorsCodexDesktop {
                 self.codexGUIRunning = self.isCodexRunning()

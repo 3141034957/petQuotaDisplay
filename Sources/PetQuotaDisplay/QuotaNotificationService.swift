@@ -20,10 +20,24 @@ final class QuotaNotificationService: NSObject, UNUserNotificationCenterDelegate
         }
     }
 
-    func post(provider: QuotaProvider, events: [QuotaLowReminder.Event]) {
+    func checkAuthorization(completion: @escaping (Bool) -> Void) {
+        center.getNotificationSettings { settings in
+            let enabled = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+            DispatchQueue.main.async { completion(enabled) }
+        }
+    }
+
+    func post(provider: QuotaProvider, events: [QuotaLowReminder.Event], completion: @escaping (Error?) -> Void) {
         let content = Self.content(provider: provider, events: events)
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        center.add(request)
+        center.add(request) { error in
+            DispatchQueue.main.async { completion(error) }
+        }
+    }
+
+    static func isAuthorizationError(_ error: Error) -> Bool {
+        let value = error as NSError
+        return value.domain == UNErrorDomain && value.code == UNError.Code.notificationsNotAllowed.rawValue
     }
 
     static func content(provider: QuotaProvider, events: [QuotaLowReminder.Event]) -> UNMutableNotificationContent {

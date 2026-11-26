@@ -1,8 +1,15 @@
 import QuotaCore
+import UserNotifications
 import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaLowReminderTests: XCTestCase {
+    func testNotificationAuthorizationErrorIsDistinguishedFromOtherErrors() {
+        let code = UNError.Code.notificationsNotAllowed.rawValue
+        XCTAssertTrue(QuotaNotificationService.isAuthorizationError(NSError(domain: UNErrorDomain, code: code)))
+        XCTAssertFalse(QuotaNotificationService.isAuthorizationError(NSError(domain: NSCocoaErrorDomain, code: code)))
+    }
+
     func testReminderFiltersPeriodsBeforeRecordingEpisodes() {
         var tracker = QuotaLowReminder()
         let scope = QuotaReminderScope(context: .init(provider: .gemini, account: nil), modelID: nil)

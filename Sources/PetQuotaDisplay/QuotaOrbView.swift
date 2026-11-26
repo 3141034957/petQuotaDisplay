@@ -48,6 +48,7 @@ final class QuotaOrbView: NSView {
     var onToggleLowQuotaSound: (() -> Void)?
     var supportsLowQuotaNotifications = false
     var lowQuotaNotificationEnabled = false
+    var lowQuotaNotificationMessage: String?
     var onToggleLowQuotaNotifications: (() -> Void)?
     var reminderPeriods = Set(QuotaPeriod.allCases)
     var onToggleReminderPeriod: ((QuotaPeriod) -> Void)?
@@ -578,6 +579,10 @@ final class QuotaOrbView: NSView {
             let notifications = submenu.addItem(withTitle: "低额度系统通知", action: #selector(toggleLowQuotaNotifications), keyEquivalent: "")
             notifications.target = self
             notifications.state = lowQuotaNotificationEnabled ? .on : .off
+            if let lowQuotaNotificationMessage {
+                let status = submenu.addItem(withTitle: lowQuotaNotificationMessage, action: nil, keyEquivalent: "")
+                status.isEnabled = false
+            }
         }
         item.submenu = submenu
         return item
