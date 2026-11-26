@@ -7,6 +7,7 @@ struct QuotaHistoryView: View {
     let readings: [QuotaSnapshot]
     @State private var selectedPeriod: QuotaPeriod
     @State private var hoveredTime: Date?
+    @State private var timeRange: QuotaHistorySeries.TimeRange = .all
 
     init(source: QuotaProvider, readings: [QuotaSnapshot]) {
         self.source = source
@@ -22,7 +23,7 @@ struct QuotaHistoryView: View {
     }
 
     var body: some View {
-        let series = QuotaHistorySeries(readings: readings, period: selectedPeriod)
+        let series = QuotaHistorySeries(readings: readings, period: selectedPeriod, range: timeRange)
         let hoveredPoint = hoveredTime.flatMap(series.nearestPoint(to:))
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -31,11 +32,19 @@ struct QuotaHistoryView: View {
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: selectedPeriod) { _ in hoveredTime = nil }
+                Picker("时间范围", selection: $timeRange) {
+                    ForEach(QuotaHistorySeries.TimeRange.allCases, id: \.self) { range in
+                        Text(range.title).tag(range)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .onChange(of: timeRange) { _ in hoveredTime = nil }
                 Button("复制 CSV") {
                     QuotaClipboard.copy(series.csv(provider: source, period: selectedPeriod))
                 }
                 .disabled(series.points.isEmpty)
-                .help("复制当前周期的采集记录")
+                .help("复制当前周期和时间范围内的采集记录")
             }
 
             Chart {
@@ -81,6 +90,12 @@ struct QuotaHistoryView: View {
             }
             .accessibilityLabel("\(selectedPeriod.title)剩余额度趋势")
             .frame(minHeight: 200)
+            .opacity(series.points.isEmpty ? 0 : 1)
+            .overlay {
+                if series.points.isEmpty {
+                    Text("此时间范围内没有该周期的采集记录").foregroundStyle(.secondary)
+                }
+            }
 
             if let point = hoveredPoint ?? series.points.last {
                 VStack(alignment: .leading, spacing: 4) {

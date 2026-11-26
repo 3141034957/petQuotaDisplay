@@ -2,6 +2,26 @@ import Foundation
 import QuotaCore
 
 struct QuotaHistorySeries {
+    enum TimeRange: CaseIterable {
+        case quarterHour, hour, all
+
+        var title: String {
+            switch self {
+            case .quarterHour: return "最近 15 分钟"
+            case .hour: return "最近 1 小时"
+            case .all: return "全部记录"
+            }
+        }
+
+        var duration: TimeInterval? {
+            switch self {
+            case .quarterHour: return 15 * 60
+            case .hour: return 60 * 60
+            case .all: return nil
+            }
+        }
+    }
+
     struct Point: Identifiable {
         let time: Date
         let remainingPercent: Int
@@ -23,12 +43,13 @@ struct QuotaHistorySeries {
 
     let points: [Point]
 
-    init(readings: [QuotaSnapshot], period: QuotaPeriod) {
+    init(readings: [QuotaSnapshot], period: QuotaPeriod, range: TimeRange = .all) {
         var points: [Point] = []
         var segment = 0
         var lastKnownReset: Date?
         var containsGap = false
-        for reading in readings {
+        let cutoff = range.duration.flatMap { duration in readings.last?.fetchedAt.addingTimeInterval(-duration) }
+        for reading in readings where cutoff.map({ reading.fetchedAt >= $0 }) ?? true {
             guard let window = reading[period] else {
                 containsGap = !points.isEmpty
                 continue

@@ -3,6 +3,16 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaHistorySeriesTests: XCTestCase {
+    func testTimeRangeUsesTheLatestCaptureAndIncludesTheBoundary() {
+        let readings = [0.0, 2_699, 2_700, 3_600].map { time in
+            QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 30, resetsAt: nil),
+                          fetchedAt: Date(timeIntervalSince1970: time))
+        }
+        let recent = QuotaHistorySeries(readings: readings, period: .weekly, range: .quarterHour)
+        XCTAssertEqual(recent.points.map { $0.time.timeIntervalSince1970 }, [2_700, 3_600])
+        XCTAssertEqual(QuotaHistorySeries(readings: readings, period: .weekly, range: .hour).points.count, 4)
+    }
+
     func testTrendBreaksAtMissingWindowsAndChangedResetTimes() {
         let firstReset = Date(timeIntervalSince1970: 100)
         let secondReset = Date(timeIntervalSince1970: 200)
