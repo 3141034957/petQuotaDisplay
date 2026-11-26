@@ -71,7 +71,7 @@ struct QuotaPortableHistory {
         let schemaVersion: Int
         let provider: String
         let modelID: String?
-        let readings: [QuotaHistoryRecord]
+        let readings: [QuotaHistoryRecord.Portable]
     }
 
     private enum Failure: LocalizedError {

@@ -114,6 +114,21 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertThrowsError(try QuotaPortableHistory(data: unsupported))
     }
 
+    func testPortableExportPreservesSubsecondIdentityForRepeatImport() throws {
+        let time = Date(timeIntervalSinceReferenceDate: 803_456_000.1234567)
+        let original = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 43, resetsAt: nil),
+                                     fetchedAt: time)
+        let export = QuotaHistoryExport(provider: .gemini, snapshots: [original])
+        let portable = try QuotaPortableHistory(data: Data(export.render(as: .json).utf8))
+        let context = QuotaHistoryContext(provider: .gemini, account: nil)
+        let restored = try XCTUnwrap(portable.importableSnapshots(codexAccount: nil).snapshots[context])
+        XCTAssertEqual(restored, [original])
+        var memory = QuotaReadingHistory()
+        memory.record(original)
+        memory.merge(restored)
+        XCTAssertEqual(memory.readings, [original])
+    }
+
     func testImportedHistoryFillsGapsWithoutReplacingLocalReadings() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }

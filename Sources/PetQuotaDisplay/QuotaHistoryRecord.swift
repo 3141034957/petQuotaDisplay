@@ -8,8 +8,37 @@ struct QuotaHistoryRecord: Codable {
         let resetsAt: Date?
     }
 
+    struct Portable: Codable {
+        let fetchedAt: Date
+        let fetchedAtSecondsSince2001: TimeInterval?
+        let periods: [Period]
+
+        init(_ reading: QuotaHistoryRecord) {
+            fetchedAt = reading.fetchedAt
+            let seconds = fetchedAt.timeIntervalSinceReferenceDate
+            fetchedAtSecondsSince2001 = seconds.rounded(.down) == seconds ? nil : seconds
+            periods = reading.periods
+        }
+
+        var snapshot: QuotaSnapshot? {
+            let date: Date
+            if let seconds = fetchedAtSecondsSince2001 {
+                guard seconds.isFinite, abs(seconds - fetchedAt.timeIntervalSinceReferenceDate) < 1 else { return nil }
+                date = Date(timeIntervalSinceReferenceDate: seconds)
+            } else {
+                date = fetchedAt
+            }
+            return QuotaHistoryRecord(fetchedAt: date, periods: periods).snapshot
+        }
+    }
+
     let fetchedAt: Date
     let periods: [Period]
+
+    private init(fetchedAt: Date, periods: [Period]) {
+        self.fetchedAt = fetchedAt
+        self.periods = periods
+    }
 
     init(_ snapshot: QuotaSnapshot, selecting selection: String? = nil) {
         fetchedAt = snapshot.fetchedAt
@@ -52,12 +81,22 @@ struct QuotaHistoryExport: Encodable {
     let modelID: String?
     let readings: [QuotaHistoryRecord]
 
+    private enum CodingKeys: String, CodingKey { case schemaVersion, provider, modelID, readings }
+
     init(provider: QuotaProvider, snapshots: [QuotaSnapshot], modelID: String? = nil,
          selecting period: String? = nil, limit: Int? = nil) {
         self.provider = provider.rawValue
         self.modelID = modelID
         let filtered = snapshots.map { QuotaHistoryRecord($0, selecting: period) }.filter { !$0.periods.isEmpty }
         readings = limit.map { Array(filtered.suffix($0)) } ?? filtered
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(schemaVersion, forKey: .schemaVersion)
+        try fields.encode(provider, forKey: .provider)
+        try fields.encodeIfPresent(modelID, forKey: .modelID)
+        try fields.encode(readings.map(QuotaHistoryRecord.Portable.init), forKey: .readings)
     }
 
     func render(as format: QuotaExport.Format) throws -> String {
