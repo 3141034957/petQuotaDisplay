@@ -28,6 +28,8 @@ swift run PetQuotaDisplay
 
 运行 `python3 main.py --diagnose` 可在终端检查 Codex、Gemini、Kimi 的命令是否可用，以及 Claude Code 是否采集过额度，同时查看构建版本、刷新周期和悬浮球外观设置。检查在本机完成，无需登录或读取钥匙串。脚本可通过 `--diagnose --json` 读取结构化结果。
 
+运行 `python3 main.py --query --help` 或 `python3 main.py --history --help` 可分别查看实时查询和历史查询的参数。
+
 用 `python3 main.py --query --provider gemini` 可在终端读取一次额度并输出 JSON，无需打开悬浮球。省略 `--provider` 时使用保存的来源。该命令沿用各来源原有的登录和密钥配置，Claude Code 会读取本机状态栏快照。
 
 加上 `--period weekly` 只输出周额度，`--period lowestRemaining` 则选择剩余百分比最低的周期。指定的周期没有数据时，命令会返回错误。

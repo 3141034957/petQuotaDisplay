@@ -1,35 +1,53 @@
 import AppKit
 import QuotaCore
 
+let sourceHelp = QuotaProvider.allCases.map(\.rawValue).joined(separator: ", ")
+let periodHelp = (QuotaPeriod.allCases.map(\.rawValue) + [QuotaWindowPreference.lowestRemaining]).joined(separator: ", ")
+let formatHelp = QuotaExport.Format.allCases.map(\.rawValue).joined(separator: ", ")
 let usage = """
 用法：PetQuotaDisplay [显示模式] [--provider 来源] [--period 周期] [--refresh-interval 秒数]
       PetQuotaDisplay --diagnose [--json]
       PetQuotaDisplay --query [查询选项]
       PetQuotaDisplay --list-codex-accounts
-      PetQuotaDisplay --history [--provider 来源] [--account 账号] [--period 周期]
+      PetQuotaDisplay --history [历史选项]
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端
   --follow-codex-cli      仅跟随独立 Codex CLI
-  --provider      本次启动的来源：\(QuotaProvider.allCases.map(\.rawValue).joined(separator: ", "))
-  --period        初次展示的周期：\((QuotaPeriod.allCases.map(\.rawValue) + [QuotaWindowPreference.lowestRemaining]).joined(separator: ", "))
+  --provider      本次启动的来源：\(sourceHelp)
+  --period        初次展示的周期：\(periodHelp)
   --refresh-interval  定时刷新间隔：\(QuotaRefreshCadence.allCases.map { String($0.rawValue) }.joined(separator: ", "))，0 表示关闭
   --diagnose      在终端检查各额度来源的本机配置
-  --query         在终端读取一次额度并输出 JSON
-  --timeout       单次查询等待秒数，默认 65 秒
-  --format        查询及历史输出格式：\(QuotaExport.Format.allCases.map(\.rawValue).joined(separator: ", "))，默认 json
-  --fail-below    输出周期的余量低于指定百分比时，退出码为 2
-  --require-fresh  结果已过期时，退出码为 3
-  --model         查询指定标识的 Codex 模型额度
-  --list-models   列出 Codex 返回的额度标识和周期
-  --account       本次查询的 Codex 账号名称或标识
+  --query         在终端读取一次额度，详见 --query --help
   --list-codex-accounts  输出已配置的 Codex 账号标识及本地名称
-  --history       在终端读取本机保存的采集记录
-  --since/--until  历史采集时间范围，使用带时区的 ISO 8601 时间
-  --limit         历史查询最多返回最近指定数量的采集记录
+  --history       读取本机保存的采集记录，详见 --history --help
   --json          将诊断输出为 JSON，供脚本读取
   --version       输出版本和可用的构建提交标识
   -h, --help      显示帮助
+"""
+let queryUsage = """
+用法：PetQuotaDisplay --query [查询选项]
+  --provider      来源：\(sourceHelp)，默认使用保存的来源
+  --period        只输出指定周期：\(periodHelp)
+  --account       Codex 账号本地名称或标识
+  --model         查询指定标识的 Codex 模型额度
+  --list-models   列出 Codex 返回的额度标识和周期
+  --timeout       等待秒数（1–3600），默认 65
+  --format        输出格式：\(formatHelp)，默认 json
+  --fail-below    输出周期的余量低于指定百分比（0–100）时返回 2
+  --require-fresh  结果已过期时返回 3，优先于退出码 2
+  -h, --help      显示查询帮助
+"""
+let historyUsage = """
+用法：PetQuotaDisplay --history [历史选项]
+  --provider      来源：\(sourceHelp)，默认使用保存的来源
+  --period        只输出指定周期：\(periodHelp)
+  --account       Codex 账号本地名称或标识
+  --since         起始采集时间（含边界，带时区的 ISO 8601）
+  --until         结束采集时间（含边界，带时区的 ISO 8601）
+  --limit         最多显示最近多少条采集记录
+  --format        输出格式：\(formatHelp)，默认 json
+  -h, --help      显示历史查询帮助
 """
 let arguments = Array(CommandLine.arguments.dropFirst())
 let display: QuotaDisplayOptions
@@ -55,6 +73,12 @@ case ["--list-codex-accounts"]:
         FileHandle.standardError.write(Data("无法生成账号列表。\n".utf8))
         exit(70)
     }
+    exit(0)
+case ["--query", "-h"], ["--query", "--help"]:
+    print(queryUsage)
+    exit(0)
+case ["--history", "-h"], ["--history", "--help"]:
+    print(historyUsage)
     exit(0)
 case _ where arguments.first == "--history":
     let options: QuotaQueryOptions
