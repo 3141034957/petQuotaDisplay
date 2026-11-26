@@ -5,6 +5,18 @@ import XCTest
 
 @MainActor
 final class QuotaOrbViewTests: XCTestCase {
+    func testMenuBarCanIncludeTheProviderWithoutDroppingItsStatus() {
+        let view = QuotaOrbView(frame: .zero)
+        view.provider = .openCodeGo
+        view.showsMenuBarSourceName = true
+        XCTAssertEqual(view.menuBarTitle, "OpenCode Go 额度…")
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 40, resetsAt: nil))
+        view.state = .stale(snapshot, "error")
+        XCTAssertEqual(view.menuBarTitle, "OpenCode Go ~60%")
+        view.showsMenuBarSourceName = false
+        XCTAssertEqual(view.menuBarTitle, "~60%")
+    }
+
     func testProgressRingDrawsEmptyAndFullStatesAndStartsAtTop() throws {
         let rect = NSRect(x: 10, y: 10, width: 100, height: 100)
         XCTAssertNil(QuotaOrbView.progressPath(remainingPercent: 0, in: rect))

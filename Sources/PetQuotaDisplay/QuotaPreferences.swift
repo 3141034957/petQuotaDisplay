@@ -3,6 +3,7 @@ import Foundation
 enum QuotaPreferences {
     static let selectedProviderKey = "quota.selectedProvider"
     static let menuBarEnabledKey = "quota.showsMenuBarItem"
+    static let menuBarSourceNameKey = "quota.showsMenuBarSourceName"
     static let menuBarOnlyKey = "orb.menuBarOnly"
 
     static let shared: UserDefaults = {

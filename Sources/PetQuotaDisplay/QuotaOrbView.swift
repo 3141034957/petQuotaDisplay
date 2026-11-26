@@ -45,9 +45,13 @@ final class QuotaOrbView: NSView {
     }
     var onSelectResetDisplay: ((OrbResetDisplay) -> Void)?
     var showsMenuBarQuota = false
+    var showsMenuBarSourceName = false {
+        didSet { onPresentationChanged?() }
+    }
     var menuBarOnly = false
     var staysOnTop = true
     var onToggleMenuBarQuota: (() -> Void)?
+    var onToggleMenuBarSourceName: (() -> Void)?
     var onToggleWindowLevel: (() -> Void)?
     var onRaiseOrb: (() -> Void)?
     var onToggleOrbVisibility: (() -> Void)?
@@ -537,6 +541,9 @@ final class QuotaOrbView: NSView {
         let menuBarToggle = submenu.addItem(withTitle: "在菜单栏显示额度", action: #selector(toggleMenuBarQuota), keyEquivalent: "")
         menuBarToggle.target = self
         menuBarToggle.state = showsMenuBarQuota ? .on : .off
+        let sourceName = submenu.addItem(withTitle: "在菜单栏显示来源名称", action: #selector(toggleMenuBarSourceName), keyEquivalent: "")
+        sourceName.target = self
+        sourceName.state = showsMenuBarSourceName ? .on : .off
         item.submenu = submenu
         return item
     }
@@ -678,6 +685,7 @@ final class QuotaOrbView: NSView {
     @objc private func quitFromMenu() { onQuit?() }
     @objc private func resetPositionFromMenu() { onResetPosition?() }
     @objc private func toggleMenuBarQuota() { onToggleMenuBarQuota?() }
+    @objc private func toggleMenuBarSourceName() { onToggleMenuBarSourceName?() }
     @objc private func toggleOrbVisibility() { onToggleOrbVisibility?() }
     @objc private func toggleWindowLevel() { onToggleWindowLevel?() }
     @objc private func raiseOrb() { onRaiseOrb?() }
@@ -891,13 +899,15 @@ final class QuotaOrbView: NSView {
 
     var menuBarTitle: String {
         let percent = state.snapshot.flatMap(displayedQuota).map { "\($0.quota.remainingPercent)%" }
+        let title: String
         switch state {
-        case .loading: return "额度…"
-        case .failed: return "额度 —"
-        case .loaded: return percent ?? "额度"
-        case .refreshing: return percent.map { "\($0)…" } ?? "额度…"
-        case .stale: return percent.map { "~\($0)" } ?? "额度 —"
+        case .loading: title = "额度…"
+        case .failed: title = "额度 —"
+        case .loaded: title = percent ?? "额度"
+        case .refreshing: title = percent.map { "\($0)…" } ?? "额度…"
+        case .stale: title = percent.map { "~\($0)" } ?? "额度 —"
         }
+        return showsMenuBarSourceName ? "\(provider.title) \(title)" : title
     }
 
     private var lastUpdatedLabel: String { provider == .claudeCode ? "状态栏采集时间" : "最后更新" }
