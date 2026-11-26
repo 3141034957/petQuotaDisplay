@@ -3,13 +3,6 @@ import QuotaCore
 import SwiftUI
 
 struct QuotaHistoryView: View {
-    private struct Point: Identifiable {
-        let time: Date
-        let remainingPercent: Int
-
-        var id: Date { time }
-    }
-
     let readings: [QuotaSnapshot]
     @State private var selectedPeriod: QuotaPeriod
 
@@ -25,12 +18,6 @@ struct QuotaHistoryView: View {
         QuotaPeriod.allCases.filter { period in readings.contains { $0[period] != nil } }
     }
 
-    private var points: [Point] {
-        readings.compactMap { reading in
-            reading[selectedPeriod].map { Point(time: reading.fetchedAt, remainingPercent: $0.remainingPercent) }
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Picker("额度周期", selection: $selectedPeriod) {
@@ -38,8 +25,9 @@ struct QuotaHistoryView: View {
             }
             .pickerStyle(.segmented)
 
-            Chart(points) { point in
-                LineMark(x: .value("采集时间", point.time), y: .value("剩余百分比", point.remainingPercent))
+            Chart(QuotaHistorySeries(readings: readings, period: selectedPeriod).points) { point in
+                LineMark(x: .value("采集时间", point.time), y: .value("剩余百分比", point.remainingPercent),
+                         series: .value("区间", point.segment))
                 PointMark(x: .value("采集时间", point.time), y: .value("剩余百分比", point.remainingPercent))
                     .symbolSize(16)
             }
