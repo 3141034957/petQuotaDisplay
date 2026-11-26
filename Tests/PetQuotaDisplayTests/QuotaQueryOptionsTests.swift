@@ -34,4 +34,14 @@ final class QuotaQueryOptionsTests: XCTestCase {
         XCTAssertEqual(history.account, "Work")
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--timeout", "1"], purpose: .savedHistory))
     }
+
+    func testHistoryDateRangeAcceptsISO8601AndRejectsReversedBounds() throws {
+        let options = try QuotaQueryOptions(arguments: ["--since", "1970-01-01T08:01:00+08:00",
+                                                       "--until", "1970-01-01T00:02:00Z"], purpose: .savedHistory)
+        XCTAssertEqual(options.since, Date(timeIntervalSince1970: 60))
+        XCTAssertEqual(options.until, Date(timeIntervalSince1970: 120))
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--since", "bad"], purpose: .savedHistory))
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--since", "1970-01-01T00:02:00Z",
+                                                                "--until", "1970-01-01T00:01:00Z"], purpose: .savedHistory))
+    }
 }

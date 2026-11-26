@@ -21,6 +21,8 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertEqual(exported.readings.first?.snapshot, original)
         XCTAssertEqual(try archive.export(for: context, selecting: "lowestRemaining").readings.first?.periods.first?.id, "weekly")
         XCTAssertTrue(try archive.export(for: context, selecting: "monthly").readings.isEmpty)
+        XCTAssertEqual(try archive.export(for: context, since: original.fetchedAt, until: original.fetchedAt).readings.count, 1)
+        XCTAssertTrue(try archive.export(for: context, since: original.fetchedAt.addingTimeInterval(1)).readings.isEmpty)
         XCTAssertTrue(try archive.export(for: QuotaHistoryContext(provider: .kimiCode, account: nil)).readings.isEmpty)
 
         try archive.setEnabled(false)
