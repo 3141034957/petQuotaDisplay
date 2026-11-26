@@ -4,7 +4,7 @@ import QuotaCore
 let usage = """
 用法：PetQuotaDisplay [显示模式] [--provider 来源] [--period 周期] [--refresh-interval 秒数]
       PetQuotaDisplay --diagnose [--json]
-      PetQuotaDisplay --query [--provider 来源]
+      PetQuotaDisplay --query [--provider 来源] [--period 周期]
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端
@@ -38,8 +38,8 @@ case _ where arguments.first == "--query":
     let options: QuotaDisplayOptions
     do {
         options = try QuotaDisplayOptions(arguments: Array(arguments.dropFirst()))
-        guard options.mode == nil, options.period == nil, options.refreshCadence == nil else {
-            FileHandle.standardError.write(Data("--query 只接受 --provider 选项。\n".utf8))
+        guard options.mode == nil, options.refreshCadence == nil else {
+            FileHandle.standardError.write(Data("--query 接受 --provider 和 --period 选项。\n".utf8))
             exit(64)
         }
     } catch {
@@ -48,7 +48,9 @@ case _ where arguments.first == "--query":
     }
     do {
         let provider = options.provider ?? QuotaPreferences.selectedProvider()
-        print(try QuotaQuery.snapshot(from: provider).json())
+        var export = try QuotaQuery.snapshot(from: provider)
+        if let period = options.period { try export.selectPeriod(period) }
+        print(try export.json())
         exit(0)
     } catch {
         FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))

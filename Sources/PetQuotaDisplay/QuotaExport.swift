@@ -16,7 +16,7 @@ struct QuotaExport: Encodable {
     let codexLimitID: String?
     let status: Status
     let fetchedAt: Date
-    let periods: [Period]
+    private(set) var periods: [Period]
 
     init?(provider: QuotaProvider, state: QuotaDisplayState, model: CodexMeteredQuota? = nil) {
         guard let primary = state.snapshot else { return nil }
@@ -32,6 +32,20 @@ struct QuotaExport: Encodable {
         periods = QuotaPeriod.allCases.compactMap { period in
             snapshot[period].map { Period(id: period.rawValue, remainingPercent: $0.remainingPercent, resetsAt: $0.resetsAt) }
         }
+    }
+
+    mutating func selectPeriod(_ selection: String) throws {
+        let id = selection == QuotaWindowPreference.lowestRemaining
+            ? QuotaWindowPreference.lowestPeriod { period in
+                periods.first { $0.id == period.rawValue }?.remainingPercent
+            }?.rawValue
+            : selection
+        guard let match = periods.first(where: { $0.id == id }) else { throw UnavailablePeriod() }
+        periods = [match]
+    }
+
+    private struct UnavailablePeriod: LocalizedError {
+        var errorDescription: String? { "此来源未提供所选周期的额度" }
     }
 
     func json() throws -> String {

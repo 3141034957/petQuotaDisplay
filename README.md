@@ -30,6 +30,8 @@ swift run PetQuotaDisplay
 
 用 `python3 main.py --query --provider gemini` 可在终端读取一次额度并输出 JSON，无需打开悬浮球。省略 `--provider` 时使用保存的来源。该命令沿用各来源原有的登录和密钥配置，Claude Code 会读取本机状态栏快照。
 
+加上 `--period weekly` 只输出周额度，`--period lowestRemaining` 则选择剩余百分比最低的周期。指定的周期没有数据时，命令会返回错误。
+
 首次运行会编译原生程序，后续启动会快很多。悬浮球默认置顶，程序不会出现在 Dock 中：
 
 - 拖动：移动悬浮球，松开后会自动收回屏幕的可见区域并保存位置。拔掉显示器时会临时移到可见区域，原来保存的位置重新可见时会自动移回。

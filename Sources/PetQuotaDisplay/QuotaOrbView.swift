@@ -796,16 +796,12 @@ final class QuotaOrbView: NSView {
 
     /// Falls back to whichever window the current plan actually publishes.
     private func resolvedWindow(in snapshot: QuotaSnapshot) -> QuotaPeriod {
-        let fallbackOrder: [QuotaPeriod] = [.weekly, .fiveHour, .monthly]
         if windowPreferenceValue == QuotaWindowPreference.lowestRemaining {
-            let candidates = fallbackOrder.compactMap { period in
-                snapshot[period].map { (period: period, remaining: $0.remainingPercent) }
-            }
-            return candidates.min { $0.remaining < $1.remaining }?.period ?? .weekly
+            return QuotaWindowPreference.lowestPeriod { snapshot[$0]?.remainingPercent } ?? .weekly
         }
         let preferred = displayedWindow
         if snapshot[preferred] != nil { return preferred }
-        return fallbackOrder.first { snapshot[$0] != nil } ?? preferred
+        return QuotaWindowPreference.presentationOrder.first { snapshot[$0] != nil } ?? preferred
     }
 
     private func displayedQuota(in snapshot: QuotaSnapshot) -> (title: String, quota: QuotaWindow)? {
