@@ -7,12 +7,14 @@ struct QuotaQueryOptions {
         case period = "--period"
         case timeout = "--timeout"
         case format = "--format"
+        case failBelow = "--fail-below"
     }
 
     private(set) var provider: QuotaProvider?
     private(set) var period: String?
     private(set) var timeout: TimeInterval = 65
     private(set) var format: QuotaExport.Format = .json
+    private(set) var failBelow: Int?
 
     init(arguments: [String]) throws {
         var arguments = arguments[...]
@@ -37,6 +39,9 @@ struct QuotaQueryOptions {
             case .format:
                 guard let format = QuotaExport.Format(rawValue: value) else { throw Failure.invalidValue(option) }
                 self.format = format
+            case .failBelow:
+                guard let percent = Int(value), (0...100).contains(percent) else { throw Failure.invalidValue(option) }
+                failBelow = percent
             }
         }
     }

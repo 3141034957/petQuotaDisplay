@@ -3,6 +3,18 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaExportTests: XCTestCase {
+    func testLowQuotaStatusUsesTheExportedWindowsAndStrictThreshold() throws {
+        let snapshot = QuotaSnapshot(planType: nil,
+                                     fiveHour: QuotaWindow(usedPercent: 95, resetsAt: nil),
+                                     weekly: QuotaWindow(usedPercent: 80, resetsAt: nil))
+        var export = try XCTUnwrap(QuotaExport(provider: .gemini, state: .loaded(snapshot)))
+        XCTAssertEqual(export.exitStatus(failBelow: nil), 0)
+        XCTAssertEqual(export.exitStatus(failBelow: 10), 2)
+        try export.selectPeriod("weekly")
+        XCTAssertEqual(export.exitStatus(failBelow: 20), 0)
+        XCTAssertEqual(export.exitStatus(failBelow: 21), 2)
+    }
+
     func testCSVOutputEscapesModelIDAndLeavesUnknownResetEmpty() throws {
         let window = QuotaWindow(usedPercent: 25, resetsAt: nil)
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: window, weekly: nil, fetchedAt: Date(timeIntervalSince1970: 60))

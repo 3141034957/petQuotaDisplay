@@ -67,6 +67,11 @@ struct QuotaExport: Encodable {
         }
     }
 
+    func exitStatus(failBelow threshold: Int?) -> Int32 {
+        guard let threshold, periods.contains(where: { $0.remainingPercent < threshold }) else { return 0 }
+        return 2
+    }
+
     private func csv() -> String {
         let fields = ["provider", "codexLimitID", "status", "fetchedAt", "period", "remainingPercent", "resetsAt"]
         let formatter = ISO8601DateFormatter()
