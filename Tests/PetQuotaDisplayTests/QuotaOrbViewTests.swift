@@ -571,6 +571,30 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(opened?.modelID, "extra")
     }
 
+    func testOtherCodexAccountHistoryOpensWithoutSwitchingTheLiveAccount() throws {
+        let view = QuotaOrbView(frame: .zero)
+        let selected = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let other = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        view.accounts = [selected, other]
+        view.selectedAccount = selected
+        view.accountNames = [other: "Other fixture"]
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 67, resetsAt: nil))
+        let history = QuotaHistoryContext(provider: .codex, account: other)
+        view.restoreHistory([history: [snapshot]])
+
+        var opened: QuotaHistoryContext?
+        view.onShowQuotaHistory = { context, readings in
+            opened = context
+            XCTAssertEqual(readings, [snapshot])
+        }
+        let trend = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu?
+            .item(withTitle: "其他 Codex 账号")?.submenu?.items.first?.submenu?.item(withTitle: "查看额度趋势…"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(trend.action), to: trend.target, from: trend))
+        XCTAssertEqual(opened, history)
+        XCTAssertEqual(view.selectedAccount, selected)
+        XCTAssertNil(view.allQuotaHistoryJSON)
+    }
+
     func testModelTrendHasAGapWhenASuccessfulCodexRefreshOmitsTheModel() throws {
         let view = QuotaOrbView(frame: .zero)
         let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))

@@ -636,6 +636,30 @@ final class QuotaOrbView: NSView {
             }
             entry.submenu = details
         }
+        if let otherAccounts = otherAccountHistoryMenuItem() { submenu.addItem(otherAccounts) }
+        item.submenu = submenu
+        return item
+    }
+
+    private func otherAccountHistoryMenuItem() -> NSMenuItem? {
+        let item = NSMenuItem(title: "其他 Codex 账号", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        for account in accounts where account != selectedAccount {
+            let context = QuotaHistoryContext(provider: .codex, account: account)
+            let history = recentQuotas[context]
+            let models = modelHistoryMenuItem(for: context)
+            guard history != nil || models != nil else { continue }
+            let entry = submenu.addItem(withTitle: accountMenuTitle(for: account), action: nil, keyEquivalent: "")
+            let details = NSMenu(title: entry.title)
+            if let history {
+                details.addItem(readingListMenuItem(history.readings))
+                addHistoryTrend(to: details, context: context)
+                addHistoryCopy(to: details, context: context, title: "复制主要额度的全部记录 JSON")
+            }
+            if let models { details.addItem(models) }
+            entry.submenu = details
+        }
+        guard !submenu.items.isEmpty else { return nil }
         item.submenu = submenu
         return item
     }
