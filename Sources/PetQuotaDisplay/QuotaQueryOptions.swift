@@ -10,6 +10,7 @@ struct QuotaQueryOptions {
         case failBelow = "--fail-below"
         case requireFresh = "--require-fresh"
         case model = "--model"
+        case account = "--account"
 
         var requiresValue: Bool { self != .requireFresh }
     }
@@ -21,6 +22,7 @@ struct QuotaQueryOptions {
     private(set) var failBelow: Int?
     private(set) var requireFresh = false
     private(set) var modelID: String?
+    private(set) var account: String?
 
     init(arguments: [String]) throws {
         var arguments = arguments[...]
@@ -54,6 +56,11 @@ struct QuotaQueryOptions {
                     throw Failure.invalidValue(option)
                 }
                 modelID = value
+            case .account:
+                guard let value else { throw Failure.invalidValue(option) }
+                let name = value.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+                guard !name.isEmpty else { throw Failure.invalidValue(option) }
+                account = name
             }
         }
     }

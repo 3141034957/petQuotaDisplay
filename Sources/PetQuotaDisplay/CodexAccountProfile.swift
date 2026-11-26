@@ -40,7 +40,28 @@ enum CodexAccountProfile {
         return saved.flatMap { accounts.contains($0) ? $0 : nil } ?? accounts.first
     }
 
-    static func loadAccounts(defaults: UserDefaults = QuotaPreferences.shared) -> [CodexAccountSlot] {
+    static func account(matching selector: String, in accounts: [CodexAccountSlot],
+                        defaults: UserDefaults = QuotaPreferences.shared) throws -> CodexAccountSlot {
+        if let slot = CodexAccountSlot(rawValue: selector), accounts.contains(slot) { return slot }
+        let matches = accounts.filter { name(for: $0, defaults: defaults)?.caseInsensitiveCompare(selector) == .orderedSame }
+        if matches.count > 1 { throw LookupError.ambiguousAccount }
+        guard let first = matches.first else { throw LookupError.unknownAccount }
+        return first
+    }
+
+    private enum LookupError: LocalizedError {
+        case unknownAccount, ambiguousAccount
+
+        var errorDescription: String? {
+            switch self {
+            case .unknownAccount: return "找不到指定的 Codex 额度账号"
+            case .ambiguousAccount: return "有多个同名的 Codex 额度账号，请改用账号标识"
+            }
+        }
+    }
+
+    static func loadAccounts(defaults: UserDefaults = QuotaPreferences.shared,
+                             persistNormalization: Bool = true) -> [CodexAccountSlot] {
         var seen = Set<CodexAccountSlot>()
         var additional = (defaults.stringArray(forKey: additionalAccountsDefaultsKey) ?? [])
             .compactMap(CodexAccountSlot.init(rawValue:))
@@ -53,7 +74,7 @@ enum CodexAccountProfile {
         }
 
         let normalized = additional.map(\.rawValue)
-        if normalized != defaults.stringArray(forKey: additionalAccountsDefaultsKey) {
+        if persistNormalization, normalized != defaults.stringArray(forKey: additionalAccountsDefaultsKey) {
             defaults.set(normalized, forKey: additionalAccountsDefaultsKey)
         }
         return additional
@@ -102,9 +123,9 @@ enum CodexAccountProfile {
         "quota.accountName.\(slot.rawValue)"
     }
 
-    static func homeURL(for slot: CodexAccountSlot) throws -> URL? {
+    static func homeURL(for slot: CodexAccountSlot, create: Bool = true) throws -> URL? {
         guard !slot.isPrimary else { return nil }
-        return try accountHomeURL(for: slot, create: true)
+        return try accountHomeURL(for: slot, create: create)
     }
 
     static func hasStoredCredentials(for slot: CodexAccountSlot) -> Bool {

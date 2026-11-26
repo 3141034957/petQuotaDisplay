@@ -2,18 +2,21 @@ import Foundation
 import QuotaCore
 
 enum QuotaQuery {
-    static func snapshot(from provider: QuotaProvider, timeout: TimeInterval, modelID: String? = nil) throws -> QuotaExport {
+    static func snapshot(from provider: QuotaProvider, timeout: TimeInterval, modelID: String? = nil,
+                         accountSelector: String? = nil) throws -> QuotaExport {
         guard modelID == nil || provider == .codex else { throw Failure.modelOnlyForCodex }
+        guard accountSelector == nil || provider == .codex else { throw Failure.accountOnlyForCodex }
         defer { QuotaChildProcess.waitForTerminations() }
         let state: QuotaDisplayState
         switch provider {
         case .claudeCode:
             state = try ClaudeQuotaCache.read()
         case .codex:
-            let accounts = CodexAccountProfile.loadAccounts()
-            guard let account = CodexAccountProfile.selectedAccount(in: accounts),
+            let accounts = CodexAccountProfile.loadAccounts(persistNormalization: false)
+            let requested = try accountSelector.map { try CodexAccountProfile.account(matching: $0, in: accounts) }
+            guard let account = requested ?? CodexAccountProfile.selectedAccount(in: accounts),
                   CodexAccountProfile.hasStoredCredentials(for: account) else { throw Failure.codexAccountRequired }
-            let client = CodexQuotaClient(codexHome: try CodexAccountProfile.homeURL(for: account))
+            let client = CodexQuotaClient(codexHome: try CodexAccountProfile.homeURL(for: account, create: false))
             defer { client.stop() }
             let report: CodexQuotaReport = try waitForResult(timeout: timeout) { complete in
                 client.onAccount = { account in
@@ -82,7 +85,7 @@ enum QuotaQuery {
     }
 
     private enum Failure: LocalizedError {
-        case codexAccountRequired, timedOut, noResult, modelOnlyForCodex, unknownModel
+        case codexAccountRequired, timedOut, noResult, modelOnlyForCodex, accountOnlyForCodex, unknownModel
 
         var errorDescription: String? {
             switch self {
@@ -90,6 +93,7 @@ enum QuotaQuery {
             case .timedOut: return "读取额度超时"
             case .noResult: return "没有可导出的额度结果"
             case .modelOnlyForCodex: return "--model 仅适用于 Codex 额度查询"
+            case .accountOnlyForCodex: return "--account 仅适用于 Codex 额度查询"
             case .unknownModel: return "Codex 未返回指定模型的独立额度"
             }
         }
