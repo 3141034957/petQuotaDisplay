@@ -39,9 +39,21 @@ while IFS= read -r line; do
             ;;
         *refreshToken*)
             if [ "$scenario" = account-timeout ] && [ "$count" -eq 1 ]; then continue; fi
+            if [ "$scenario" = sign-out-during-read ] && [ -n "${quota_id:-}" ]; then
+                printf '{"id":%s,"result":{"account":null}}\n' "$id"
+                printf '{"id":%s,"result":{"rateLimits":{"primary":{"windowDurationMins":10080,"usedPercent":35}}}}\n' "$quota_id"
+                printf '{"method":"account/rateLimits/updated"}\n'
+                continue
+            fi
             printf '{"id":%s,"result":{"account":{"type":"chatgpt","email":"fixture@example.com","planType":"plus"}}}\n' "$id"
             ;;
         *rateLimits*)
+            if [ "$scenario" = sign-out-during-read ]; then
+                if [ -n "${quota_id:-}" ]; then exit 9; fi
+                quota_id=$id
+                printf '{"method":"account/updated"}\n'
+                continue
+            fi
             if [ "$scenario" = quota-timeout ] && [ "$count" -eq 1 ]; then continue; fi
             if [ "$scenario" = unexpected-exit ] && [ "$count" -eq 1 ]; then exit 7; fi
             printf '{"id":%s,"result":{"rateLimits":{"planType":"plus","primary":{"windowDurationMins":10080,"usedPercent":35}}}}\n' "$id"

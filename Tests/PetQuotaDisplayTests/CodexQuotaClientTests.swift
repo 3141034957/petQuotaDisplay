@@ -48,6 +48,22 @@ final class CodexQuotaClientTests: XCTestCase {
         }
     }
 
+    func testLateQuotaAndPushUpdateAreIgnoredAfterSignOut() throws {
+        let fixture = try makeClient(scenario: "sign-out-during-read")
+        defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let signedOut = expectation(description: "account signed out")
+        let lateResult = expectation(description: "unexpected quota or restart")
+        lateResult.isInverted = true
+        fixture.client.onAccount = { account in
+            if account == nil { signedOut.fulfill() }
+        }
+        fixture.client.onSnapshot = { _ in lateResult.fulfill() }
+        fixture.client.onError = { _ in lateResult.fulfill() }
+        fixture.client.start()
+        wait(for: [signedOut], timeout: 5)
+        wait(for: [lateResult], timeout: 0.4)
+    }
+
     func testStopCancelsScheduledRestart() throws {
         let fixture = try makeClient(scenario: "always-timeout", restartDelay: 0.2)
         defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }

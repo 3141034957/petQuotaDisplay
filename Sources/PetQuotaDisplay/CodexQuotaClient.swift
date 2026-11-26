@@ -37,7 +37,7 @@ final class CodexQuotaClient {
     var onLoginURL: ((URL) -> Void)?
     var onError: ((Error) -> Void)?
 
-    private enum PendingRequest {
+    private enum PendingRequest: Equatable {
         case initialize
         case accountRead
         case rateLimits
@@ -57,6 +57,7 @@ final class CodexQuotaClient {
     private let maximumErrorBufferBytes = 64 * 1_024
     private let maximumProtocolBufferBytes = 1_024 * 1_024
     private var initialized = false
+    private var hasAccount = false
     private var nextRequestID = 1
     private var pendingRequests: [Int: PendingRequest] = [:]
     private var pendingTimeouts: [Int: DispatchWorkItem] = [:]
@@ -265,9 +266,13 @@ final class CodexQuotaClient {
             }
         case .accountRead:
             let account = CodexAccountParser.parse(result: result)
+            hasAccount = account != nil
             emit(account: account)
-            if account != nil {
+            if hasAccount {
                 requestRateLimitsLocked()
+            } else if let id = pendingRequests.first(where: { $0.value == .rateLimits })?.key {
+                pendingRequests.removeValue(forKey: id)
+                pendingTimeouts.removeValue(forKey: id)?.cancel()
             }
         case .rateLimits:
             do {
@@ -290,20 +295,14 @@ final class CodexQuotaClient {
 
     private func requestAccountLocked() {
         guard initialized, process?.isRunning == true,
-              !pendingRequests.values.contains(where: { request in
-                  if case .accountRead = request { return true }
-                  return false
-              }) else { return }
+              !pendingRequests.values.contains(.accountRead) else { return }
         DispatchQueue.main.async { [weak self] in self?.onRefreshing?() }
         sendRequestLocked(method: "account/read", params: ["refreshToken": true], kind: .accountRead)
     }
 
     private func requestRateLimitsLocked() {
-        guard initialized, process?.isRunning == true,
-              !pendingRequests.values.contains(where: { request in
-                  if case .rateLimits = request { return true }
-                  return false
-              }) else { return }
+        guard initialized, hasAccount, process?.isRunning == true,
+              !pendingRequests.values.contains(.rateLimits) else { return }
         sendRequestLocked(method: "account/rateLimits/read", params: NSNull(), kind: .rateLimits)
     }
 
@@ -432,6 +431,7 @@ final class CodexQuotaClient {
         }
         process = nil
         initialized = false
+        hasAccount = false
         outputBuffer.removeAll(keepingCapacity: false)
         cancelPendingRequestsLocked()
     }
