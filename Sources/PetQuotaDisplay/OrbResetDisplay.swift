@@ -1,11 +1,17 @@
 import Foundation
 
 enum OrbResetDisplay: String, CaseIterable {
-    case time, countdown
+    case time, countdown, capturedAt
 
     static let defaultsKey = "orb.resetDisplay"
 
-    var title: String { self == .time ? "重置时间" : "重置倒计时" }
+    var title: String {
+        switch self {
+        case .time: return "重置时间"
+        case .countdown: return "重置倒计时"
+        case .capturedAt: return "最近采集时间"
+        }
+    }
 
     static func countdownLabel(to date: Date, now: Date = Date()) -> String {
         let remaining = date.timeIntervalSince(now)

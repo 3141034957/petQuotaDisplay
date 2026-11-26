@@ -298,15 +298,24 @@ final class QuotaOrbView: NSView {
                 font: .monospacedDigitSystemFont(ofSize: 38, weight: .bold),
                 alpha: 1
             )
-            let reset = displayed.quota.resetsAt.map { date in
-                resetDisplay == .countdown ? OrbResetDisplay.countdownLabel(to: date) : Self.shortDateFormatter.string(from: date)
-            } ?? "时间未知"
+            let detail = timeDetail(resetsAt: displayed.quota.resetsAt, fetchedAt: displaySnapshot(snapshot).fetchedAt)
             drawCentered(
-                reset,
+                detail,
                 y: 92,
                 font: .monospacedDigitSystemFont(ofSize: 17, weight: .semibold),
                 alpha: 0.94
             )
+        }
+    }
+
+    func timeDetail(resetsAt: Date?, fetchedAt: Date) -> String {
+        switch resetDisplay {
+        case .time:
+            return resetsAt.map(Self.shortDateFormatter.string) ?? "时间未知"
+        case .countdown:
+            return resetsAt.map { OrbResetDisplay.countdownLabel(to: $0) } ?? "时间未知"
+        case .capturedAt:
+            return "采集 \(Self.captureTimeFormatter.string(from: fetchedAt))"
         }
     }
 
@@ -1300,6 +1309,7 @@ final class QuotaOrbView: NSView {
     func refreshLocalTimeFormatting() {
         Self.shortDateFormatter.timeZone = .current
         Self.longDateFormatter.timeZone = .current
+        Self.captureTimeFormatter.timeZone = .current
         needsDisplay = true
         updateAccessibility()
     }
@@ -1309,6 +1319,14 @@ final class QuotaOrbView: NSView {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.timeZone = .current
         formatter.dateFormat = "MM/dd HH:mm"
+        return formatter
+    }()
+
+    private static let captureTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.timeZone = .current
+        formatter.dateFormat = "HH:mm"
         return formatter
     }()
 

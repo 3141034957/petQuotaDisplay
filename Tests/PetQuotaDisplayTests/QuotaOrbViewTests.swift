@@ -112,6 +112,18 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertTrue(view.quotaSummary?.contains("剩余 10%") == true)
     }
 
+    func testCaptureTimeModeShowsTheLastReadWithoutAResetTimestamp() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.onSelectResetDisplay = { [weak view] in view?.resetDisplay = $0 }
+        let choice = try XCTUnwrap(menu(view).item(withTitle: "外观")?.submenu?
+            .item(withTitle: "悬浮球时间显示")?.submenu?.item(withTitle: "最近采集时间"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(choice.action), to: choice.target, from: choice))
+        let fetched = Date(timeIntervalSince1970: 1_800_000_000)
+        let detail = view.timeDetail(resetsAt: nil, fetchedAt: fetched)
+        XCTAssertNotNil(detail.range(of: #"^采集 \d{2}:\d{2}$"#, options: .regularExpression))
+        XCTAssertEqual(detail, view.timeDetail(resetsAt: fetched.addingTimeInterval(3600), fetchedAt: fetched))
+    }
+
     func testProgressRingDrawsEmptyAndFullStatesAndStartsAtTop() throws {
         let rect = NSRect(x: 10, y: 10, width: 100, height: 100)
         XCTAssertNil(QuotaOrbView.progressPath(percent: 0, in: rect))
