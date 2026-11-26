@@ -64,6 +64,19 @@ final class CodexQuotaClientTests: XCTestCase {
         wait(for: [lateResult], timeout: 0.4)
     }
 
+    func testVerifiedAccountChangeReplacesInFlightQuotaRead() throws {
+        let fixture = try makeClient(scenario: "switch-during-read")
+        defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let replacement = expectation(description: "replacement account quota")
+        fixture.client.onError = { XCTFail($0.localizedDescription) }
+        fixture.client.onReport = { report in
+            XCTAssertEqual(report.primary.weekly?.remainingPercent, 80)
+            replacement.fulfill()
+        }
+        fixture.client.start()
+        wait(for: [replacement], timeout: 5)
+    }
+
     func testStopCancelsScheduledRestart() throws {
         let fixture = try makeClient(scenario: "always-timeout", restartDelay: 0.2)
         defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }

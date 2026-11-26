@@ -45,6 +45,11 @@ while IFS= read -r line; do
                 printf '{"method":"account/rateLimits/updated"}\n'
                 continue
             fi
+            if [ "$scenario" = switch-during-read ] && [ -n "${quota_id:-}" ]; then
+                printf '{"id":%s,"result":{"account":{"type":"chatgpt","email":"second@example.com","planType":"plus"}}}\n' "$id"
+                printf '{"id":%s,"result":{"rateLimits":{"primary":{"windowDurationMins":10080,"usedPercent":35}}}}\n' "$quota_id"
+                continue
+            fi
             printf '{"id":%s,"result":{"account":{"type":"chatgpt","email":"fixture@example.com","planType":"plus"}}}\n' "$id"
             ;;
         *rateLimits*)
@@ -52,6 +57,15 @@ while IFS= read -r line; do
                 if [ -n "${quota_id:-}" ]; then exit 9; fi
                 quota_id=$id
                 printf '{"method":"account/updated"}\n'
+                continue
+            fi
+            if [ "$scenario" = switch-during-read ]; then
+                if [ -z "${quota_id:-}" ]; then
+                    quota_id=$id
+                    printf '{"method":"account/updated"}\n'
+                else
+                    printf '{"id":%s,"result":{"rateLimits":{"primary":{"windowDurationMins":10080,"usedPercent":20}}}}\n' "$id"
+                fi
                 continue
             fi
             if [ "$scenario" = quota-timeout ] && [ "$count" -eq 1 ]; then continue; fi

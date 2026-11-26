@@ -57,7 +57,7 @@ final class CodexQuotaClient {
     private let maximumErrorBufferBytes = 64 * 1_024
     private let maximumProtocolBufferBytes = 1_024 * 1_024
     private var initialized = false
-    private var hasAccount = false
+    private var verifiedAccount: CodexAccountSummary?
     private var nextRequestID = 1
     private var pendingRequests: [Int: PendingRequest] = [:]
     private var pendingTimeouts: [Int: DispatchWorkItem] = [:]
@@ -270,14 +270,14 @@ final class CodexQuotaClient {
             }
         case .accountRead:
             let account = CodexAccountParser.parse(result: result)
-            hasAccount = account != nil
-            emit(account: account)
-            if hasAccount {
-                requestRateLimitsLocked()
-            } else if let id = pendingRequests.first(where: { $0.value == .rateLimits })?.key {
+            if verifiedAccount != account,
+               let id = pendingRequests.first(where: { $0.value == .rateLimits })?.key {
                 pendingRequests.removeValue(forKey: id)
                 pendingTimeouts.removeValue(forKey: id)?.cancel()
             }
+            verifiedAccount = account
+            emit(account: account)
+            requestRateLimitsLocked()
         case .rateLimits:
             do {
                 let report = try QuotaParser.parseReport(result: result)
@@ -305,7 +305,7 @@ final class CodexQuotaClient {
     }
 
     private func requestRateLimitsLocked() {
-        guard initialized, hasAccount, process?.isRunning == true,
+        guard initialized, verifiedAccount != nil, process?.isRunning == true,
               !pendingRequests.values.contains(.rateLimits) else { return }
         sendRequestLocked(method: "account/rateLimits/read", params: NSNull(), kind: .rateLimits)
     }
@@ -435,7 +435,7 @@ final class CodexQuotaClient {
         }
         process = nil
         initialized = false
-        hasAccount = false
+        verifiedAccount = nil
         outputBuffer.removeAll(keepingCapacity: false)
         cancelPendingRequestsLocked()
     }
