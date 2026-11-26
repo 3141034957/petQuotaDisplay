@@ -119,8 +119,8 @@ case _ where arguments.first == "--query":
     }
     do {
         if let providers = options.batchProviders {
-            let batch = QuotaQuery.snapshots(from: providers, timeout: options.timeout, selecting: options.period,
-                                            accountSelector: options.account)
+            let batch = try QuotaQuery.snapshots(from: providers, timeout: options.timeout, selecting: options.period,
+                                                accountSelector: options.account)
             print(try batch.render(as: options.format))
             exit(batch.exitStatus(failBelow: options.failBelow, requireFresh: options.requireFresh))
         }
@@ -135,6 +135,8 @@ case _ where arguments.first == "--query":
         if let period = options.period { try export.selectPeriod(period) }
         print(try export.render(as: options.format))
         exit(export.exitStatus(failBelow: options.failBelow, requireFresh: options.requireFresh))
+    } catch let interruption as QuotaQuery.Interrupted {
+        exit(interruption.exitStatus)
     } catch {
         FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
         exit(1)

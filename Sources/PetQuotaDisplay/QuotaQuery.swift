@@ -1,8 +1,14 @@
+import Darwin
 import Foundation
 import QuotaCore
 
 enum QuotaQuery {
     private typealias Stop = () -> Void
+
+    struct Interrupted: Error {
+        let signal: Int32
+        var exitStatus: Int32 { 128 + signal }
+    }
 
     static func snapshot(from provider: QuotaProvider, timeout: TimeInterval, modelID: String? = nil,
                          accountSelector: String? = nil) throws -> QuotaExport {
@@ -12,31 +18,35 @@ enum QuotaQuery {
     }
 
     static func snapshots(from providers: [QuotaProvider], timeout: TimeInterval, selecting period: String?,
-                          accountSelector: String?) -> QuotaBatchExport {
+                          accountSelector: String?) throws -> QuotaBatchExport {
         var results: [QuotaProvider: Result<QuotaExport, Error>] = [:]
-        _ = try? waitForResult(timeout: timeout) { (finish: @escaping (Result<Void, Error>) -> Void) in
-            let stops = providers.compactMap { provider -> Stop? in
-                func complete(_ result: Result<QuotaExport, Error>) {
-                    guard results[provider] == nil else { return }
-                    results[provider] = result.flatMap { quota in
-                        Result {
-                            var quota = quota
-                            if let period { try quota.selectPeriod(period) }
-                            return quota
+        do {
+            try waitForResult(timeout: timeout) { (finish: @escaping (Result<Void, Error>) -> Void) in
+                let stops = providers.compactMap { provider -> Stop? in
+                    func complete(_ result: Result<QuotaExport, Error>) {
+                        guard results[provider] == nil else { return }
+                        results[provider] = result.flatMap { quota in
+                            Result {
+                                var quota = quota
+                                if let period { try quota.selectPeriod(period) }
+                                return quota
+                            }
                         }
+                        if results.count == providers.count { finish(.success(())) }
                     }
-                    if results.count == providers.count { finish(.success(())) }
+                    do {
+                        return try startSnapshot(from: provider, modelID: nil,
+                                                 accountSelector: provider == .codex ? accountSelector : nil,
+                                                 complete: complete)
+                    } catch {
+                        complete(.failure(error))
+                        return nil
+                    }
                 }
-                do {
-                    return try startSnapshot(from: provider, modelID: nil,
-                                             accountSelector: provider == .codex ? accountSelector : nil,
-                                             complete: complete)
-                } catch {
-                    complete(.failure(error))
-                    return nil
-                }
+                return { stops.forEach { $0() } }
             }
-            return { stops.forEach { $0() } }
+        } catch Failure.timedOut {
+            // Keep results from sources that completed before the shared deadline.
         }
         let sources = providers.map { provider in
             QuotaBatchExport.Source(provider: provider, result: results[provider] ?? .failure(Failure.timedOut))
@@ -120,6 +130,7 @@ enum QuotaQuery {
         start: (@escaping (Result<Value, Error>) -> Void) throws -> Stop
     ) throws -> Value {
         var result: Result<Value, Error>?
+        var interruption: Interrupted?
         func complete(_ response: Result<Value, Error>) {
             if result == nil { result = response }
         }
@@ -127,15 +138,32 @@ enum QuotaQuery {
         let deadline = Date().addingTimeInterval(timeout)
         let timer = Timer(fire: deadline, interval: 0, repeats: false) { _ in }
         RunLoop.main.add(timer, forMode: .default)
+        let signals = [SIGINT, SIGTERM].map { number in
+            // Caught dispositions reset for a child process on exec.
+            let previous = signal(number) { _ in }
+            let listener = DispatchSource.makeSignalSource(signal: number, queue: .main)
+            listener.setEventHandler {
+                if interruption == nil { interruption = Interrupted(signal: number) }
+            }
+            listener.activate()
+            return (number, previous, listener)
+        }
+        defer {
+            for (number, previous, listener) in signals {
+                listener.cancel()
+                signal(number, previous)
+            }
+        }
         defer { timer.invalidate() }
         let stop = try start(complete)
         defer {
             stop()
             QuotaChildProcess.waitForTerminations()
         }
-        while result == nil, deadline > Date() {
+        while result == nil, interruption == nil, deadline > Date() {
             _ = RunLoop.main.run(mode: .default, before: deadline)
         }
+        if let interruption { throw interruption }
         guard let result else { throw Failure.timedOut }
         return try result.get()
     }
