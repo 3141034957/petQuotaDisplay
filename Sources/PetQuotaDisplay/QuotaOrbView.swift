@@ -451,6 +451,7 @@ final class QuotaOrbView: NSView {
         }
 
         menu.addItem(appearanceMenuItem())
+        menu.addItem(reminderMenuItem())
         if showsMenuBarQuota {
             let title = menuBarOnly ? "显示悬浮球" : "仅在菜单栏显示"
             let visibility = NSMenuItem(title: title, action: #selector(toggleOrbVisibility), keyEquivalent: "")
@@ -583,6 +584,13 @@ final class QuotaOrbView: NSView {
         privacy.target = self
         privacy.state = hidesAccountEmail ? .on : .off
         submenu.addItem(warningThresholdMenuItem())
+        item.submenu = submenu
+        return item
+    }
+
+    private func reminderMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "低额度提醒", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
         let periods = submenu.addItem(withTitle: "低额度提醒周期", action: nil, keyEquivalent: "")
         let choices = NSMenu(title: periods.title)
         for period in QuotaPeriod.allCases {
