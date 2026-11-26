@@ -18,6 +18,8 @@ swift run PetQuotaDisplay
 
 独立运行会立即显示额度，并沿用上次选择的显示方式。运行 `python3 main.py --always-show` 可在本次启动强制显示悬浮球，使用 `--follow-codex` 可在 Codex 运行时显示额度。用 `python3 main.py --help` 查看启动选项。
 
+可用 `python3 main.py --provider gemini` 指定本次启动时的来源。切换来源会照常保存，而仅使用启动参数会保留已有设置。
+
 运行 `python3 main.py --diagnose` 可在终端检查 Codex、Gemini、Kimi 的命令是否可用，以及 Claude Code 是否采集过额度。检查在本机完成，无需登录或读取钥匙串。脚本可通过 `--diagnose --json` 读取各来源的标识和配置状态。
 
 首次运行会编译原生程序，后续启动会快很多。悬浮球默认置顶，程序不会出现在 Dock 中：
