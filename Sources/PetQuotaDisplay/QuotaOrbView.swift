@@ -56,6 +56,8 @@ final class QuotaOrbView: NSView {
         }
     }
     var onRefresh: (() -> Void)?
+    var refreshCadence: QuotaRefreshCadence = .thirtySeconds
+    var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
     var onSelectProvider: ((QuotaProvider) -> Void)?
@@ -292,6 +294,7 @@ final class QuotaOrbView: NSView {
         refresh.target = self
         refresh.isEnabled = !state.isRefreshing
         menu.addItem(refresh)
+        menu.addItem(refreshCadenceMenuItem())
 
         let copy = NSMenuItem(title: "复制额度摘要", action: #selector(copyQuotaSummary), keyEquivalent: "c")
         copy.target = self
@@ -366,6 +369,20 @@ final class QuotaOrbView: NSView {
         quit.target = self
         menu.addItem(quit)
         return menu
+    }
+
+    private func refreshCadenceMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "定时刷新", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        for cadence in QuotaRefreshCadence.allCases {
+            let option = NSMenuItem(title: cadence.title, action: #selector(selectRefreshCadence(_:)), keyEquivalent: "")
+            option.target = self
+            option.tag = cadence.rawValue
+            option.state = cadence == refreshCadence ? .on : .off
+            submenu.addItem(option)
+        }
+        item.submenu = submenu
+        return item
     }
 
     private func accountMenuItem() -> NSMenuItem {
@@ -454,6 +471,11 @@ final class QuotaOrbView: NSView {
 
     @objc private func refreshFromMenu() { onRefresh?() }
     @objc private func quitFromMenu() { onQuit?() }
+
+    @objc private func selectRefreshCadence(_ sender: NSMenuItem) {
+        guard let cadence = QuotaRefreshCadence(rawValue: sender.tag) else { return }
+        onSelectRefreshCadence?(cadence)
+    }
 
     @objc private func copyQuotaSummary() {
         guard let quotaSummary else { return }

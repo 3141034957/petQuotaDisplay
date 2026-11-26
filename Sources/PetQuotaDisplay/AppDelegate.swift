@@ -5,7 +5,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
     private static let selectedAccountDefaultsKey = "quota.selectedAccount"
     private static let selectedProviderDefaultsKey = "quota.selectedProvider"
-    private static let refreshInterval: TimeInterval = 30
 
     private let orbSize = NSSize(width: 111, height: 111)
     private let followCodex: Bool
@@ -14,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow!
     private var orbView: QuotaOrbView!
     private var refreshTimer: Timer?
+    private var orbIsActive = false
     private var cliMonitor: CodexCLIProcessMonitor?
     private var codexGUIRunning = false
     private var codexCLIRunning = false
@@ -102,7 +102,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.autoresizingMask = [.width, .height]
         let savedProvider = UserDefaults.standard.string(forKey: Self.selectedProviderDefaultsKey)
         orbView.provider = savedProvider.flatMap(QuotaProvider.init(rawValue:)) ?? .codex
+        orbView.refreshCadence = QuotaRefreshCadence.load()
         orbView.onSelectProvider = { [weak self] provider in self?.switchProvider(to: provider) }
+        orbView.onSelectRefreshCadence = { [weak self] cadence in self?.setRefreshCadence(cadence) }
         orbView.onRefresh = { [weak self] in
             guard let self else { return }
             if self.client != nil { self.orbView.state.beginRefresh() }
@@ -122,9 +124,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startOrb() {
+        guard !orbIsActive else { return }
+        orbIsActive = true
         keepOrbOnScreen()
         window.orderFrontRegardless()
-        guard refreshTimer == nil else { return }
 
         switch orbView.provider {
         case .codex: startCodexClient()
@@ -133,11 +136,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .openCodeGo: startPollingClient(OpenCodeGoQuotaClient())
         case .kimiCode: startPollingClient(KimiQuotaClient())
         }
-        guard client != nil || pollingClient != nil || orbView.provider == .claudeCode else { return }
+        scheduleRefreshTimer()
+    }
 
-        let timer = Timer.scheduledTimer(withTimeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
+    private func setRefreshCadence(_ cadence: QuotaRefreshCadence) {
+        guard orbView.refreshCadence != cadence else { return }
+        orbView.refreshCadence = cadence
+        UserDefaults.standard.set(cadence.rawValue, forKey: QuotaRefreshCadence.defaultsKey)
+        scheduleRefreshTimer()
+    }
+
+    private func scheduleRefreshTimer() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+        guard orbIsActive, let interval = orbView.refreshCadence.interval,
+              client != nil || pollingClient != nil || orbView.provider == .claudeCode else { return }
+
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             self?.refreshDisplayedQuota()
         }
+        timer.tolerance = min(5, interval / 10)
         refreshTimer = timer
         RunLoop.main.add(timer, forMode: .common)
     }
@@ -224,6 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshDisplayedQuota() {
+        guard orbIsActive else { return }
         if let client {
             client.refresh()
         } else if let pollingClient {
@@ -231,11 +250,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if orbView.provider == .claudeCode {
             refreshClaudeQuota()
         } else {
-            startOrb()
+            startCodexClient()
+            scheduleRefreshTimer()
         }
     }
 
     private func stopOrb(hideWindow: Bool = true) {
+        orbIsActive = false
         refreshTimer?.invalidate()
         refreshTimer = nil
         client?.stop()
@@ -289,7 +310,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         // A changed key may refer to a different account.
-        guard orbView.provider == .openCodeGo, refreshTimer != nil else { return }
+        guard orbView.provider == .openCodeGo, orbIsActive else { return }
         stopOrb(hideWindow: false)
         startOrb()
     }

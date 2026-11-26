@@ -15,6 +15,20 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(refreshes, 1)
     }
 
+    func testRefreshCadenceMenuSelectsOffWithoutDisablingManualRefresh() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.state = .failed("连接中断")
+        view.onSelectRefreshCadence = { [weak view] in view?.refreshCadence = $0 }
+        let initial = try XCTUnwrap(menu(view).item(withTitle: "定时刷新")?.submenu)
+        XCTAssertEqual(initial.item(withTitle: "30 秒")?.state, .on)
+        let off = try XCTUnwrap(initial.item(withTitle: "关闭"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(off.action), to: off.target, from: off))
+
+        let updated = try menu(view)
+        XCTAssertEqual(updated.item(withTitle: "定时刷新")?.submenu?.item(withTitle: "关闭")?.state, .on)
+        XCTAssertTrue(try XCTUnwrap(updated.item(withTitle: "立即刷新")).isEnabled)
+    }
+
     func testStaleQuotaShowsLastUpdateAndFailureUntilRecovery() throws {
         let view = QuotaOrbView(frame: NSRect(x: 0, y: 0, width: 111, height: 111))
         let snapshot = QuotaSnapshot(
