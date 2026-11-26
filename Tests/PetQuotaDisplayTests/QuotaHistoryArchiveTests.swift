@@ -51,6 +51,19 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertEqual(report.readings.map(\.fetchedAt), [matching.fetchedAt])
     }
 
+    func testHistoryStatisticsExcludeMissingPeriodsAndUseFilteredReadings() throws {
+        let start = snapshot(at: 10)
+        let recent = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 50, resetsAt: nil),
+                                   fetchedAt: Date(timeIntervalSince1970: 20))
+        let otherPeriod = QuotaSnapshot(planType: nil, fiveHour: QuotaWindow(usedPercent: 90, resetsAt: nil),
+                                        weekly: nil, fetchedAt: Date(timeIntervalSince1970: 30))
+        let export = QuotaHistoryExport(provider: .gemini, snapshots: [start, recent, otherPeriod], selecting: "weekly")
+        let statistics = QuotaHistoryStatistics([export])
+        XCTAssertEqual(statistics.sources.first?.readingCount, 2)
+        XCTAssertEqual(statistics.sources.first?.periods.map(\.id), ["weekly"])
+        XCTAssertTrue(try statistics.render(as: .csv).hasSuffix("gemini,,weekly,2,50,80,50"))
+    }
+
     func testBatchHistoryPreservesSourceOrderFiltersAndAccountScope() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

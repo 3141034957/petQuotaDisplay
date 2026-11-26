@@ -50,6 +50,7 @@ let historyUsage = """
   --model         读取指定标识的 Codex 模型记录，codex 表示主要额度
   --list-models   列出此 Codex 账号已保存的额度标识和周期
   --include-models  批量历史查询同时输出选定账号的独立模型
+  --summary       输出各周期的最小、最大和最新余量
   --since         起始采集时间（含边界，带时区的 ISO 8601）
   --until         结束采集时间（含边界，带时区的 ISO 8601）
   --limit         最多显示最近多少条采集记录
