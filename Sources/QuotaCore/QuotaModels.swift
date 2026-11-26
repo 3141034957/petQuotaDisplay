@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 public struct QuotaWindow: Equatable {
@@ -104,22 +105,19 @@ public enum QuotaParser {
         durationMinutes: Int,
         in candidates: [[String: Any]]
     ) -> QuotaWindow? {
-        guard let candidate = candidates.first(where: {
-            integer($0["windowDurationMins"]) == durationMinutes
-        }), let usedPercent = integer(candidate["usedPercent"]) else {
-            return nil
+        for candidate in candidates where integer(candidate["windowDurationMins"]) == durationMinutes {
+            guard let usedPercent = integer(candidate["usedPercent"]) else { continue }
+            let resetSeconds = integer(candidate["resetsAt"])
+            return QuotaWindow(
+                usedPercent: usedPercent,
+                resetsAt: resetSeconds.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+            )
         }
-
-        let resetSeconds = integer(candidate["resetsAt"])
-        return QuotaWindow(
-            usedPercent: usedPercent,
-            resetsAt: resetSeconds.map { Date(timeIntervalSince1970: TimeInterval($0)) }
-        )
+        return nil
     }
 
     private static func integer(_ value: Any?) -> Int? {
-        if let value = value as? Int { return value }
-        if let value = value as? NSNumber { return value.intValue }
-        return nil
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
+        return number as? Int
     }
 }

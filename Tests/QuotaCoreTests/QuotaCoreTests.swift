@@ -147,4 +147,18 @@ final class QuotaCoreTests: XCTestCase {
             XCTAssertEqual(error as? QuotaParseError, .missingQuotaWindow)
         }
     }
+
+    func testMalformedCodexWindowDoesNotMaskValidWindowOfSameDuration() throws {
+        for invalidPercent in [true, 1.5] as [Any] {
+            let payload: [String: Any] = ["rateLimits": [
+                "primary": ["usedPercent": invalidPercent, "windowDurationMins": 300],
+                "secondary": ["usedPercent": 10, "windowDurationMins": 300, "resetsAt": false],
+            ]]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            let decoded = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let snapshot = try QuotaParser.parse(result: decoded)
+            XCTAssertEqual(snapshot.fiveHour?.remainingPercent, 90)
+            XCTAssertNil(snapshot.fiveHour?.resetsAt)
+        }
+    }
 }
