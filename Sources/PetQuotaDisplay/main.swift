@@ -24,11 +24,15 @@ let usage = """
   --account       本次查询的 Codex 账号名称或标识
   --list-codex-accounts  输出已配置的 Codex 账号标识及本地名称
   --json          将诊断输出为 JSON，供脚本读取
+  --version       输出版本和可用的构建提交标识
   -h, --help      显示帮助
 """
 let arguments = Array(CommandLine.arguments.dropFirst())
 let display: QuotaDisplayOptions
 switch arguments {
+case ["--version"]:
+    print(QuotaBuildInformation.summary)
+    exit(0)
 case ["--diagnose"]:
     print(QuotaDiagnostics.checkSources().summary)
     exit(0)

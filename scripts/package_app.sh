@@ -43,6 +43,12 @@ app="${distribution}/PetQuotaDisplay.app"
 mkdir -p "${app}/Contents/MacOS"
 cp "${repository_dir}/packaging/Info.plist" "${app}/Contents/Info.plist"
 cp "${binary_dir}/PetQuotaDisplay" "${app}/Contents/MacOS/PetQuotaDisplay"
+if build_revision="$(git rev-parse --short=12 HEAD 2>/dev/null)"; then
+    if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+        build_revision+="+dirty"
+    fi
+    /usr/libexec/PlistBuddy -c "Add :PetQuotaDisplayRevision string ${build_revision}" "${app}/Contents/Info.plist"
+fi
 /usr/bin/plutil -lint "${app}/Contents/Info.plist"
 /usr/bin/codesign --force --sign - --timestamp=none "${app}"
 /usr/bin/codesign --verify --strict "${app}"
