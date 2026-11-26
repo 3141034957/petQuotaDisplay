@@ -3,6 +3,17 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaExportTests: XCTestCase {
+    func testCSVOutputEscapesModelIDAndLeavesUnknownResetEmpty() throws {
+        let window = QuotaWindow(usedPercent: 25, resetsAt: nil)
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: window, weekly: nil, fetchedAt: Date(timeIntervalSince1970: 60))
+        let model = CodexMeteredQuota(id: "model, \"tier\"", name: "Model", snapshot: snapshot)
+        let export = try XCTUnwrap(QuotaExport(provider: .codex, state: .loaded(snapshot), model: model))
+        XCTAssertEqual(try export.render(as: .csv), #"""
+        provider,codexLimitID,status,fetchedAt,period,remainingPercent,resetsAt
+        codex,"model, ""tier""",current,1970-01-01T00:01:00Z,fiveHour,75,
+        """#)
+    }
+
     func testTextOutputLabelsStaleResultsAndFormatsResetInUTC() throws {
         let window = QuotaWindow(usedPercent: 35, resetsAt: Date(timeIntervalSince1970: 120))
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: window, fetchedAt: Date(timeIntervalSince1970: 60))

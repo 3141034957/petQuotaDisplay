@@ -3,7 +3,7 @@ import QuotaCore
 
 struct QuotaExport: Encodable {
     enum Format: String, CaseIterable {
-        case json, text
+        case json, text, csv
     }
 
     enum Status: String, Encodable {
@@ -63,7 +63,24 @@ struct QuotaExport: Encodable {
         switch format {
         case .json: return try json()
         case .text: return text()
+        case .csv: return csv()
         }
+    }
+
+    private func csv() -> String {
+        let fields = ["provider", "codexLimitID", "status", "fetchedAt", "period", "remainingPercent", "resetsAt"]
+        let formatter = ISO8601DateFormatter()
+        let prefix = [provider, codexLimitID ?? "", status.rawValue, formatter.string(from: fetchedAt)]
+        let rows = periods.map { period in
+            prefix + [period.id, String(period.remainingPercent), period.resetsAt.map(formatter.string(from:)) ?? ""]
+        }
+        let special = CharacterSet(charactersIn: ",\"\r\n")
+        return ([fields] + rows).map { row in
+            row.map { field in
+                guard field.rangeOfCharacter(from: special) != nil else { return field }
+                return "\"\(field.replacingOccurrences(of: "\"", with: "\"\""))\""
+            }.joined(separator: ",")
+        }.joined(separator: "\n")
     }
 
     private func text() -> String {
