@@ -196,20 +196,26 @@ final class QuotaOrbView: NSView {
         NSColor.white.withAlphaComponent(0.18).setStroke()
         background.stroke()
 
-        guard let snapshot = state.snapshot, let displayed = displayedQuota(in: snapshot) else { return }
-        let center = NSPoint(x: ringRect.midX, y: ringRect.midY)
-        let progress = NSBezierPath()
-        progress.appendArc(
-            withCenter: center,
-            radius: ringRect.width / 2,
-            startAngle: 90,
-            endAngle: 90 - CGFloat(displayed.quota.remainingPercent) * 3.6,
-            clockwise: true
-        )
+        guard let snapshot = state.snapshot, let displayed = displayedQuota(in: snapshot),
+              let progress = Self.progressPath(remainingPercent: displayed.quota.remainingPercent, in: ringRect) else { return }
         progress.lineWidth = 5
         progress.lineCapStyle = .round
         NSColor.white.withAlphaComponent(0.92).setStroke()
         progress.stroke()
+    }
+
+    static func progressPath(remainingPercent: Int, in rect: NSRect) -> NSBezierPath? {
+        guard remainingPercent > 0 else { return nil }
+        if remainingPercent >= 100 { return NSBezierPath(ovalIn: rect) }
+        let progress = NSBezierPath()
+        progress.appendArc(
+            withCenter: NSPoint(x: rect.midX, y: rect.midY),
+            radius: rect.width / 2,
+            startAngle: -90,
+            endAngle: -90 + CGFloat(remainingPercent) * 3.6,
+            clockwise: false
+        )
+        return progress
     }
 
     private func drawLabels() {

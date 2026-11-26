@@ -5,6 +5,22 @@ import XCTest
 
 @MainActor
 final class QuotaOrbViewTests: XCTestCase {
+    func testProgressRingDrawsEmptyAndFullStatesAndStartsAtTop() throws {
+        let rect = NSRect(x: 10, y: 10, width: 100, height: 100)
+        XCTAssertNil(QuotaOrbView.progressPath(remainingPercent: 0, in: rect))
+        let full = try XCTUnwrap(QuotaOrbView.progressPath(remainingPercent: 100, in: rect)).bounds
+        XCTAssertEqual(full.minX, rect.minX, accuracy: 0.001)
+        XCTAssertEqual(full.minY, rect.minY, accuracy: 0.001)
+        XCTAssertEqual(full.width, rect.width, accuracy: 0.001)
+        XCTAssertEqual(full.height, rect.height, accuracy: 0.001)
+
+        let quarter = try XCTUnwrap(QuotaOrbView.progressPath(remainingPercent: 25, in: rect)).bounds
+        XCTAssertEqual(quarter.minX, rect.midX, accuracy: 0.001)
+        XCTAssertEqual(quarter.minY, rect.minY, accuracy: 0.001)
+        XCTAssertEqual(quarter.maxX, rect.maxX, accuracy: 0.001)
+        XCTAssertEqual(quarter.maxY, rect.midY, accuracy: 0.001)
+    }
+
     func testAccessibilityPressRefreshesWhenReady() {
         let view = QuotaOrbView(frame: .zero)
         var refreshes = 0
