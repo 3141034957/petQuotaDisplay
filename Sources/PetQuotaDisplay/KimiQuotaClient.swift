@@ -45,6 +45,7 @@ final class KimiQuotaClient: PollingQuotaClient {
         connection = nil
         let pending = server
         server = nil
+        (pending?.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
         if let pending, pending.isRunning {
             pending.terminate()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
@@ -103,6 +104,11 @@ final class KimiQuotaClient: PollingQuotaClient {
                 self.startupTimeout = nil
                 switch result {
                 case .success(let connection):
+                    // Only the first line is protocol data. Keep draining later output so
+                    // a full pipe cannot block the running server.
+                    output.fileHandleForReading.readabilityHandler = { handle in
+                        if handle.availableData.isEmpty { handle.readabilityHandler = nil }
+                    }
                     self.connection = connection
                     self.fetchUsage(from: connection, server: process)
                 case .failure(let error):

@@ -47,6 +47,8 @@ final class KimiQuotaClientTests: XCTestCase {
         [ "$*" = "web --json --host 127.0.0.1" ] || exit 1
         printf '%s\\n' "$$" >> "$0.starts"
         printf '%s\\n' '{"origin":"http://127.0.0.1:58627","token":"local-token"}'
+        /bin/dd if=/dev/zero bs=65536 count=16 2>/dev/null
+        : > "$0.ready"
         exec /bin/sleep 15
 
         """.write(to: executable, atomically: true, encoding: .utf8)
@@ -66,6 +68,10 @@ final class KimiQuotaClientTests: XCTestCase {
         }
         client.refresh()
         wait(for: [first], timeout: 5)
+
+        let readyFile = directory.appendingPathComponent("kimi.ready")
+        let drained = expectation(for: NSPredicate { _, _ in files.fileExists(atPath: readyFile.path) }, evaluatedWith: nil)
+        wait(for: [drained], timeout: 3)
 
         let second = expectation(description: "renewed Kimi quota")
         client.onResult = { response in
