@@ -22,9 +22,10 @@ struct QuotaLowReminder {
     private var previous: [QuotaReminderScope: [QuotaPeriod: Reading]] = [:]
 
     mutating func events(for scope: QuotaReminderScope, snapshot: QuotaSnapshot,
-                         threshold: QuotaWarningThreshold, now: Date = Date()) -> [Event] {
+                         threshold: QuotaWarningThreshold, periods: Set<QuotaPeriod> = Set(QuotaPeriod.allCases),
+                         now: Date = Date()) -> [Event] {
         var events: [Event] = []
-        for period in QuotaPeriod.allCases {
+        for period in QuotaPeriod.allCases where periods.contains(period) {
             guard let window = snapshot[period], window.resetsAt.map({ $0 > now }) ?? true else { continue }
             let last = previous[scope]?[period]
             if let last, snapshot.fetchedAt < last.fetchedAt { continue }
@@ -41,5 +42,9 @@ struct QuotaLowReminder {
 
     mutating func remove(_ context: QuotaHistoryContext) {
         previous = previous.filter { $0.key.context != context }
+    }
+
+    mutating func reset(_ period: QuotaPeriod) {
+        for scope in Array(previous.keys) { previous[scope]?.removeValue(forKey: period) }
     }
 }

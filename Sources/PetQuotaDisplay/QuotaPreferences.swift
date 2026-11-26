@@ -1,4 +1,5 @@
 import Foundation
+import QuotaCore
 
 enum QuotaPreferences {
     static let selectedProviderKey = "quota.selectedProvider"
@@ -6,6 +7,7 @@ enum QuotaPreferences {
     static let menuBarSourceNameKey = "quota.showsMenuBarSourceName"
     static let lowQuotaSoundKey = "quota.lowQuotaSound"
     static let lowQuotaNotificationKey = "quota.lowQuotaNotification"
+    static let lowQuotaPeriodsKey = "quota.lowQuotaPeriods"
     static let menuBarOnlyKey = "orb.menuBarOnly"
 
     static let shared: UserDefaults = {
@@ -16,5 +18,10 @@ enum QuotaPreferences {
 
     static func selectedProvider(defaults: UserDefaults = shared) -> QuotaProvider {
         defaults.string(forKey: selectedProviderKey).flatMap(QuotaProvider.init(rawValue:)) ?? .codex
+    }
+
+    static func reminderPeriods(defaults: UserDefaults = shared) -> Set<QuotaPeriod> {
+        guard let values = defaults.stringArray(forKey: lowQuotaPeriodsKey) else { return Set(QuotaPeriod.allCases) }
+        return Set(values.compactMap(QuotaPeriod.init(rawValue:)))
     }
 }

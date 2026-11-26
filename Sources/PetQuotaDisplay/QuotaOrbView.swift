@@ -49,6 +49,8 @@ final class QuotaOrbView: NSView {
     var supportsLowQuotaNotifications = false
     var lowQuotaNotificationEnabled = false
     var onToggleLowQuotaNotifications: (() -> Void)?
+    var reminderPeriods = Set(QuotaPeriod.allCases)
+    var onToggleReminderPeriod: ((QuotaPeriod) -> Void)?
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
@@ -560,6 +562,15 @@ final class QuotaOrbView: NSView {
         sourceName.target = self
         sourceName.state = showsMenuBarSourceName ? .on : .off
         submenu.addItem(warningThresholdMenuItem())
+        let periods = submenu.addItem(withTitle: "低额度提醒周期", action: nil, keyEquivalent: "")
+        let choices = NSMenu(title: periods.title)
+        for period in QuotaPeriod.allCases {
+            let choice = choices.addItem(withTitle: period.title, action: #selector(toggleReminderPeriod(_:)), keyEquivalent: "")
+            choice.target = self
+            choice.representedObject = period.rawValue
+            choice.state = reminderPeriods.contains(period) ? .on : .off
+        }
+        periods.submenu = choices
         let sound = submenu.addItem(withTitle: "低额度声音提醒", action: #selector(toggleLowQuotaSound), keyEquivalent: "")
         sound.target = self
         sound.state = lowQuotaSoundEnabled ? .on : .off
@@ -592,6 +603,11 @@ final class QuotaOrbView: NSView {
 
     @objc private func toggleLowQuotaSound() { onToggleLowQuotaSound?() }
     @objc private func toggleLowQuotaNotifications() { onToggleLowQuotaNotifications?() }
+
+    @objc private func toggleReminderPeriod(_ sender: NSMenuItem) {
+        guard let value = sender.representedObject as? String, let period = QuotaPeriod(rawValue: value) else { return }
+        onToggleReminderPeriod?(period)
+    }
 
     private func refreshCadenceMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "定时刷新", action: nil, keyEquivalent: "")

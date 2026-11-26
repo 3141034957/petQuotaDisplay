@@ -143,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.showsMenuBarSourceName = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarSourceNameKey)
         orbView.warningThreshold = QuotaWarningThreshold.load()
         orbView.lowQuotaSoundEnabled = QuotaPreferences.shared.bool(forKey: QuotaPreferences.lowQuotaSoundKey)
+        orbView.reminderPeriods = QuotaPreferences.reminderPeriods()
         orbView.supportsLowQuotaNotifications = QuotaNotificationService.isSupported
         orbView.lowQuotaNotificationEnabled = orbView.supportsLowQuotaNotifications
             && QuotaPreferences.shared.bool(forKey: QuotaPreferences.lowQuotaNotificationKey)
@@ -169,6 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onSelectWarningThreshold = { [weak self] threshold in self?.setWarningThreshold(threshold) }
         orbView.onToggleLowQuotaSound = { [weak self] in self?.toggleLowQuotaSound() }
         orbView.onToggleLowQuotaNotifications = { [weak self] in self?.toggleLowQuotaNotifications() }
+        orbView.onToggleReminderPeriod = { [weak self] period in self?.toggleReminderPeriod(period) }
         orbView.onFreshQuota = { [weak self] scope, snapshot in self?.handleLowQuota(scope, snapshot: snapshot) }
         orbView.onToggleWindowLevel = { [weak self] in self?.toggleWindowLevel() }
         orbView.onRaiseOrb = { [weak self] in self?.reconcileWindowVisibility() }
@@ -554,10 +556,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func handleLowQuota(_ scope: QuotaReminderScope, snapshot: QuotaSnapshot) {
         guard orbView.lowQuotaSoundEnabled || orbView.lowQuotaNotificationEnabled else { return }
-        let events = lowQuotaReminder.events(for: scope, snapshot: snapshot, threshold: orbView.warningThreshold)
+        let events = lowQuotaReminder.events(for: scope, snapshot: snapshot, threshold: orbView.warningThreshold,
+                                             periods: orbView.reminderPeriods)
         guard !events.isEmpty else { return }
         if orbView.lowQuotaSoundEnabled { NSSound.beep() }
         if orbView.lowQuotaNotificationEnabled { quotaNotifications.post(provider: scope.context.provider, events: events) }
+    }
+
+    private func toggleReminderPeriod(_ period: QuotaPeriod) {
+        if !orbView.reminderPeriods.insert(period).inserted {
+            orbView.reminderPeriods.remove(period)
+        }
+        lowQuotaReminder.reset(period)
+        let values = QuotaPeriod.allCases.filter(orbView.reminderPeriods.contains).map(\.rawValue)
+        QuotaPreferences.shared.set(values, forKey: QuotaPreferences.lowQuotaPeriodsKey)
     }
 
     private func toggleWindowLevel() {
