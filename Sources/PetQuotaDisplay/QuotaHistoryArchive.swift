@@ -78,13 +78,22 @@ struct QuotaHistoryArchive {
 
     func export(for context: QuotaHistoryContext, selecting period: String? = nil,
                 since: Date? = nil, until: Date? = nil, limit: Int? = nil) throws -> QuotaHistoryExport {
-        let state = try load()
-        guard state.isEnabled else { throw Failure.notEnabled }
+        let state = try loadEnabled()
         let filtered = (state.histories[context] ?? []).filter { sample in
             (since.map { sample.fetchedAt >= $0 } ?? true) && (until.map { sample.fetchedAt <= $0 } ?? true)
         }
         return QuotaHistoryExport(provider: context.provider, snapshots: filtered, modelID: context.modelID,
                                   selecting: period, limit: limit)
+    }
+
+    func modelCatalog(for account: CodexAccountSlot) throws -> CodexModelCatalog {
+        CodexModelCatalog(account: account, histories: try loadEnabled().histories)
+    }
+
+    private func loadEnabled() throws -> State {
+        let state = try load()
+        guard state.isEnabled else { throw Failure.notEnabled }
+        return state
     }
 
     private static func merge(_ existing: [QuotaSnapshot], with incoming: [QuotaSnapshot]) -> [QuotaSnapshot] {

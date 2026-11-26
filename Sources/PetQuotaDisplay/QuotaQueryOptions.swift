@@ -41,7 +41,7 @@ struct QuotaQueryOptions {
     init(arguments: [String], purpose: Purpose = .live) throws {
         var arguments = arguments[...]
         var seen = Set<Option>()
-        let historyOptions: Set<Option> = [.provider, .account, .model, .period, .since, .until, .format, .limit]
+        let historyOptions: Set<Option> = [.provider, .account, .model, .listModels, .period, .since, .until, .format, .limit]
         while let argument = arguments.popFirst() {
             guard let option = Option(rawValue: argument) else { throw Failure.unknownOption(purpose) }
             if purpose == .savedHistory, !historyOptions.contains(option) {
@@ -99,15 +99,19 @@ struct QuotaQueryOptions {
                 limit = count
             }
         }
-        if listModels, (provider != nil && provider != .codex || modelID != nil || period != nil || failBelow != nil || requireFresh) {
-            throw Failure.incompatibleModelList
+        if listModels {
+            var allowed: Set<Option> = [.listModels, .provider, .account, .format]
+            if purpose == .live { allowed.insert(.timeout) }
+            guard seen.isSubset(of: allowed), provider == nil || provider == .codex else {
+                throw Failure.incompatibleModelList(purpose)
+            }
         }
         if let since, let until, since > until { throw Failure.invalidDateRange }
     }
 
     private enum Failure: LocalizedError {
         case unknownOption(Purpose), duplicateOption(Option), missingValue(Option), invalidValue(Option)
-        case incompatibleModelList, unsupportedHistoryOption(Option)
+        case incompatibleModelList(Purpose), unsupportedHistoryOption(Option)
         case dateOnlyForHistory, invalidDateRange, limitOnlyForHistory
 
         var errorDescription: String? {
@@ -116,7 +120,9 @@ struct QuotaQueryOptions {
             case .duplicateOption(let option): return "\(option.rawValue) 只能指定一次。"
             case .missingValue(let option): return "\(option.rawValue) 缺少参数值。"
             case .invalidValue(let option): return "请为 \(option.rawValue) 指定一个有效的值。"
-            case .incompatibleModelList: return "模型列表仅支持 Codex 来源、账号、超时和输出格式选项。"
+            case .incompatibleModelList(let purpose):
+                let timeout = purpose == .live ? "、超时" : ""
+                return "模型列表仅支持 Codex 来源、账号\(timeout)和输出格式选项。"
             case .unsupportedHistoryOption(let option): return "--history 不支持 \(option.rawValue)。"
             case .dateOnlyForHistory: return "--since 和 --until 仅适用于历史查询。"
             case .invalidDateRange: return "历史查询的起始时间不能晚于结束时间。"

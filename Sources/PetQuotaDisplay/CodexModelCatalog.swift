@@ -7,19 +7,32 @@ struct CodexModelCatalog {
         let isPrimary: Bool
         let periods: [String]
 
-        init(id: String, name: String, isPrimary: Bool, snapshot: QuotaSnapshot) {
+        init(id: String, name: String, isPrimary: Bool, snapshots: [QuotaSnapshot]) {
             self.id = id
             self.name = name
             self.isPrimary = isPrimary
-            periods = QuotaPeriod.allCases.filter { snapshot[$0] != nil }.map(\.rawValue)
+            periods = QuotaPeriod.allCases.filter { period in
+                snapshots.contains { $0[period] != nil }
+            }.map(\.rawValue)
         }
     }
 
     let models: [Model]
 
     init(_ report: CodexQuotaReport) {
-        models = [Model(id: report.primaryID, name: "主要额度", isPrimary: true, snapshot: report.primary)]
-            + report.additional.map { Model(id: $0.id, name: $0.name, isPrimary: false, snapshot: $0.snapshot) }
+        models = [Model(id: report.primaryID, name: "主要额度", isPrimary: true, snapshots: [report.primary])]
+            + report.additional.map { Model(id: $0.id, name: $0.name, isPrimary: false, snapshots: [$0.snapshot]) }
+    }
+
+    init(account: CodexAccountSlot, histories: [QuotaHistoryContext: [QuotaSnapshot]]) {
+        models = histories.compactMap { context, snapshots -> Model? in
+            guard context.provider == .codex, context.account == account, !snapshots.isEmpty else { return nil }
+            return Model(id: context.modelID ?? "codex", name: context.modelID ?? "主要额度",
+                         isPrimary: context.modelID == nil, snapshots: snapshots)
+        }.sorted { left, right in
+            if left.isPrimary != right.isPrimary { return left.isPrimary }
+            return left.id < right.id
+        }
     }
 
     func render(as format: QuotaExport.Format) throws -> String {
@@ -27,6 +40,7 @@ struct CodexModelCatalog {
         case .json:
             return try QuotaOutput.json(models)
         case .text:
+            guard !models.isEmpty else { return "此账号暂无保存的额度记录" }
             return models.map { "\($0.id) · \($0.name) · \($0.periods.joined(separator: ", "))" }.joined(separator: "\n")
         case .csv:
             let columns = ["id", "name", "isPrimary", "periods"]

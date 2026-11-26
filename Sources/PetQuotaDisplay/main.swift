@@ -44,6 +44,7 @@ let historyUsage = """
   --period        只输出指定周期：\(periodHelp)
   --account       Codex 账号本地名称或标识
   --model         读取指定标识的 Codex 模型记录，codex 表示主要额度
+  --list-models   列出此 Codex 账号已保存的额度标识和周期
   --since         起始采集时间（含边界，带时区的 ISO 8601）
   --until         结束采集时间（含边界，带时区的 ISO 8601）
   --limit         最多显示最近多少条采集记录
@@ -90,7 +91,7 @@ case _ where arguments.first == "--history":
         exit(64)
     }
     do {
-        print(try QuotaHistoryCommand.read(options: options).render(as: options.format))
+        print(try QuotaHistoryCommand.render(options: options))
         exit(0)
     } catch {
         FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))

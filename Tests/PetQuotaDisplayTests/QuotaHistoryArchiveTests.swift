@@ -24,6 +24,9 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertTrue(csv.contains("resetsAt,modelID\n"))
         XCTAssertTrue(csv.hasSuffix(",extra"))
         XCTAssertNil(try archive.export(for: main).modelID)
+        XCTAssertEqual(try archive.modelCatalog(for: account).models.map(\.id), ["codex", "extra"])
+        let otherAccount = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        XCTAssertTrue(try archive.modelCatalog(for: otherAccount).models.isEmpty)
     }
 
     func testResetCanReplaceAnUnreadableArchive() throws {

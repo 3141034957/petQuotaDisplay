@@ -1,8 +1,8 @@
 import Foundation
 
 enum QuotaHistoryCommand {
-    static func read(options: QuotaQueryOptions) throws -> QuotaHistoryExport {
-        let provider = options.provider ?? QuotaPreferences.selectedProvider()
+    static func render(options: QuotaQueryOptions) throws -> String {
+        let provider = options.provider ?? (options.listModels ? .codex : QuotaPreferences.selectedProvider())
         let account: CodexAccountSlot?
         if provider == .codex {
             let accounts = CodexAccountProfile.loadAccounts(persistNormalization: false)
@@ -16,11 +16,15 @@ enum QuotaHistoryCommand {
             guard options.modelID == nil else { throw Failure.modelOnlyForCodex }
             account = nil
         }
+        let archive = QuotaHistoryArchive.local
+        if options.listModels, let account {
+            return try archive.modelCatalog(for: account).render(as: options.format)
+        }
         let modelID = options.modelID == "codex" ? nil : options.modelID
         let context = QuotaHistoryContext(provider: provider, account: account, modelID: modelID)
-        return try QuotaHistoryArchive.local.export(for: context,
-                                                  selecting: options.period, since: options.since, until: options.until,
-                                                  limit: options.limit)
+        let export = try archive.export(for: context, selecting: options.period, since: options.since,
+                                        until: options.until, limit: options.limit)
+        return try export.render(as: options.format)
     }
 
     private enum Failure: LocalizedError {

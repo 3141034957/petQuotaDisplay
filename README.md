@@ -60,6 +60,8 @@ Codex 查询可加 `--model <额度标识>` 获取独立模型额度。省略 `-
 
 用 `--history --provider codex --model <额度标识>` 查询独立模型的采集记录。省略模型或指定 `--model codex` 时读取主要额度。
 
+用 `--history --list-models --format text` 离线列出 Codex 账号已存档的额度标识，以及每个标识采集过的周期。
+
 历史查询可加 `--period weekly` 只保留周额度记录，也可用 `--period lowestRemaining` 为每次采集选择当时余量最低的周期。
 
 使用 `--since`、`--until` 可限定采集时间，边界也包含在结果中，例如 `--since 2026-11-26T09:00:00+08:00`。

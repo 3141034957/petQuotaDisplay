@@ -47,6 +47,8 @@ final class QuotaQueryOptionsTests: XCTestCase {
         XCTAssertEqual(history.account, "Work")
         XCTAssertEqual(history.modelID, "extra")
         XCTAssertEqual(history.format, .csv)
+        XCTAssertTrue(try QuotaQueryOptions(arguments: ["--list-models"], purpose: .savedHistory).listModels)
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--list-models", "--limit", "10"], purpose: .savedHistory))
         XCTAssertEqual(try QuotaQueryOptions(arguments: ["--limit", "3"], purpose: .savedHistory).limit, 3)
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--limit", "0"], purpose: .savedHistory))
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--timeout", "1"], purpose: .savedHistory))
