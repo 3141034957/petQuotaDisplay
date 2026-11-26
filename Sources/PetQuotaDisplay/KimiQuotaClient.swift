@@ -6,6 +6,7 @@ final class KimiQuotaClient: PollingQuotaClient {
     private let executable: () -> URL?
     private let session: URLSession
     private var server: Process?
+    private var serverWorkspace: URL?
     private var startupTimeout: DispatchWorkItem?
     private var connection: Connection?
     private var request: URLSessionDataTask?
@@ -20,6 +21,8 @@ final class KimiQuotaClient: PollingQuotaClient {
         self.executable = executable
         self.session = session ?? Self.session
     }
+
+    deinit { stop() }
 
     func refresh() {
         guard request == nil, startupTimeout == nil else { return }
@@ -44,8 +47,12 @@ final class KimiQuotaClient: PollingQuotaClient {
         connection = nil
         let pending = server
         server = nil
+        let workspace = serverWorkspace
+        serverWorkspace = nil
         (pending?.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
-        QuotaChildProcess.terminate(pending)
+        QuotaChildProcess.terminate(pending) {
+            if let workspace { try? FileManager.default.removeItem(at: workspace) }
+        }
     }
 
     private func startServer(_ executable: URL) {
@@ -66,7 +73,6 @@ final class KimiQuotaClient: PollingQuotaClient {
         process.standardOutput = output
         process.standardError = FileHandle.nullDevice
         process.terminationHandler = { [weak self] process in
-            try? FileManager.default.removeItem(at: workspace)
             DispatchQueue.main.async {
                 guard let self, self.server === process else { return }
                 let error: Failure = self.startupTimeout != nil ? .startupFailed : .serverExited
@@ -82,6 +88,7 @@ final class KimiQuotaClient: PollingQuotaClient {
             return
         }
         server = process
+        serverWorkspace = workspace
         let timeout = DispatchWorkItem { [weak self, weak process] in
             guard let self, let process, self.server === process else { return }
             self.stop()

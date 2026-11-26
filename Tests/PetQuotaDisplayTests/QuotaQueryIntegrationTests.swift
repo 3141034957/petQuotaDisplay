@@ -22,7 +22,7 @@ final class QuotaQueryIntegrationTests: XCTestCase {
         """#.write(to: gemini, atomically: true, encoding: .utf8)
         try #"""
         #!/bin/sh
-        touch "$QUOTA_TEST_READY"
+        printf '%s\n' "$PWD" > "$QUOTA_TEST_READY"
         exec /bin/sleep 6
         """#.write(to: kimi, atomically: true, encoding: .utf8)
         for executable in [gemini, kimi] {
@@ -60,6 +60,9 @@ final class QuotaQueryIntegrationTests: XCTestCase {
         let periods = try XCTUnwrap(quota["periods"] as? [[String: Any]])
         XCTAssertEqual(periods.map { $0["remainingPercent"] as? Int }, [75])
         XCTAssertEqual(sources.last?["error"] as? String, "读取额度超时")
+        let workspace = try String(contentsOf: ready, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertFalse(workspace.isEmpty)
+        XCTAssertFalse(files.fileExists(atPath: workspace))
     }
 
     func testQueryTimeoutReapsAChildThatIgnoresTermination() throws {
