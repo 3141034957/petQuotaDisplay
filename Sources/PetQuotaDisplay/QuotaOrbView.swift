@@ -61,6 +61,8 @@ final class QuotaOrbView: NSView {
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
     var onResetPosition: (() -> Void)?
+    var sizePreference: OrbSizePreference = .standard
+    var onSelectSize: ((OrbSizePreference) -> Void)?
     var onSelectProvider: ((QuotaProvider) -> Void)?
     var onSelectAccount: ((CodexAccountSlot) -> Void)?
     var onAddAccount: (() -> Void)?
@@ -366,6 +368,7 @@ final class QuotaOrbView: NSView {
             menu.addItem(.separator())
         }
 
+        menu.addItem(orbSizeMenuItem())
         let reset = NSMenuItem(title: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
@@ -384,6 +387,20 @@ final class QuotaOrbView: NSView {
             option.target = self
             option.tag = cadence.rawValue
             option.state = cadence == refreshCadence ? .on : .off
+            submenu.addItem(option)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    private func orbSizeMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "悬浮球大小", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        for size in OrbSizePreference.allCases {
+            let option = NSMenuItem(title: size.title, action: #selector(selectOrbSize(_:)), keyEquivalent: "")
+            option.target = self
+            option.tag = size.rawValue
+            option.state = size == sizePreference ? .on : .off
             submenu.addItem(option)
         }
         item.submenu = submenu
@@ -477,6 +494,11 @@ final class QuotaOrbView: NSView {
     @objc private func refreshFromMenu() { onRefresh?() }
     @objc private func quitFromMenu() { onQuit?() }
     @objc private func resetPositionFromMenu() { onResetPosition?() }
+
+    @objc private func selectOrbSize(_ sender: NSMenuItem) {
+        guard let size = OrbSizePreference(rawValue: sender.tag) else { return }
+        onSelectSize?(size)
+    }
 
     @objc private func selectRefreshCadence(_ sender: NSMenuItem) {
         guard let cadence = QuotaRefreshCadence(rawValue: sender.tag) else { return }

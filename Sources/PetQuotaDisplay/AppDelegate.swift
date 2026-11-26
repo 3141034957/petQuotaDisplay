@@ -6,7 +6,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let selectedAccountDefaultsKey = "quota.selectedAccount"
     private static let selectedProviderDefaultsKey = "quota.selectedProvider"
 
-    private let orbSize = NSSize(width: 111, height: 111)
+    private var orbSizePreference = OrbSizePreference(
+        rawValue: UserDefaults.standard.integer(forKey: OrbSizePreference.defaultsKey)
+    ) ?? .standard
+    private var orbSize: NSSize { orbSizePreference.size }
     private let followCodex: Bool
     private var client: CodexQuotaClient?
     private var pollingClient: PollingQuotaClient?
@@ -103,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let savedProvider = UserDefaults.standard.string(forKey: Self.selectedProviderDefaultsKey)
         orbView.provider = savedProvider.flatMap(QuotaProvider.init(rawValue:)) ?? .codex
         orbView.refreshCadence = QuotaRefreshCadence.load()
+        orbView.sizePreference = orbSizePreference
         orbView.onSelectProvider = { [weak self] provider in self?.switchProvider(to: provider) }
         orbView.onSelectRefreshCadence = { [weak self] cadence in self?.setRefreshCadence(cadence) }
         orbView.onRefresh = { [weak self] in
@@ -113,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.onQuit = { [weak self] in self?.quitOrHideOrb() }
         orbView.onPositionChanged = { [weak self] in self?.finishOrbDrag() }
         orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
+        orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
@@ -484,23 +489,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
     }
 
-    private func restoredOrDefaultOrigin() -> NSPoint {
+    private var savedOrbOrigin: NSPoint? {
         let defaults = UserDefaults.standard
-        if defaults.object(forKey: "orb.x") != nil,
-           defaults.object(forKey: "orb.y") != nil {
-            let point = NSPoint(
-                x: defaults.double(forKey: "orb.x"),
-                y: defaults.double(forKey: "orb.y")
-            )
-            if point.x.isFinite, point.y.isFinite {
-                return OrbWindowPlacement.constrainedOrigin(
-                    point,
-                    size: orbSize,
-                    visibleFrames: NSScreen.screens.map(\.visibleFrame)
-                )
-            }
-        }
-        return defaultOrbOrigin()
+        guard let x = defaults.object(forKey: "orb.x") as? Double, x.isFinite,
+              let y = defaults.object(forKey: "orb.y") as? Double, y.isFinite else { return nil }
+        return NSPoint(x: x, y: y)
+    }
+
+    private func restoredOrDefaultOrigin() -> NSPoint {
+        guard let savedOrbOrigin else { return defaultOrbOrigin() }
+        return OrbWindowPlacement.constrainedOrigin(
+            savedOrbOrigin, size: orbSize, visibleFrames: NSScreen.screens.map(\.visibleFrame)
+        )
     }
 
     private func defaultOrbOrigin() -> NSPoint {
@@ -510,12 +510,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func resetOrbPosition() {
         window.setFrameOrigin(defaultOrbOrigin())
-        saveWindowPosition()
+        saveOrbOrigin(window.frame.origin)
     }
 
-    private func saveWindowPosition() {
-        UserDefaults.standard.set(window.frame.origin.x, forKey: "orb.x")
-        UserDefaults.standard.set(window.frame.origin.y, forKey: "orb.y")
+    private func resizeOrb(to preference: OrbSizePreference) {
+        guard orbSizePreference != preference else { return }
+        if let origin = savedOrbOrigin {
+            let offset = (orbSize.width - preference.size.width) / 2
+            saveOrbOrigin(NSPoint(x: origin.x + offset, y: origin.y + offset))
+        }
+        orbSizePreference = preference
+        orbView.sizePreference = preference
+        UserDefaults.standard.set(preference.rawValue, forKey: OrbSizePreference.defaultsKey)
+        window.setFrame(NSRect(origin: restoredOrDefaultOrigin(), size: orbSize), display: true)
+    }
+
+    private func saveOrbOrigin(_ origin: NSPoint) {
+        UserDefaults.standard.set(origin.x, forKey: "orb.x")
+        UserDefaults.standard.set(origin.y, forKey: "orb.y")
     }
 
     @objc private func screenParametersDidChange(_ notification: Notification) {
@@ -529,6 +541,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             visibleFrames: NSScreen.screens.map(\.visibleFrame)
         )
         window.setFrameOrigin(origin)
-        saveWindowPosition()
+        saveOrbOrigin(origin)
     }
 }

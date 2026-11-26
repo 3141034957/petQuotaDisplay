@@ -29,6 +29,19 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(updated.item(withTitle: "立即刷新")).isEnabled)
     }
 
+    func testOrbMenuOffersThreeSizesAndSendsSelectedValue() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.onSelectSize = { [weak view] in view?.sizePreference = $0 }
+        let sizes = try XCTUnwrap(menu(view).item(withTitle: "悬浮球大小")?.submenu)
+        XCTAssertEqual(sizes.items.map(\.title), ["小", "标准", "大"])
+        XCTAssertEqual(sizes.item(withTitle: "标准")?.state, .on)
+
+        let large = try XCTUnwrap(sizes.item(withTitle: "大"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(large.action), to: large.target, from: large))
+        XCTAssertEqual(view.sizePreference, .large)
+        XCTAssertEqual(try menu(view).item(withTitle: "悬浮球大小")?.submenu?.item(withTitle: "大")?.state, .on)
+    }
+
     func testStaleQuotaShowsLastUpdateAndFailureUntilRecovery() throws {
         let view = QuotaOrbView(frame: NSRect(x: 0, y: 0, width: 111, height: 111))
         let snapshot = QuotaSnapshot(
