@@ -60,6 +60,7 @@ final class QuotaOrbView: NSView {
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
+    var onResetPosition: (() -> Void)?
     var onSelectProvider: ((QuotaProvider) -> Void)?
     var onSelectAccount: ((CodexAccountSlot) -> Void)?
     var onAddAccount: (() -> Void)?
@@ -365,6 +366,10 @@ final class QuotaOrbView: NSView {
             menu.addItem(.separator())
         }
 
+        let reset = NSMenuItem(title: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
+        reset.target = self
+        menu.addItem(reset)
+
         let quit = NSMenuItem(title: quitMenuTitle, action: #selector(quitFromMenu), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
@@ -471,6 +476,7 @@ final class QuotaOrbView: NSView {
 
     @objc private func refreshFromMenu() { onRefresh?() }
     @objc private func quitFromMenu() { onQuit?() }
+    @objc private func resetPositionFromMenu() { onResetPosition?() }
 
     @objc private func selectRefreshCadence(_ sender: NSMenuItem) {
         guard let cadence = QuotaRefreshCadence(rawValue: sender.tag) else { return }

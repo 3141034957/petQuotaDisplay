@@ -112,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         orbView.onQuit = { [weak self] in self?.quitOrHideOrb() }
         orbView.onPositionChanged = { [weak self] in self?.keepOrbOnScreen() }
+        orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
@@ -499,8 +500,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             }
         }
-        let visible = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1_440, height: 900)
-        return NSPoint(x: visible.maxX - orbSize.width - 24, y: visible.minY + 36)
+        return defaultOrbOrigin()
+    }
+
+    private func defaultOrbOrigin() -> NSPoint {
+        let visible = NSScreen.screens.first?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1_440, height: 900)
+        return OrbWindowPlacement.defaultOrigin(size: orbSize, visibleFrame: visible)
+    }
+
+    private func resetOrbPosition() {
+        window.setFrameOrigin(defaultOrbOrigin())
+        saveWindowPosition()
     }
 
     private func saveWindowPosition() {

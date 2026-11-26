@@ -2,6 +2,11 @@ import CoreGraphics
 import Foundation
 
 public enum OrbWindowPlacement {
+    public static func defaultOrigin(size: CGSize, visibleFrame: CGRect) -> CGPoint {
+        let origin = CGPoint(x: visibleFrame.maxX - size.width - 24, y: visibleFrame.minY + 36)
+        return constrainedOrigin(origin, size: size, visibleFrames: [visibleFrame])
+    }
+
     /// Chooses the visible screen that needs the smallest move to contain the orb.
     public static func constrainedOrigin(
         _ origin: CGPoint,

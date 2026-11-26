@@ -2,6 +2,14 @@ import XCTest
 @testable import QuotaCore
 
 final class OrbWindowPlacementTests: XCTestCase {
+    func testDefaultOriginStaysInsideSmallVisibleFrame() {
+        let screen = CGRect(x: -115, y: 20, width: 115, height: 120)
+        let size = CGSize(width: 111, height: 111)
+        let origin = OrbWindowPlacement.defaultOrigin(size: size, visibleFrame: screen)
+        XCTAssertEqual(origin, CGPoint(x: -115, y: 29))
+        XCTAssertTrue(screen.contains(CGRect(origin: origin, size: size)))
+    }
+
     private let size = CGSize(width: 111, height: 111)
     private let screen = CGRect(x: 0, y: 30, width: 1440, height: 850)
 
