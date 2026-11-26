@@ -46,13 +46,15 @@ struct QuotaHistoryRecord: Codable {
 }
 
 struct QuotaHistoryExport: Encodable {
-    static let csvColumns = ["provider", "period", "fetchedAt", "remainingPercent", "resetsAt"]
     let schemaVersion = 1
     let provider: String
+    let modelID: String?
     let readings: [QuotaHistoryRecord]
 
-    init(provider: QuotaProvider, snapshots: [QuotaSnapshot], selecting period: String? = nil, limit: Int? = nil) {
+    init(provider: QuotaProvider, snapshots: [QuotaSnapshot], modelID: String? = nil,
+         selecting period: String? = nil, limit: Int? = nil) {
         self.provider = provider.rawValue
+        self.modelID = modelID
         let filtered = snapshots.map { QuotaHistoryRecord($0, selecting: period) }.filter { !$0.periods.isEmpty }
         readings = limit.map { Array(filtered.suffix($0)) } ?? filtered
     }
@@ -63,7 +65,7 @@ struct QuotaHistoryExport: Encodable {
         case .json:
             return try QuotaOutput.json(self)
         case .text:
-            let title = QuotaProvider(rawValue: provider)?.title ?? provider
+            let title = [QuotaProvider(rawValue: provider)?.title ?? provider, modelID].compactMap { $0 }.joined(separator: " · ")
             guard !readings.isEmpty else { return "\(title) · 暂无保存记录" }
             let lines = readings.map { reading in
                 let periods = reading.periods.map { item in
@@ -80,7 +82,15 @@ struct QuotaHistoryExport: Encodable {
                      item.resetsAt.map(formatter.string(from:)) ?? ""]
                 }
             }
-            return QuotaOutput.csv([Self.csvColumns] + rows)
+            return Self.csv(rows, modelID: modelID)
         }
+    }
+
+    static func csv(_ rows: [[String]], modelID: String?) -> String {
+        let columns = ["provider", "period", "fetchedAt", "remainingPercent", "resetsAt"]
+        if let modelID {
+            return QuotaOutput.csv([columns + ["modelID"]] + rows.map { $0 + [modelID] })
+        }
+        return QuotaOutput.csv([columns] + rows)
     }
 }

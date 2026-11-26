@@ -459,6 +459,30 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(changes.map { $0.1 }, [1, 0])
     }
 
+    func testModelHistoryMenuUsesIndependentReadingsForTheSelectedAccount() throws {
+        let view = QuotaOrbView(frame: .zero)
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        view.selectedAccount = account
+        let primary = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 20, resetsAt: nil))
+        let additional = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 90, resetsAt: nil))
+        view.codexMeteredQuotas = [CodexMeteredQuota(id: "extra", name: "Extra", snapshot: additional)]
+        view.state = .loaded(primary)
+        let models = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu?
+            .item(withTitle: "Codex")?.submenu?.item(withTitle: "独立模型")?.submenu)
+        let trend = try XCTUnwrap(models.item(withTitle: "extra")?.submenu?.item(withTitle: "查看额度趋势…"))
+        var opened: QuotaHistoryContext?
+        view.onShowQuotaHistory = { context, readings in
+            opened = context
+            XCTAssertEqual(readings, [additional])
+        }
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(trend.action), to: trend.target, from: trend))
+        XCTAssertEqual(opened, QuotaHistoryContext(provider: .codex, account: account, modelID: "extra"))
+        view.selectedAccount = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        XCTAssertNil(view.quotaHistoryJSON(for: .codex, modelID: "extra"))
+        view.forgetQuota(for: .codex, account: account)
+        XCTAssertTrue(view.historyForArchive.isEmpty)
+    }
+
     func testCopySummaryIsAvailableForSnapshotsAndIdentifiesStaleData() throws {
         let view = QuotaOrbView(frame: .zero)
         XCTAssertNil(view.quotaSummary)

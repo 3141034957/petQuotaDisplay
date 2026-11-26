@@ -3,6 +3,29 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaHistoryArchiveTests: XCTestCase {
+    func testModelArchivePreservesExistingPrimaryHistoryAndMarksExports() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = QuotaHistoryArchive(directory: root)
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let main = QuotaHistoryContext(provider: .codex, account: account)
+        let model = QuotaHistoryContext(provider: .codex, account: account, modelID: "extra")
+        let original = snapshot(at: 100)
+        let additional = snapshot(at: 200)
+
+        try archive.setEnabled(true, initial: [main: [original]])
+        XCTAssertEqual(try archive.load().histories[main], [original])
+        try archive.update(model, latest: additional)
+        XCTAssertEqual(try archive.load().histories, [main: [original], model: [additional]])
+
+        let export = try archive.export(for: model)
+        XCTAssertEqual(export.modelID, "extra")
+        let csv = try export.render(as: .csv)
+        XCTAssertTrue(csv.contains("resetsAt,modelID\n"))
+        XCTAssertTrue(csv.hasSuffix(",extra"))
+        XCTAssertNil(try archive.export(for: main).modelID)
+    }
+
     func testResetCanReplaceAnUnreadableArchive() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

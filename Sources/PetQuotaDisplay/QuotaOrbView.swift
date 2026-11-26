@@ -10,10 +10,11 @@ final class QuotaOrbView: NSView {
         didSet {
             if case .loaded(let snapshot) = state, provider != .codex || selectedAccount != nil {
                 let context = quotaContext(for: provider)
-                let previous = recentQuotas[context]?.latest
-                recentQuotas[context, default: QuotaReadingHistory()].record(snapshot)
-                if let current = recentQuotas[context], current.latest != previous {
-                    onQuotaHistoryChanged?(context, current.readings)
+                recordHistory(snapshot, for: context)
+                if provider == .codex {
+                    for bucket in codexMeteredQuotas {
+                        recordHistory(bucket.snapshot, for: quotaContext(for: .codex, modelID: bucket.id))
+                    }
                 }
                 let scope = QuotaReminderScope(context: context, modelID: displayedCodexBucket?.id)
                 onFreshQuota?(scope, displaySnapshot(snapshot))
@@ -473,13 +474,22 @@ final class QuotaOrbView: NSView {
         menu.addItem(quit)
     }
 
-    private func quotaContext(for source: QuotaProvider) -> QuotaHistoryContext {
-        QuotaHistoryContext(provider: source, account: source == .codex ? selectedAccount : nil)
+    private func quotaContext(for source: QuotaProvider, modelID: String? = nil) -> QuotaHistoryContext {
+        QuotaHistoryContext(provider: source, account: source == .codex ? selectedAccount : nil, modelID: modelID)
+    }
+
+    private func recordHistory(_ snapshot: QuotaSnapshot, for context: QuotaHistoryContext) {
+        let previous = recentQuotas[context]?.latest
+        recentQuotas[context, default: QuotaReadingHistory()].record(snapshot)
+        if let current = recentQuotas[context], current.latest != previous {
+            onQuotaHistoryChanged?(context, current.readings)
+        }
     }
 
     func forgetQuota(for source: QuotaProvider, account: CodexAccountSlot? = nil) {
-        let context = QuotaHistoryContext(provider: source, account: account)
-        if recentQuotas.removeValue(forKey: context) != nil {
+        let matching = recentQuotas.keys.filter { $0.provider == source && $0.account == account }
+        for context in matching {
+            recentQuotas.removeValue(forKey: context)
             onQuotaHistoryChanged?(context, [])
         }
     }
@@ -520,8 +530,10 @@ final class QuotaOrbView: NSView {
         }
         submenu.addItem(.separator())
         for source in QuotaProvider.allCases {
+            let context = quotaContext(for: source)
             let lines = recentQuotaDetails(for: source)
-            guard !lines.isEmpty else {
+            let models = source == .codex ? modelHistoryMenuItem(for: context) : nil
+            guard !lines.isEmpty || models != nil else {
                 let empty = submenu.addItem(withTitle: "\(source.title) · 尚无结果", action: nil, keyEquivalent: "")
                 empty.isEnabled = false
                 continue
@@ -531,23 +543,57 @@ final class QuotaOrbView: NSView {
             for line in lines {
                 details.addItem(withTitle: line, action: nil, keyEquivalent: "")
             }
-            if let history = recentQuotas[quotaContext(for: source)], history.readings.count > 1 {
+            if let history = recentQuotas[context], history.readings.count > 1 {
                 details.addItem(.separator())
                 details.addItem(readingListMenuItem(history.readings))
-                let trend = details.addItem(withTitle: "查看额度趋势…", action: #selector(showQuotaHistory(_:)), keyEquivalent: "")
-                trend.target = self
-                trend.representedObject = source.rawValue
+                addHistoryTrend(to: details, context: context)
             }
+            if let models { details.addItem(models) }
             let clearSource = details.addItem(withTitle: "清除此来源的记录", action: #selector(clearSourceQuotaHistory(_:)), keyEquivalent: "")
             clearSource.target = self
             clearSource.representedObject = source.rawValue
-            let copySource = details.addItem(withTitle: "复制此来源的全部记录 JSON", action: #selector(copySourceQuotaHistory(_:)), keyEquivalent: "")
-            copySource.target = self
-            copySource.representedObject = source.rawValue
+            if recentQuotas[context] != nil {
+                let title = models == nil ? "复制此来源的全部记录 JSON" : "复制主要额度的全部记录 JSON"
+                addHistoryCopy(to: details, context: context, title: title)
+            }
             entry.submenu = details
         }
         item.submenu = submenu
         return item
+    }
+
+    private func modelHistoryMenuItem(for context: QuotaHistoryContext) -> NSMenuItem? {
+        guard context.account != nil else { return nil }
+        let modelIDs = recentQuotas.keys.compactMap { key in
+            key.provider == .codex && key.account == context.account ? key.modelID : nil
+        }.sorted()
+        guard !modelIDs.isEmpty else { return nil }
+        let models = NSMenuItem(title: "独立模型", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: models.title)
+        for modelID in modelIDs {
+            let context = quotaContext(for: .codex, modelID: modelID)
+            guard let history = recentQuotas[context] else { continue }
+            let model = submenu.addItem(withTitle: modelID, action: nil, keyEquivalent: "")
+            let details = NSMenu(title: modelID)
+            details.addItem(readingListMenuItem(history.readings))
+            addHistoryTrend(to: details, context: context)
+            addHistoryCopy(to: details, context: context, title: "复制模型的全部记录 JSON")
+            model.submenu = details
+        }
+        models.submenu = submenu
+        return models
+    }
+
+    private func addHistoryTrend(to menu: NSMenu, context: QuotaHistoryContext) {
+        let trend = menu.addItem(withTitle: "查看额度趋势…", action: #selector(showQuotaHistory(_:)), keyEquivalent: "")
+        trend.target = self
+        trend.representedObject = context
+    }
+
+    private func addHistoryCopy(to menu: NSMenu, context: QuotaHistoryContext, title: String) {
+        let copy = menu.addItem(withTitle: title, action: #selector(copyQuotaHistory(_:)), keyEquivalent: "")
+        copy.target = self
+        copy.representedObject = context
     }
 
     private func readingListMenuItem(_ readings: [QuotaSnapshot]) -> NSMenuItem {
@@ -901,21 +947,24 @@ final class QuotaOrbView: NSView {
         forgetQuota(for: context.provider, account: context.account)
     }
 
-    @objc private func copySourceQuotaHistory(_ sender: NSMenuItem) {
-        guard let rawValue = sender.representedObject as? String, let source = QuotaProvider(rawValue: rawValue) else { return }
-        QuotaClipboard.copy(quotaHistoryJSON(for: source))
+    @objc private func copyQuotaHistory(_ sender: NSMenuItem) {
+        guard let context = sender.representedObject as? QuotaHistoryContext else { return }
+        QuotaClipboard.copy(quotaHistoryJSON(for: context))
     }
 
-    func quotaHistoryJSON(for source: QuotaProvider) -> String? {
-        guard let history = recentQuotas[quotaContext(for: source)] else { return nil }
-        return try? QuotaOutput.json(QuotaHistoryExport(provider: source, snapshots: history.readings))
+    func quotaHistoryJSON(for source: QuotaProvider, modelID: String? = nil) -> String? {
+        quotaHistoryJSON(for: quotaContext(for: source, modelID: modelID))
+    }
+
+    private func quotaHistoryJSON(for context: QuotaHistoryContext) -> String? {
+        guard let history = recentQuotas[context] else { return nil }
+        return try? QuotaOutput.json(QuotaHistoryExport(provider: context.provider, snapshots: history.readings,
+                                                        modelID: context.modelID))
     }
 
     @objc private func showQuotaHistory(_ sender: NSMenuItem) {
-        guard let rawValue = sender.representedObject as? String,
-              let source = QuotaProvider(rawValue: rawValue) else { return }
-        let context = quotaContext(for: source)
-        guard let history = recentQuotas[context] else { return }
+        guard let context = sender.representedObject as? QuotaHistoryContext,
+              let history = recentQuotas[context] else { return }
         onShowQuotaHistory?(context, history.readings)
     }
 

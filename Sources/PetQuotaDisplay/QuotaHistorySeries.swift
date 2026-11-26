@@ -4,6 +4,13 @@ import QuotaCore
 struct QuotaHistoryContext: Hashable {
     let provider: QuotaProvider
     let account: CodexAccountSlot?
+    let modelID: String?
+
+    init(provider: QuotaProvider, account: CodexAccountSlot?, modelID: String? = nil) {
+        self.provider = provider
+        self.account = account
+        self.modelID = modelID
+    }
 }
 
 struct QuotaHistorySeries {
@@ -37,13 +44,13 @@ struct QuotaHistorySeries {
         var id: Date { time }
     }
 
-    func csv(provider: QuotaProvider, period: QuotaPeriod) -> String {
+    func csv(provider: QuotaProvider, period: QuotaPeriod, modelID: String? = nil) -> String {
         let formatter = ISO8601DateFormatter()
         let rows = points.map { point in
             [provider.rawValue, period.rawValue, formatter.string(from: point.time),
              String(point.remainingPercent), point.resetsAt.map(formatter.string(from:)) ?? ""]
         }
-        return QuotaOutput.csv([QuotaHistoryExport.csvColumns] + rows)
+        return QuotaHistoryExport.csv(rows, modelID: modelID)
     }
 
     let points: [Point]

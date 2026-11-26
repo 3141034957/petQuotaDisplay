@@ -24,7 +24,7 @@ struct QuotaHistoryArchive {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
         let document = try decoder.decode(Document.self, from: data)
-        guard document.version == 1 else { throw Failure.unsupportedVersion }
+        guard (1...2).contains(document.version) else { throw Failure.unsupportedVersion }
         guard document.enabled else { return State() }
 
         var state = State(isEnabled: true)
@@ -81,7 +81,8 @@ struct QuotaHistoryArchive {
         let filtered = (state.histories[context] ?? []).filter { sample in
             (since.map { sample.fetchedAt >= $0 } ?? true) && (until.map { sample.fetchedAt <= $0 } ?? true)
         }
-        return QuotaHistoryExport(provider: context.provider, snapshots: filtered, selecting: period, limit: limit)
+        return QuotaHistoryExport(provider: context.provider, snapshots: filtered, modelID: context.modelID,
+                                  selecting: period, limit: limit)
     }
 
     private static func merge(_ existing: [QuotaSnapshot], with incoming: [QuotaSnapshot]) -> [QuotaSnapshot] {
@@ -92,7 +93,8 @@ struct QuotaHistoryArchive {
 
     private func save(_ state: State) throws {
         let entries = state.histories.map { Entry(context: $0.key, snapshots: $0.value) }
-        let document = Document(version: 1, enabled: state.isEnabled, entries: entries)
+        let version = entries.contains { $0.modelID != nil } ? 2 : 1
+        let document = Document(version: version, enabled: state.isEnabled, entries: entries)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
         try encoder.encode(document).write(to: archiveURL, options: .atomic)
@@ -120,11 +122,13 @@ struct QuotaHistoryArchive {
     private struct Entry: Codable {
         let provider: String
         let accountID: String?
+        let modelID: String?
         let readings: [QuotaHistoryRecord]
 
         init(context: QuotaHistoryContext, snapshots: [QuotaSnapshot]) {
             provider = context.provider.rawValue
             accountID = context.account?.rawValue
+            modelID = context.modelID
             readings = snapshots.map { QuotaHistoryRecord($0) }
         }
 
@@ -132,9 +136,9 @@ struct QuotaHistoryArchive {
             guard let source = QuotaProvider(rawValue: provider) else { return nil }
             if source == .codex {
                 guard let accountID, let account = CodexAccountSlot(rawValue: accountID) else { return nil }
-                return QuotaHistoryContext(provider: source, account: account)
+                return QuotaHistoryContext(provider: source, account: account, modelID: modelID)
             }
-            guard accountID == nil else { return nil }
+            guard accountID == nil, modelID == nil else { return nil }
             return QuotaHistoryContext(provider: source, account: nil)
         }
     }

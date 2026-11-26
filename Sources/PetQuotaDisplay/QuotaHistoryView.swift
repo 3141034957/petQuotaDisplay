@@ -50,6 +50,10 @@ struct QuotaHistoryView: View {
 
     private var readings: [QuotaSnapshot] { model.readings }
 
+    private func csv(for series: QuotaHistorySeries) -> String {
+        series.csv(provider: model.context.provider, period: selectedPeriod, modelID: model.context.modelID)
+    }
+
     private var periods: [QuotaPeriod] {
         QuotaPeriod.allCases.filter { period in readings.contains { $0[period] != nil } }
     }
@@ -76,10 +80,10 @@ struct QuotaHistoryView: View {
                 .onChange(of: timeRange) { _ in clearSelection() }
                 Menu("导出") {
                     Button("复制 CSV") {
-                        QuotaClipboard.copy(series.csv(provider: model.context.provider, period: selectedPeriod))
+                        QuotaClipboard.copy(csv(for: series))
                     }
                     Button("保存 CSV…") {
-                        exportDocument = QuotaHistoryCSV(series.csv(provider: model.context.provider, period: selectedPeriod))
+                        exportDocument = QuotaHistoryCSV(csv(for: series))
                         isExporting = true
                     }
                 }

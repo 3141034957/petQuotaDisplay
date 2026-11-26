@@ -261,7 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateHistoryWindowTitle() {
         guard let context = historyWindowModel?.context else { return }
-        let parts = [context.provider.title, context.account.map(accountName(for:)), "额度趋势"].compactMap { $0 }
+        let parts = [context.provider.title, context.account.map(accountName(for:)), context.modelID, "额度趋势"].compactMap { $0 }
         historyWindowController?.window?.title = parts.joined(separator: " · ")
     }
 
