@@ -3,6 +3,7 @@ set -euo pipefail
 
 usage() {
     printf '%s\n' '用法：zsh scripts/install_autostart.sh [显示模式] [--dry-run]' \
+        '      zsh scripts/install_autostart.sh [显示模式] --print-plist' \
         '      zsh scripts/install_autostart.sh --status' \
         '显示模式：--follow-codex、--follow-codex-desktop、--follow-codex-cli、--always-show'
 }
@@ -10,6 +11,7 @@ usage() {
 mode=""
 show_status=false
 dry_run=false
+print_plist=false
 for argument in "$@"; do
     case "${argument}" in
         --follow-codex|--follow-codex-desktop|--follow-codex-cli|--always-show)
@@ -18,11 +20,13 @@ for argument in "$@"; do
             ;;
         --status) show_status=true ;;
         --dry-run) dry_run=true ;;
+        --print-plist) print_plist=true ;;
         -h|--help) usage; exit 0 ;;
         *) usage >&2; exit 2 ;;
     esac
 done
-if [[ "${show_status}" == true && ( -n "${mode}" || "${dry_run}" == true ) ]]; then
+if [[ "${show_status}" == true && ( -n "${mode}" || "${dry_run}" == true || "${print_plist}" == true ) ]] ||
+   [[ "${dry_run}" == true && "${print_plist}" == true ]]; then
     usage >&2
     exit 2
 fi
@@ -85,11 +89,15 @@ if [[ "${dry_run}" == true ]]; then
     exit 0
 fi
 
-cd "${repository_dir}"
-swift build -c release
-binary_dir="$(swift build -c release --show-bin-path)"
+render_launch_plist() {
+    local destination="$1"
+    cp "${repository_dir}/autostart/${label}.plist" "${destination}"
+    /usr/bin/plutil -replace ProgramArguments -json '[]' "${destination}"
+    /usr/bin/plutil -insert ProgramArguments.0 -string "${installed_binary}" "${destination}"
+    /usr/bin/plutil -insert ProgramArguments.1 -string "${mode}" "${destination}"
+    /usr/bin/plutil -lint -s "${destination}"
+}
 
-mkdir -p "${install_dir}" "${launch_agents_dir}"
 staged_binary=""
 staged_plist=""
 cleanup_staging() {
@@ -97,12 +105,22 @@ cleanup_staging() {
     [[ -z "${staged_plist}" ]] || rm -f "${staged_plist}"
 }
 trap cleanup_staging EXIT
+
+if [[ "${print_plist}" == true ]]; then
+    staged_plist="$(mktemp "${TMPDIR:-/tmp}/PetQuotaDisplay.launch.XXXXXX")"
+    render_launch_plist "${staged_plist}"
+    cat "${staged_plist}"
+    exit 0
+fi
+
+cd "${repository_dir}"
+swift build -c release
+binary_dir="$(swift build -c release --show-bin-path)"
+
+mkdir -p "${install_dir}" "${launch_agents_dir}"
 staged_binary="$(mktemp "${install_dir}/.PetQuotaDisplay.XXXXXX")"
 staged_plist="$(mktemp "${launch_agents_dir}/.${label}.XXXXXX")"
-cp "${repository_dir}/autostart/${label}.plist" "${staged_plist}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${installed_binary}" "${staged_plist}"
-/usr/libexec/PlistBuddy -c "Set :ProgramArguments:1 ${mode}" "${staged_plist}"
-/usr/bin/plutil -lint "${staged_plist}"
+render_launch_plist "${staged_plist}"
 cp "${binary_dir}/PetQuotaDisplay" "${staged_binary}"
 chmod 755 "${staged_binary}"
 mv -f "${staged_binary}" "${installed_binary}"
