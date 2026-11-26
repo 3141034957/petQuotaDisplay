@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 name: NSWorkspace.didTerminateApplicationNotification,
                 object: nil
             )
-            codexGUIRunning = isCodexRunning
+            codexGUIRunning = isCodexRunning()
         }
         if monitorsCodexCLI {
             let cliMonitor = CodexCLIProcessMonitor()
@@ -599,9 +599,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stopOrb()
     }
 
-    private var isCodexRunning: Bool {
+    private func isCodexRunning(excluding processID: pid_t? = nil) -> Bool {
         NSWorkspace.shared.runningApplications.contains {
-            $0.bundleIdentifier == Self.codexBundleIdentifier && !$0.isTerminated
+            $0.bundleIdentifier == Self.codexBundleIdentifier && !$0.isTerminated && $0.processIdentifier != processID
         }
     }
 
@@ -612,16 +612,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func workspaceApplicationDidTerminate(_ notification: Notification) {
-        guard application(from: notification)?.bundleIdentifier == Self.codexBundleIdentifier else { return }
-        codexGUIRunning = false
+        guard let stopped = application(from: notification), stopped.bundleIdentifier == Self.codexBundleIdentifier else { return }
+        codexGUIRunning = isCodexRunning(excluding: stopped.processIdentifier)
         reconcileOrbVisibility()
     }
 
     @objc private func workspaceDidWake(_ notification: Notification) {
         DispatchQueue.main.async { [weak self] in
-            guard let self, self.orbIsActive else { return }
+            guard let self else { return }
+            let wasActive = self.orbIsActive
+            if self.monitorsCodexDesktop {
+                self.codexGUIRunning = self.isCodexRunning()
+                self.reconcileOrbVisibility()
+            }
+            guard self.orbIsActive else { return }
             self.orbView.refreshLocalTimeFormatting()
-            guard self.refreshTimer != nil else { return }
+            guard wasActive, self.refreshTimer != nil else { return }
             self.scheduleRefreshTimer()
             self.refreshDisplayedQuota()
         }
