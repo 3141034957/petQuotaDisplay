@@ -936,6 +936,12 @@ final class QuotaOrbView: NSView {
         return showsMenuBarSourceName ? "\(provider.title) \(title)" : title
     }
 
+    var isDisplayedQuotaLow: Bool {
+        guard state.errorMessage == nil, let snapshot = state.snapshot,
+              let quota = displayedQuota(in: snapshot)?.quota else { return false }
+        return warningThreshold.includes(remainingPercent: quota.remainingPercent)
+    }
+
     private var lastUpdatedLabel: String { provider == .claudeCode ? "状态栏采集时间" : "最后更新" }
     private var staleMenuLabel: String { provider == .claudeCode ? "显示上次缓存" : "刷新失败（显示上次数据）" }
 
@@ -976,6 +982,7 @@ final class QuotaOrbView: NSView {
                 description = "\(provider.title) 额度已同步"
             }
             description += "；\(lastUpdatedLabel)：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))"
+            if isDisplayedQuotaLow { description += "；余量已到 \(warningThreshold.title) 警戒线或以下" }
             if let message = state.errorMessage {
                 let status = provider == .claudeCode ? "显示上次缓存" : "刷新失败，显示上次数据"
                 description += "；\(status)：\(message)"

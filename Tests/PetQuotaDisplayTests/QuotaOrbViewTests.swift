@@ -19,6 +19,17 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertFalse(chosen?.includes(remainingPercent: 31) == true)
     }
 
+    func testLowQuotaMarkerIsAvailableToAccessibilityAndIgnoresStaleData() {
+        let view = QuotaOrbView(frame: .zero)
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 80, resetsAt: nil))
+        view.state = .loaded(snapshot)
+        XCTAssertTrue(view.isDisplayedQuotaLow)
+        XCTAssertTrue(view.accessibilityLabel()?.contains("20% 警戒线") == true)
+        view.state = .stale(snapshot, "offline")
+        XCTAssertFalse(view.isDisplayedQuotaLow)
+        XCTAssertFalse(view.accessibilityLabel()?.contains("20% 警戒线") == true)
+    }
+
     func testMenuBarCanIncludeTheProviderWithoutDroppingItsStatus() {
         let view = QuotaOrbView(frame: .zero)
         view.provider = .openCodeGo

@@ -5,6 +5,8 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
     private static let floatingOrbDefaultsKey = "orb.staysOnTop"
+    private static let quotaMenuBarImage = NSImage(systemSymbolName: "gauge", accessibilityDescription: nil)
+    private static let lowQuotaMenuBarImage = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)
 
     private var orbSizePreference = OrbSizePreference.load()
     private var orbSize: NSSize { orbSizePreference.size }
@@ -527,7 +529,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         if statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            item.button?.image = NSImage(systemSymbolName: "gauge", accessibilityDescription: nil)
             item.button?.imagePosition = .imageLeading
             let menu = NSMenu()
             menu.delegate = self
@@ -539,6 +540,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updateStatusItem() {
         guard let button = statusItem?.button else { return }
+        button.image = orbView.isDisplayedQuotaLow ? Self.lowQuotaMenuBarImage ?? Self.quotaMenuBarImage : Self.quotaMenuBarImage
         button.title = orbView.menuBarTitle
         button.toolTip = orbView.toolTip
         button.setAccessibilityLabel(orbView.accessibilityLabel())
