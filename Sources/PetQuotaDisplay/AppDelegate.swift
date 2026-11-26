@@ -127,7 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let savedProvider = UserDefaults.standard.string(forKey: Self.selectedProviderDefaultsKey)
         orbView.provider = displayOptions.provider ?? savedProvider.flatMap(QuotaProvider.init(rawValue:)) ?? .codex
         orbView.startupPeriodOverride = displayOptions.period
-        orbView.refreshCadence = QuotaRefreshCadence.load()
+        orbView.refreshCadence = displayOptions.refreshCadence ?? QuotaRefreshCadence.load()
         orbView.showsMenuBarQuota = UserDefaults.standard.bool(forKey: Self.showsMenuBarQuotaDefaultsKey)
         orbView.menuBarOnly = !forceOrbVisible && orbView.showsMenuBarQuota
             && UserDefaults.standard.bool(forKey: Self.menuBarOnlyDefaultsKey)
@@ -205,9 +205,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func setRefreshCadence(_ cadence: QuotaRefreshCadence) {
+        UserDefaults.standard.set(cadence.rawValue, forKey: QuotaRefreshCadence.defaultsKey)
         guard orbView.refreshCadence != cadence else { return }
         orbView.refreshCadence = cadence
-        UserDefaults.standard.set(cadence.rawValue, forKey: QuotaRefreshCadence.defaultsKey)
         scheduleRefreshTimer()
     }
 

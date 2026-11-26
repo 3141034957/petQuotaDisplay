@@ -23,4 +23,11 @@ final class QuotaDisplayOptionsTests: XCTestCase {
         XCTAssertEqual(try QuotaDisplayOptions(arguments: ["--period", "lowestRemaining"]).period, "lowestRemaining")
         XCTAssertThrowsError(try QuotaDisplayOptions(arguments: ["--period", "hourly"]))
     }
+
+    func testAcceptsRefreshIntervalOverridesIncludingOff() throws {
+        XCTAssertEqual(try QuotaDisplayOptions(arguments: ["--refresh-interval", "0"]).refreshCadence, .off)
+        XCTAssertEqual(try QuotaDisplayOptions(arguments: ["--refresh-interval", "120"]).refreshCadence, .twoMinutes)
+        XCTAssertThrowsError(try QuotaDisplayOptions(arguments: ["--refresh-interval", "-1"]))
+        XCTAssertThrowsError(try QuotaDisplayOptions(arguments: ["--refresh-interval", "15"]))
+    }
 }

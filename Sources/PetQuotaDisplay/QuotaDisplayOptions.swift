@@ -10,6 +10,7 @@ struct QuotaDisplayOptions {
     private(set) var mode: Mode?
     private(set) var provider: QuotaProvider?
     private(set) var period: String?
+    private(set) var refreshCadence: QuotaRefreshCadence?
 
     init(arguments: [String]) throws {
         var arguments = arguments[...]
@@ -27,6 +28,10 @@ struct QuotaDisplayOptions {
                     throw Failure.invalidPeriod
                 }
                 period = requestedPeriod
+            } else if argument == "--refresh-interval" {
+                guard refreshCadence == nil, let value = arguments.popFirst(), let seconds = Int(value),
+                      let cadence = QuotaRefreshCadence(rawValue: seconds) else { throw Failure.invalidInterval }
+                refreshCadence = cadence
             } else {
                 throw Failure.unknownArgument
             }
@@ -34,13 +39,14 @@ struct QuotaDisplayOptions {
     }
 
     private enum Failure: LocalizedError {
-        case multipleModes, invalidProvider, invalidPeriod, unknownArgument
+        case multipleModes, invalidProvider, invalidPeriod, invalidInterval, unknownArgument
 
         var errorDescription: String? {
             switch self {
             case .multipleModes: return "请只选择一种启动模式。"
             case .invalidProvider: return "请为 --provider 指定一个有效的额度来源。"
             case .invalidPeriod: return "请为 --period 指定一个有效的周期。"
+            case .invalidInterval: return "请为 --refresh-interval 指定一个有效的秒数。"
             case .unknownArgument: return "无法识别启动参数。"
             }
         }
