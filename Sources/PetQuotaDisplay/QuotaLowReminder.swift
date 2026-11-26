@@ -39,6 +39,10 @@ struct QuotaLowReminder {
         previous.removeValue(forKey: context)
     }
 
+    mutating func removeScope(_ scope: QuotaHistoryContext) {
+        previous = previous.filter { $0.key.primary != scope.primary }
+    }
+
     mutating func reset(_ period: QuotaPeriod) {
         for scope in Array(previous.keys) { previous[scope]?.removeValue(forKey: period) }
     }

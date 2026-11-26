@@ -40,6 +40,7 @@ final class QuotaOrbView: NSView {
     var onRefresh: (() -> Void)?
     var onShowQuotaHistory: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
     var onQuotaHistoryChanged: (([QuotaHistoryContext: [QuotaSnapshot]]) -> Void)?
+    var onQuotaHistoryScopeCleared: ((QuotaHistoryContext, [QuotaHistoryContext]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
     var onSaveQuotaHistory: ((String, QuotaExport.Format) -> Void)?
     var onImportQuotaHistory: (() -> Void)?
@@ -542,12 +543,12 @@ final class QuotaOrbView: NSView {
     }
 
     func forgetQuota(for source: QuotaProvider, account: CodexAccountSlot? = nil) {
-        let matching = recentQuotas.keys.filter { $0.provider == source && $0.account == account }
-        guard !matching.isEmpty else { return }
+        let scope = QuotaHistoryContext(provider: source, account: account)
+        let matching = recentQuotas.keys.filter { $0.primary == scope }
         for context in matching {
             recentQuotas.removeValue(forKey: context)
         }
-        onQuotaHistoryChanged?(Dictionary(uniqueKeysWithValues: matching.map { ($0, []) }))
+        onQuotaHistoryScopeCleared?(scope, matching)
     }
 
     func beginPollingWithRecentQuota() {

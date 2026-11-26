@@ -91,6 +91,18 @@ struct QuotaHistoryArchive {
         }
     }
 
+    func clearScope(_ scope: QuotaHistoryContext) throws -> Bool {
+        guard FileManager.default.fileExists(atPath: archiveURL.path) else { return false }
+        return try withLock {
+            var state = try load()
+            guard state.isEnabled else { return false }
+            let before = state.histories.count
+            state.histories = state.histories.filter { $0.key.primary != scope.primary }
+            if state.histories.count != before { try save(state) }
+            return true
+        }
+    }
+
     func mergeImported(_ imported: [QuotaHistoryContext: [QuotaSnapshot]]) throws -> Bool {
         try withLock {
             let capacity = retention().rawValue

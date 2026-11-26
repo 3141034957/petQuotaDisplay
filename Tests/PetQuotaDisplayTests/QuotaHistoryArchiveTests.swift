@@ -238,6 +238,21 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertTrue(try archive.load().histories.isEmpty)
     }
 
+    func testClearingAnArchivedAccountAlsoRemovesModelsFoundOnlyOnDisk() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let archive = QuotaHistoryArchive(directory: directory)
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let other = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let scope = QuotaHistoryContext(provider: .codex, account: account)
+        let model = QuotaHistoryContext(provider: .codex, account: account, modelID: "on-disk")
+        let retained = QuotaHistoryContext(provider: .codex, account: other, modelID: "on-disk")
+        try archive.setEnabled(true, initial: [scope: [snapshot(at: 10)], retained: [snapshot(at: 20)]])
+        try QuotaHistoryArchive(directory: directory).update([model: snapshot(at: 30)])
+        XCTAssertTrue(try archive.clearScope(scope))
+        XCTAssertEqual(Set(try archive.load().histories.keys), Set([retained]))
+    }
+
     private func snapshot(at seconds: TimeInterval) -> QuotaSnapshot {
         QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 20, resetsAt: nil),
                       fetchedAt: Date(timeIntervalSince1970: seconds))

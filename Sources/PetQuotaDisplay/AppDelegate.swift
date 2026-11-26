@@ -218,6 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.onPresentationChanged = { [weak self] in self?.updateStatusItem() }
         orbView.onShowQuotaHistory = { [weak self] context, readings in self?.showQuotaHistory(context: context, readings: readings) }
         orbView.onQuotaHistoryChanged = { [weak self] changes in self?.historyDidChange(changes) }
+        orbView.onQuotaHistoryScopeCleared = { [weak self] scope, removed in self?.historyScopeCleared(scope, removed: removed) }
         orbView.onQuotaHistoryCleared = { [weak self] in self?.clearHistory() }
         orbView.onSaveQuotaHistory = { [weak self] contents, format in self?.saveHistory(contents, format: format) }
         orbView.onImportQuotaHistory = { [weak self] in self?.importHistory() }
@@ -379,12 +380,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private func historyDidChange(_ changes: [QuotaHistoryContext: [QuotaSnapshot]]) {
         updateQuotaHistory(after: changes)
         for (context, readings) in changes where readings.isEmpty { lowQuotaReminder.remove(context) }
-        guard orbView.retainsHistoryAcrossLaunches else { return }
-        let archive = historyArchive
         let snapshots = changes.mapValues(\.last)
+        persistHistoryChange { try $0.update(snapshots) }
+    }
+
+    private func historyScopeCleared(_ scope: QuotaHistoryContext, removed: [QuotaHistoryContext]) {
+        updateQuotaHistory(after: Dictionary(uniqueKeysWithValues: removed.map { ($0, []) }))
+        lowQuotaReminder.removeScope(scope)
+        persistHistoryChange(checkStoredState: true) { try $0.clearScope(scope) }
+    }
+
+    private func persistHistoryChange(checkStoredState: Bool = false,
+                                      _ operation: @escaping (QuotaHistoryArchive) throws -> Bool) {
+        guard checkStoredState || orbView.retainsHistoryAcrossLaunches else { return }
+        let archive = historyArchive
         let generation = historyArchiveGeneration
         historyArchiveWriter.async { [weak self] in
-            let result = Result { try archive.update(snapshots) }
+            let result = Result { try operation(archive) }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.historyArchiveGeneration == generation else { return }
                 if case .success(let enabled) = result {
@@ -571,7 +583,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
         client.onAccount = { [weak self, weak client] account in
             guard let self, let client, self.client === client else { return }
-            if case .signedIn(let previous) = self.accountStatuses[clientAccount],
+            let previousStatus = self.accountStatuses[clientAccount]
+            if case .signedIn(let previous) = previousStatus,
                let account, previous.email != account.email {
                 self.orbView.forgetQuota(for: .codex, account: clientAccount)
                 self.orbView.state = .loading
@@ -579,7 +592,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             self.accountStatuses[clientAccount] = account.map(CodexAccountStatus.signedIn) ?? .signedOut
             self.updateAccountMenuState()
             if account == nil {
-                self.orbView.forgetQuota(for: .codex, account: clientAccount)
+                if previousStatus != .signedOut { self.orbView.forgetQuota(for: .codex, account: clientAccount) }
                 guard !self.orbView.isCodexLoginPending else { return }
                 let name = self.accountName(for: clientAccount)
                 self.orbView.state = .failed("\(name)未登录，请右键登录")

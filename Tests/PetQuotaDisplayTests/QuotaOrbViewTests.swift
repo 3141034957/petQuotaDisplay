@@ -512,6 +512,10 @@ final class QuotaOrbViewTests: XCTestCase {
         view.onQuotaHistoryChanged = { batch in
             changes.append(contentsOf: batch.map { ($0.key, $0.value.count) })
         }
+        view.onQuotaHistoryScopeCleared = { scope, removed in
+            XCTAssertEqual(scope.account, account)
+            changes.append(contentsOf: removed.map { ($0, 0) })
+        }
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 5, resetsAt: nil))
         view.state = .loaded(snapshot)
         view.state = .loaded(snapshot)
