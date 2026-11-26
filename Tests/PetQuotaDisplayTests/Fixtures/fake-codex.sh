@@ -41,6 +41,10 @@ while IFS= read -r line; do
                         printf '{"id":%s,"result":{}}\n' "$id"
                         exec /bin/sleep 2
                         ;;
+                    invalid-response-id)
+                        printf '{"id":true,"error":{"message":"fixture boolean ID"}}\n'
+                        printf '{"id":1.5,"error":{"message":"fixture fractional ID"}}\n'
+                        ;;
                 esac
             fi
             if [ "$scenario" = always-timeout ]; then continue; fi

@@ -77,6 +77,17 @@ final class CodexQuotaClientTests: XCTestCase {
         }
     }
 
+    func testInvalidResponseIDsCannotConsumeThePendingRequest() throws {
+        let fixture = try makeClient(scenario: "invalid-response-id")
+        defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let finished = expectation(description: "the actual reply was consumed")
+        fixture.client.onReport = { _ in finished.fulfill() }
+        fixture.client.onError = { XCTFail($0.localizedDescription) }
+        fixture.client.start()
+        wait(for: [finished], timeout: 5)
+        XCTAssertEqual(try String(contentsOf: fixture.counter).trimmingCharacters(in: .whitespacesAndNewlines), "1")
+    }
+
     func testAccountTimeoutRestartsAndRecovers() throws {
         try assertRecovers(scenario: "account-timeout") { error in
             guard case CodexQuotaClient.ClientError.requestTimedOut = error else {

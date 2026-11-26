@@ -1,3 +1,4 @@
+import CoreFoundation
 import Darwin
 import Foundation
 import QuotaCore
@@ -255,7 +256,7 @@ final class CodexQuotaClient {
             return
         }
 
-        guard let id = Self.integer(object["id"]) else { return }
+        guard let id = Self.requestID(object["id"]) else { return }
         guard let request = pendingRequests.removeValue(forKey: id) else { return }
         let timeout = pendingTimeouts.removeValue(forKey: id)
         timeout?.cancel()
@@ -529,10 +530,10 @@ final class CodexQuotaClient {
         return components.url
     }
 
-    private static func integer(_ value: Any?) -> Int? {
-        if let value = value as? Int { return value }
-        if let value = value as? NSNumber { return value.intValue }
-        return nil
+    private static func requestID(_ value: Any?) -> Int? {
+        guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              let id = number as? Int, id > 0 else { return nil }
+        return id
     }
 
     private static func serverMessage(_ error: [String: Any]) -> String {
