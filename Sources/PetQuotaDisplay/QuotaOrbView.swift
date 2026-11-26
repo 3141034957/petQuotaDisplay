@@ -353,6 +353,9 @@ final class QuotaOrbView: NSView {
         copy.target = self
         copy.isEnabled = state.snapshot != nil
         menu.addItem(copy)
+        let json = menu.addItem(withTitle: "复制额度 JSON", action: #selector(copyQuotaJSON), keyEquivalent: "")
+        json.target = self
+        json.isEnabled = state.snapshot != nil
 
         let sourceItem = NSMenuItem(title: "切换额度来源", action: nil, keyEquivalent: "")
         let sourceMenu = NSMenu(title: sourceItem.title)
@@ -665,6 +668,14 @@ final class QuotaOrbView: NSView {
 
     @objc private func copyQuotaSummary() {
         copyText(quotaSummary)
+    }
+
+    @objc private func copyQuotaJSON() {
+        copyText(quotaJSON)
+    }
+
+    var quotaJSON: String? {
+        try? QuotaExport(provider: provider, state: state, model: displayedCodexBucket)?.json()
     }
 
     @objc private func copyRecentQuotaSummary() {

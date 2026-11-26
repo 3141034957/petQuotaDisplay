@@ -331,6 +331,30 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertFalse(summary.contains("连接中断"))
     }
 
+    func testJSONExportIncludesPeriodsAndStaleStateWithoutRawErrors() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.provider = .gemini
+        XCTAssertNil(view.quotaJSON)
+        view.state = .stale(QuotaSnapshot(
+            planType: nil,
+            fiveHour: nil,
+            weekly: QuotaWindow(usedPercent: 15, resetsAt: Date(timeIntervalSince1970: 200)),
+            fetchedAt: Date(timeIntervalSince1970: 100)
+        ), "fixture error details")
+
+        let json = try XCTUnwrap(view.quotaJSON)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        XCTAssertFalse(json.contains("fixture error details"))
+        XCTAssertEqual(payload["provider"] as? String, "gemini")
+        XCTAssertEqual(payload["status"] as? String, "stale")
+        XCTAssertEqual(payload["fetchedAt"] as? String, "1970-01-01T00:01:40Z")
+        let periods = try XCTUnwrap(payload["periods"] as? [[String: Any]])
+        XCTAssertEqual(periods.count, 1)
+        XCTAssertEqual(periods.first?["id"] as? String, "weekly")
+        XCTAssertEqual(periods.first?["remainingPercent"] as? Int, 85)
+        XCTAssertEqual(periods.first?["resetsAt"] as? String, "1970-01-01T00:03:20Z")
+    }
+
     func testAdditionalCodexBucketsAppearOnlyWithACodexSnapshot() throws {
         let view = QuotaOrbView(frame: .zero)
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: QuotaWindow(usedPercent: 20, resetsAt: nil), weekly: nil)
