@@ -1,6 +1,23 @@
 import Charts
 import QuotaCore
 import SwiftUI
+import UniformTypeIdentifiers
+
+private struct QuotaHistoryCSV: FileDocument {
+    static let readableContentTypes: [UTType] = [.commaSeparatedText]
+    let contents: Data
+
+    init(_ text: String) { contents = Data(text.utf8) }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let contents = configuration.file.regularFileContents else { throw CocoaError(.fileReadCorruptFile) }
+        self.contents = contents
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: contents)
+    }
+}
 
 final class QuotaHistoryWindowModel: ObservableObject {
     let context: QuotaHistoryContext
@@ -18,6 +35,10 @@ struct QuotaHistoryView: View {
     @State private var hoveredTime: Date?
     @State private var pinnedTime: Date?
     @State private var timeRange: QuotaHistorySeries.TimeRange = .all
+    @State private var exportDocument: QuotaHistoryCSV?
+    @State private var isExporting = false
+    @State private var exportError: String?
+    @State private var showsExportError = false
 
     init(model: QuotaHistoryWindowModel) {
         self.model = model
@@ -53,8 +74,14 @@ struct QuotaHistoryView: View {
                 .labelsHidden()
                 .fixedSize()
                 .onChange(of: timeRange) { _ in clearSelection() }
-                Button("复制 CSV") {
-                    QuotaClipboard.copy(series.csv(provider: model.context.provider, period: selectedPeriod))
+                Menu("导出") {
+                    Button("复制 CSV") {
+                        QuotaClipboard.copy(series.csv(provider: model.context.provider, period: selectedPeriod))
+                    }
+                    Button("保存 CSV…") {
+                        exportDocument = QuotaHistoryCSV(series.csv(provider: model.context.provider, period: selectedPeriod))
+                        isExporting = true
+                    }
                 }
                 .disabled(series.points.isEmpty)
                 .help("复制当前周期和时间范围内的采集记录")
@@ -128,6 +155,19 @@ struct QuotaHistoryView: View {
         .frame(minWidth: 400, minHeight: 320)
         .onChange(of: periods) { choices in
             if !choices.contains(selectedPeriod), let first = choices.first { selectedPeriod = first }
+        }
+        .fileExporter(isPresented: $isExporting, document: exportDocument, contentType: .commaSeparatedText,
+                      defaultFilename: "\(model.context.provider.rawValue)-\(selectedPeriod.rawValue)-quota") { result in
+            if case .failure(let error) = result {
+                exportError = error.localizedDescription
+                showsExportError = true
+            }
+            exportDocument = nil
+        }
+        .alert("无法保存额度记录", isPresented: $showsExportError) {
+            Button("关闭", role: .cancel) {}
+        } message: {
+            Text(exportError ?? "")
         }
     }
 
