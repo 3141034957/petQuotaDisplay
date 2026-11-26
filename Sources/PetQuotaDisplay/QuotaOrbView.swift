@@ -441,6 +441,10 @@ final class QuotaOrbView: NSView {
         let item = NSMenuItem(title: "最近读取的额度", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: item.title)
         submenu.autoenablesItems = false
+        let copy = submenu.addItem(withTitle: "复制最近额度总览", action: #selector(copyRecentQuotaSummary), keyEquivalent: "")
+        copy.target = self
+        copy.isEnabled = recentQuotaSummary != nil
+        submenu.addItem(.separator())
         for source in QuotaProvider.allCases {
             guard let snapshot = recentQuotas[quotaContext(for: source)] else {
                 let empty = submenu.addItem(withTitle: "\(source.title) · 尚无结果", action: nil, keyEquivalent: "")
@@ -452,8 +456,7 @@ final class QuotaOrbView: NSView {
             for line in quotaDetails(in: snapshot) {
                 details.addItem(withTitle: line, action: nil, keyEquivalent: "")
             }
-            let time = Self.longDateFormatter.string(from: snapshot.fetchedAt)
-            details.addItem(withTitle: "上次采集：\(time)", action: nil, keyEquivalent: "")
+            details.addItem(withTitle: recentQuotaTime(for: snapshot), action: nil, keyEquivalent: "")
             entry.submenu = details
         }
         item.submenu = submenu
@@ -630,10 +633,32 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func copyQuotaSummary() {
-        guard let quotaSummary else { return }
+        copyText(quotaSummary)
+    }
+
+    @objc private func copyRecentQuotaSummary() {
+        copyText(recentQuotaSummary)
+    }
+
+    private func copyText(_ text: String?) {
+        guard let text else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(quotaSummary, forType: .string)
+        pasteboard.setString(text, forType: .string)
+    }
+
+    var recentQuotaSummary: String? {
+        let groups = QuotaProvider.allCases.compactMap { source -> String? in
+            guard let snapshot = recentQuotas[quotaContext(for: source)] else { return nil }
+            let lines = [source.title] + quotaDetails(in: snapshot) + [recentQuotaTime(for: snapshot)]
+            return lines.joined(separator: "\n")
+        }
+        guard !groups.isEmpty else { return nil }
+        return (["最近读取的额度"] + groups).joined(separator: "\n\n")
+    }
+
+    private func recentQuotaTime(for snapshot: QuotaSnapshot) -> String {
+        "上次采集：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))"
     }
 
     var quotaSummary: String? {

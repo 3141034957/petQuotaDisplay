@@ -217,6 +217,7 @@ final class QuotaOrbViewTests: XCTestCase {
 
     func testRecentQuotasSurviveSwitchingProvidersAndKeepCodexAccountsSeparate() throws {
         let view = QuotaOrbView(frame: .zero)
+        XCTAssertNil(view.recentQuotaSummary)
         let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
         view.selectedAccount = account
         view.state = .loaded(QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 10, resetsAt: nil)))
@@ -224,13 +225,19 @@ final class QuotaOrbViewTests: XCTestCase {
         view.state = .loaded(QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 35, resetsAt: nil)))
 
         let entries = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu)
+        XCTAssertTrue(try XCTUnwrap(entries.item(withTitle: "复制最近额度总览")).isEnabled)
         XCTAssertTrue(entries.item(withTitle: "Codex")?.submenu?.items.contains { $0.title.contains("90%") } == true)
         XCTAssertTrue(entries.item(withTitle: "Gemini")?.submenu?.items.contains { $0.title.contains("65%") } == true)
         XCTAssertNotNil(entries.item(withTitle: "Kimi Code · 尚无结果"))
+        let summary = try XCTUnwrap(view.recentQuotaSummary)
+        XCTAssertTrue(summary.contains("Codex\n本周额度：剩余 90%"))
+        XCTAssertTrue(summary.contains("Gemini\n本周额度：剩余 65%"))
+        XCTAssertFalse(summary.contains(account.rawValue))
 
         view.selectedAccount = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
         let switched = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu)
         XCTAssertNotNil(switched.item(withTitle: "Codex · 尚无结果"))
+        XCTAssertFalse(try XCTUnwrap(view.recentQuotaSummary).contains("Codex"))
 
         view.selectedAccount = account
         view.forgetQuota(for: .codex, account: account)
