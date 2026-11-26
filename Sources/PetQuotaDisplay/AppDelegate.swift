@@ -171,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onQuit = { [weak self] in self?.quitOrHideOrb() }
         orbView.onPositionChanged = { [weak self] in self?.finishOrbDrag() }
         orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
+        orbView.onSelectCorner = { [weak self] corner in self?.moveOrb(to: corner) }
         orbView.onTogglePositionLock = { [weak self] in self?.togglePositionLock() }
         orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
         orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
@@ -954,6 +955,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func resetOrbPosition() {
         window.setFrameOrigin(defaultOrbOrigin())
         saveOrbOrigin(window.frame.origin)
+    }
+
+    private func moveOrb(to corner: OrbWindowPlacement.Corner) {
+        let currentScreen = window.screen ?? NSScreen.screens.first
+        guard let visibleFrame = currentScreen?.visibleFrame else { return }
+        let origin = OrbWindowPlacement.origin(at: corner, size: orbSize, visibleFrame: visibleFrame)
+        window.setFrameOrigin(origin)
+        saveOrbOrigin(origin)
     }
 
     private func resizeOrb(to preference: OrbSizePreference) {

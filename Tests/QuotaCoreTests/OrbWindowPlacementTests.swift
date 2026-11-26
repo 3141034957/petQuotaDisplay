@@ -13,6 +13,18 @@ final class OrbWindowPlacementTests: XCTestCase {
     private let size = CGSize(width: 111, height: 111)
     private let screen = CGRect(x: 0, y: 30, width: 1440, height: 850)
 
+    func testCornerPresetsUseTheEntireVisibleFrameOfTheSelectedScreen() {
+        let left = CGRect(x: -1280, y: 48, width: 1280, height: 760)
+        let expected = [
+            CGPoint(x: -1256, y: 661), CGPoint(x: -135, y: 661),
+            CGPoint(x: -1256, y: 84), CGPoint(x: -135, y: 84)
+        ]
+        let origins = OrbWindowPlacement.Corner.allCases.map {
+            OrbWindowPlacement.origin(at: $0, size: size, visibleFrame: left)
+        }
+        XCTAssertEqual(origins, expected)
+    }
+
     func testKeepsFullyVisiblePosition() {
         let origin = CGPoint(x: 800, y: 200)
         XCTAssertEqual(place(origin, screens: [screen]), origin)

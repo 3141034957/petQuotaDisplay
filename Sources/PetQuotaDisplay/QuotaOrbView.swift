@@ -58,6 +58,7 @@ final class QuotaOrbView: NSView {
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
     var onResetPosition: (() -> Void)?
+    var onSelectCorner: ((OrbWindowPlacement.Corner) -> Void)?
     var isPositionLocked = false {
         didSet { updateAccessibility() }
     }
@@ -564,6 +565,7 @@ final class QuotaOrbView: NSView {
         pin.state = staysOnTop ? .on : .off
         let reset = submenu.addItem(withTitle: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
         reset.target = self
+        submenu.addItem(orbCornerMenuItem())
         let lock = submenu.addItem(withTitle: "锁定悬浮球位置", action: #selector(togglePositionLock), keyEquivalent: "")
         lock.target = self
         lock.state = isPositionLocked ? .on : .off
@@ -668,6 +670,24 @@ final class QuotaOrbView: NSView {
             option.tag = size.rawValue
             option.state = size == sizePreference ? .on : .off
             submenu.addItem(option)
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    private func orbCornerMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "移到当前屏幕角落", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        for corner in OrbWindowPlacement.Corner.allCases {
+            let title: String = switch corner {
+            case .topLeft: "左上角"
+            case .topRight: "右上角"
+            case .bottomLeft: "左下角"
+            case .bottomRight: "右下角"
+            }
+            let choice = submenu.addItem(withTitle: title, action: #selector(selectOrbCorner(_:)), keyEquivalent: "")
+            choice.target = self
+            choice.representedObject = corner.rawValue
         }
         item.submenu = submenu
         return item
@@ -792,6 +812,12 @@ final class QuotaOrbView: NSView {
     @objc private func selectOrbSize(_ sender: NSMenuItem) {
         guard let size = OrbSizePreference(rawValue: sender.tag) else { return }
         onSelectSize?(size)
+    }
+
+    @objc private func selectOrbCorner(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let corner = OrbWindowPlacement.Corner(rawValue: rawValue) else { return }
+        onSelectCorner?(corner)
     }
 
     @objc private func selectResetDisplay(_ sender: NSMenuItem) {
