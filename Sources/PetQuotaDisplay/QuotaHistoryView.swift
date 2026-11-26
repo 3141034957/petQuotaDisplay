@@ -62,6 +62,11 @@ struct QuotaHistoryView: View {
 
             Chart {
                 ForEach(series.points) { point in
+                    if point.resetChanged {
+                        RuleMark(x: .value("首次报告新重置时间", point.time))
+                            .foregroundStyle(Color.orange.opacity(0.65))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    }
                     LineMark(x: .value("采集时间", point.time), y: .value("剩余百分比", point.remainingPercent),
                              series: .value("区间", point.segment))
                     PointMark(x: .value("采集时间", point.time), y: .value("剩余百分比", point.remainingPercent))
@@ -113,6 +118,11 @@ struct QuotaHistoryView: View {
             if let point = highlightedPoint ?? pinnedPoint {
                 details(for: point, in: series)
             }
+            if series.points.contains(where: \.resetChanged) {
+                Label("虚线表示采集报告中的重置时间发生变化", systemImage: "line.diagonal")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(20)
         .frame(minWidth: 400, minHeight: 320)
@@ -136,6 +146,9 @@ struct QuotaHistoryView: View {
                 if let reset = point.resetsAt {
                     Text("重置时间 \(reset.formatted(.dateTime.month().day().hour().minute()))")
                         .foregroundStyle(.secondary)
+                }
+                if point.resetChanged {
+                    Text("此记录报告了新的重置时间").foregroundStyle(.secondary)
                 }
             }
             .font(.callout)
