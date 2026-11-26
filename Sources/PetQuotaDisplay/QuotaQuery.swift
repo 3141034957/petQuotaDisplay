@@ -3,6 +3,7 @@ import QuotaCore
 
 enum QuotaQuery {
     static func snapshot(from provider: QuotaProvider, timeout: TimeInterval) throws -> QuotaExport {
+        defer { QuotaChildProcess.waitForTerminations() }
         let state: QuotaDisplayState
         switch provider {
         case .claudeCode:

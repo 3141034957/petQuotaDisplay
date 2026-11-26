@@ -101,6 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         cliMonitor?.stop()
         cliMonitor = nil
         stopOrb(hideWindow: false)
+        QuotaChildProcess.waitForTerminations()
         removeStatusItem()
     }
 
