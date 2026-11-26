@@ -4,16 +4,17 @@ import QuotaCore
 final class QuotaOrbView: NSView {
     private static let designDiameter: CGFloat = 148
     private let defaults: UserDefaults
-    private struct QuotaContext: Hashable {
-        let provider: QuotaProvider
-        let account: CodexAccountSlot?
-    }
-    private var recentQuotas: [QuotaContext: QuotaReadingHistory] = [:]
+    private var recentQuotas: [QuotaHistoryContext: QuotaReadingHistory] = [:]
 
     var state: QuotaDisplayState = .loading {
         didSet {
             if case .loaded(let snapshot) = state, provider != .codex || selectedAccount != nil {
-                recentQuotas[quotaContext(for: provider), default: QuotaReadingHistory()].record(snapshot)
+                let context = quotaContext(for: provider)
+                let previous = recentQuotas[context]?.latest
+                recentQuotas[context, default: QuotaReadingHistory()].record(snapshot)
+                if let current = recentQuotas[context], current.latest != previous {
+                    onQuotaHistoryChanged?(context, current.readings)
+                }
             }
             needsDisplay = true
             updateAccessibility()
@@ -25,7 +26,8 @@ final class QuotaOrbView: NSView {
         }
     }
     var onRefresh: (() -> Void)?
-    var onShowQuotaHistory: ((QuotaProvider, [QuotaSnapshot]) -> Void)?
+    var onShowQuotaHistory: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
+    var onQuotaHistoryChanged: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
     var refreshCadence: QuotaRefreshCadence = .thirtySeconds
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
@@ -426,12 +428,15 @@ final class QuotaOrbView: NSView {
         menu.addItem(quit)
     }
 
-    private func quotaContext(for source: QuotaProvider) -> QuotaContext {
-        QuotaContext(provider: source, account: source == .codex ? selectedAccount : nil)
+    private func quotaContext(for source: QuotaProvider) -> QuotaHistoryContext {
+        QuotaHistoryContext(provider: source, account: source == .codex ? selectedAccount : nil)
     }
 
     func forgetQuota(for source: QuotaProvider, account: CodexAccountSlot? = nil) {
-        recentQuotas.removeValue(forKey: QuotaContext(provider: source, account: account))
+        let context = QuotaHistoryContext(provider: source, account: account)
+        if recentQuotas.removeValue(forKey: context) != nil {
+            onQuotaHistoryChanged?(context, [])
+        }
     }
 
     func beginPollingWithRecentQuota() {
@@ -686,9 +691,10 @@ final class QuotaOrbView: NSView {
 
     @objc private func showQuotaHistory(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
-              let source = QuotaProvider(rawValue: rawValue),
-              let history = recentQuotas[quotaContext(for: source)] else { return }
-        onShowQuotaHistory?(source, history.readings)
+              let source = QuotaProvider(rawValue: rawValue) else { return }
+        let context = quotaContext(for: source)
+        guard let history = recentQuotas[context] else { return }
+        onShowQuotaHistory?(context, history.readings)
     }
 
     var recentQuotaSummary: String? {

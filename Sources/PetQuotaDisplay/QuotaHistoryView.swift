@@ -2,21 +2,31 @@ import Charts
 import QuotaCore
 import SwiftUI
 
+final class QuotaHistoryWindowModel: ObservableObject {
+    let context: QuotaHistoryContext
+    @Published var readings: [QuotaSnapshot]
+
+    init(context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
+        self.context = context
+        self.readings = readings
+    }
+}
+
 struct QuotaHistoryView: View {
-    let source: QuotaProvider
-    let readings: [QuotaSnapshot]
+    @ObservedObject var model: QuotaHistoryWindowModel
     @State private var selectedPeriod: QuotaPeriod
     @State private var hoveredTime: Date?
     @State private var timeRange: QuotaHistorySeries.TimeRange = .all
 
-    init(source: QuotaProvider, readings: [QuotaSnapshot]) {
-        self.source = source
-        self.readings = readings
+    init(model: QuotaHistoryWindowModel) {
+        self.model = model
         let initial = QuotaWindowPreference.presentationOrder.first { period in
-            readings.contains { $0[period] != nil }
+            model.readings.contains { $0[period] != nil }
         } ?? .weekly
         _selectedPeriod = State(initialValue: initial)
     }
+
+    private var readings: [QuotaSnapshot] { model.readings }
 
     private var periods: [QuotaPeriod] {
         QuotaPeriod.allCases.filter { period in readings.contains { $0[period] != nil } }
@@ -41,7 +51,7 @@ struct QuotaHistoryView: View {
                 .fixedSize()
                 .onChange(of: timeRange) { _ in hoveredTime = nil }
                 Button("复制 CSV") {
-                    QuotaClipboard.copy(series.csv(provider: source, period: selectedPeriod))
+                    QuotaClipboard.copy(series.csv(provider: model.context.provider, period: selectedPeriod))
                 }
                 .disabled(series.points.isEmpty)
                 .help("复制当前周期和时间范围内的采集记录")
@@ -111,5 +121,8 @@ struct QuotaHistoryView: View {
         }
         .padding(20)
         .frame(minWidth: 400, minHeight: 320)
+        .onChange(of: periods) { choices in
+            if !choices.contains(selectedPeriod), let first = choices.first { selectedPeriod = first }
+        }
     }
 }

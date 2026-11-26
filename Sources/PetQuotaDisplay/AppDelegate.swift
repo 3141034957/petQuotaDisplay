@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var orbView: QuotaOrbView!
     private var refreshTimer: Timer?
     private var historyWindowController: NSWindowController?
+    private var historyWindowModel: QuotaHistoryWindowModel?
     private var countdownTimer: Timer?
     private var statusItem: NSStatusItem?
     private var orbIsActive = false
@@ -155,7 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.setMenuBarOnly(!self.orbView.menuBarOnly)
         }
         orbView.onPresentationChanged = { [weak self] in self?.updateStatusItem() }
-        orbView.onShowQuotaHistory = { [weak self] source, readings in self?.showQuotaHistory(source: source, readings: readings) }
+        orbView.onShowQuotaHistory = { [weak self] context, readings in self?.showQuotaHistory(context: context, readings: readings) }
+        orbView.onQuotaHistoryChanged = { [weak self] context, readings in self?.updateQuotaHistory(context: context, readings: readings) }
         orbView.onQuotaHistoryCleared = { [weak self] in self?.closeQuotaHistory() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
@@ -186,8 +188,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         scheduleCountdownTimer()
     }
 
-    private func showQuotaHistory(source: QuotaProvider, readings: [QuotaSnapshot]) {
-        let content = NSHostingController(rootView: QuotaHistoryView(source: source, readings: readings))
+    private func showQuotaHistory(context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
+        if let historyWindowController, let historyWindowModel, historyWindowModel.context == context {
+            historyWindowModel.readings = readings
+            NSApp.activate(ignoringOtherApps: true)
+            historyWindowController.showWindow(nil)
+            return
+        }
+        let model = QuotaHistoryWindowModel(context: context, readings: readings)
+        historyWindowModel = model
+        let content = NSHostingController(rootView: QuotaHistoryView(model: model))
         let controller: NSWindowController
         if let historyWindowController, let window = historyWindowController.window {
             window.contentViewController = content
@@ -195,19 +205,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             let historyWindow = NSWindow(contentViewController: content)
             historyWindow.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+            historyWindow.isReleasedWhenClosed = false
             historyWindow.setContentSize(NSSize(width: 540, height: 360))
             historyWindow.center()
             controller = NSWindowController(window: historyWindow)
             historyWindowController = controller
         }
-        controller.window?.title = "\(source.title) 额度趋势"
+        let parts = [context.provider.title, context.account.map(accountName(for:)), "额度趋势"].compactMap { $0 }
+        controller.window?.title = parts.joined(separator: " · ")
         NSApp.activate(ignoringOtherApps: true)
         controller.showWindow(nil)
+    }
+
+    private func updateQuotaHistory(context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
+        guard let historyWindowModel, historyWindowModel.context == context else { return }
+        if readings.isEmpty {
+            closeQuotaHistory()
+        } else {
+            historyWindowModel.readings = readings
+        }
     }
 
     private func closeQuotaHistory() {
         historyWindowController?.close()
         historyWindowController = nil
+        historyWindowModel = nil
     }
 
     private func setResetDisplay(_ mode: OrbResetDisplay) {

@@ -333,8 +333,8 @@ final class QuotaOrbViewTests: XCTestCase {
 
         var selectedProvider: QuotaProvider?
         var readings: [QuotaSnapshot] = []
-        view.onShowQuotaHistory = { provider, history in
-            selectedProvider = provider
+        view.onShowQuotaHistory = { context, history in
+            selectedProvider = context.provider
             readings = history
         }
         let trend = try XCTUnwrap(details.item(withTitle: "查看额度趋势…"))
@@ -342,6 +342,21 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(selectedProvider, .gemini)
         XCTAssertEqual(readings.count, 10)
         XCTAssertEqual(readings.last?.weekly?.remainingPercent, 90)
+    }
+
+    func testHistoryChangeEventsRetainTheAccountScopeAndIgnoreDuplicateReads() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.provider = .codex
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        view.selectedAccount = account
+        var changes: [(QuotaHistoryContext, Int)] = []
+        view.onQuotaHistoryChanged = { context, readings in changes.append((context, readings.count)) }
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 5, resetsAt: nil))
+        view.state = .loaded(snapshot)
+        view.state = .loaded(snapshot)
+        view.forgetQuota(for: .codex, account: account)
+        XCTAssertEqual(changes.map { $0.0.account }, [account, account])
+        XCTAssertEqual(changes.map { $0.1 }, [1, 0])
     }
 
     func testCopySummaryIsAvailableForSnapshotsAndIdentifiesStaleData() throws {

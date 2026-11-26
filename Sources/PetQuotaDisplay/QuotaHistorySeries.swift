@@ -1,6 +1,11 @@
 import Foundation
 import QuotaCore
 
+struct QuotaHistoryContext: Hashable {
+    let provider: QuotaProvider
+    let account: CodexAccountSlot?
+}
+
 struct QuotaHistorySeries {
     enum TimeRange: CaseIterable {
         case quarterHour, hour, all
