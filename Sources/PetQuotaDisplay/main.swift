@@ -43,6 +43,7 @@ let historyUsage = """
   --provider      来源：\(sourceHelp)，默认使用保存的来源
   --period        只输出指定周期：\(periodHelp)
   --account       Codex 账号本地名称或标识
+  --model         读取指定标识的 Codex 模型记录，codex 表示主要额度
   --since         起始采集时间（含边界，带时区的 ISO 8601）
   --until         结束采集时间（含边界，带时区的 ISO 8601）
   --limit         最多显示最近多少条采集记录

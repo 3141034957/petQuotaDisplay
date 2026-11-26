@@ -13,20 +13,24 @@ enum QuotaHistoryCommand {
             account = selected
         } else {
             guard options.account == nil else { throw Failure.accountOnlyForCodex }
+            guard options.modelID == nil else { throw Failure.modelOnlyForCodex }
             account = nil
         }
-        return try QuotaHistoryArchive.local.export(for: QuotaHistoryContext(provider: provider, account: account),
+        let modelID = options.modelID == "codex" ? nil : options.modelID
+        let context = QuotaHistoryContext(provider: provider, account: account, modelID: modelID)
+        return try QuotaHistoryArchive.local.export(for: context,
                                                   selecting: options.period, since: options.since, until: options.until,
                                                   limit: options.limit)
     }
 
     private enum Failure: LocalizedError {
-        case accountRequired, accountOnlyForCodex
+        case accountRequired, accountOnlyForCodex, modelOnlyForCodex
 
         var errorDescription: String? {
             switch self {
             case .accountRequired: return "尚未添加 Codex 额度账号"
             case .accountOnlyForCodex: return "--account 仅适用于 Codex 额度历史"
+            case .modelOnlyForCodex: return "--model 仅适用于 Codex 额度历史"
             }
         }
     }

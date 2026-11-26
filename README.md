@@ -54,6 +54,8 @@ Codex 查询可加 `--model <额度标识>` 获取独立模型额度。省略 `-
 
 启用“跨启动保留采集记录”后，用 `python3 main.py --history --provider gemini` 可直接输出本机存档的 JSON。省略 `--provider` 时读取保存的来源，Codex 支持 `--account` 切换读取的账号。读取历史无需网络。
 
+用 `--history --provider codex --model <额度标识>` 查询独立模型的采集记录。省略模型或指定 `--model codex` 时读取主要额度。
+
 历史查询可加 `--period weekly` 只保留周额度记录，也可用 `--period lowestRemaining` 为每次采集选择当时余量最低的周期。
 
 使用 `--since`、`--until` 可限定采集时间，边界也包含在结果中，例如 `--since 2026-11-26T09:00:00+08:00`。

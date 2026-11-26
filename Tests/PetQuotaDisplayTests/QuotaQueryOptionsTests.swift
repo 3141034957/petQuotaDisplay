@@ -42,8 +42,10 @@ final class QuotaQueryOptionsTests: XCTestCase {
     }
 
     func testSavedHistoryRejectsLiveQueryOptions() throws {
-        let history = try QuotaQueryOptions(arguments: ["--provider", "codex", "--account", "Work", "--format", "csv"], purpose: .savedHistory)
+        let history = try QuotaQueryOptions(arguments: ["--provider", "codex", "--account", "Work",
+                                                        "--model", "extra", "--format", "csv"], purpose: .savedHistory)
         XCTAssertEqual(history.account, "Work")
+        XCTAssertEqual(history.modelID, "extra")
         XCTAssertEqual(history.format, .csv)
         XCTAssertEqual(try QuotaQueryOptions(arguments: ["--limit", "3"], purpose: .savedHistory).limit, 3)
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--limit", "0"], purpose: .savedHistory))
