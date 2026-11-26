@@ -71,13 +71,17 @@ struct QuotaExport: Encodable {
     }
 
     private func csv() -> String {
-        let fields = ["provider", "codexLimitID", "status", "fetchedAt", "period", "remainingPercent", "resetsAt"]
+        QuotaOutput.csv([Self.csvColumns] + csvRows())
+    }
+
+    static let csvColumns = ["provider", "codexLimitID", "status", "fetchedAt", "period", "remainingPercent", "resetsAt"]
+
+    func csvRows() -> [[String]] {
         let formatter = ISO8601DateFormatter()
         let prefix = [provider, codexLimitID ?? "", status.rawValue, formatter.string(from: fetchedAt)]
-        let rows = periods.map { period in
+        return periods.map { period in
             prefix + [period.id, String(period.remainingPercent), period.resetsAt.map(formatter.string(from:)) ?? ""]
         }
-        return QuotaOutput.csv([fields] + rows)
     }
 
     private func text() -> String {

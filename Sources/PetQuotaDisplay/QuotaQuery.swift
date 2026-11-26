@@ -11,6 +11,39 @@ enum QuotaQuery {
         }
     }
 
+    static func allSnapshots(timeout: TimeInterval, selecting period: String?, accountSelector: String?) -> QuotaBatchExport {
+        let providers = QuotaProvider.allCases
+        var results: [QuotaProvider: Result<QuotaExport, Error>] = [:]
+        _ = try? waitForResult(timeout: timeout) { (finish: @escaping (Result<Void, Error>) -> Void) in
+            let stops = providers.compactMap { provider -> Stop? in
+                func complete(_ result: Result<QuotaExport, Error>) {
+                    guard results[provider] == nil else { return }
+                    results[provider] = result.flatMap { quota in
+                        Result {
+                            var quota = quota
+                            if let period { try quota.selectPeriod(period) }
+                            return quota
+                        }
+                    }
+                    if results.count == providers.count { finish(.success(())) }
+                }
+                do {
+                    return try startSnapshot(from: provider, modelID: nil,
+                                             accountSelector: provider == .codex ? accountSelector : nil,
+                                             complete: complete)
+                } catch {
+                    complete(.failure(error))
+                    return nil
+                }
+            }
+            return { stops.forEach { $0() } }
+        }
+        let sources = providers.map { provider in
+            QuotaBatchExport.Source(provider: provider, result: results[provider] ?? .failure(Failure.timedOut))
+        }
+        return QuotaBatchExport(sources: sources)
+    }
+
     private static func startSnapshot(from provider: QuotaProvider, modelID: String?, accountSelector: String?,
                                       complete: @escaping (Result<QuotaExport, Error>) -> Void) throws -> Stop {
         guard modelID == nil || provider == .codex else { throw Failure.modelOnlyForCodex }

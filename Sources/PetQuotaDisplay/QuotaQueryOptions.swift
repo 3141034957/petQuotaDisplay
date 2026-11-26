@@ -10,6 +10,7 @@ struct QuotaQueryOptions {
 
     private enum Option: String, CaseIterable {
         case provider = "--provider"
+        case all = "--all"
         case period = "--period"
         case timeout = "--timeout"
         case format = "--format"
@@ -22,10 +23,11 @@ struct QuotaQueryOptions {
         case until = "--until"
         case limit = "--limit"
 
-        var requiresValue: Bool { self != .requireFresh && self != .listModels }
+        var requiresValue: Bool { self != .requireFresh && self != .listModels && self != .all }
     }
 
     private(set) var provider: QuotaProvider?
+    private(set) var allProviders = false
     private(set) var period: String?
     private(set) var timeout: TimeInterval = 65
     private(set) var format: QuotaExport.Format = .json
@@ -57,6 +59,8 @@ struct QuotaQueryOptions {
             }
             let value = option.requiresValue ? arguments.popFirst() : nil
             switch option {
+            case .all:
+                allProviders = true
             case .provider:
                 guard let value, let provider = QuotaProvider(rawValue: value) else { throw Failure.invalidValue(option) }
                 self.provider = provider
@@ -99,6 +103,7 @@ struct QuotaQueryOptions {
                 limit = count
             }
         }
+        if allProviders, provider != nil || modelID != nil || listModels { throw Failure.incompatibleAll }
         if listModels {
             var allowed: Set<Option> = [.listModels, .provider, .account, .format]
             if purpose == .live { allowed.insert(.timeout) }
@@ -112,6 +117,7 @@ struct QuotaQueryOptions {
     private enum Failure: LocalizedError {
         case unknownOption(Purpose), duplicateOption(Option), missingValue(Option), invalidValue(Option)
         case incompatibleModelList(Purpose), unsupportedHistoryOption(Option)
+        case incompatibleAll
         case dateOnlyForHistory, invalidDateRange, limitOnlyForHistory
 
         var errorDescription: String? {
@@ -120,6 +126,7 @@ struct QuotaQueryOptions {
             case .duplicateOption(let option): return "\(option.rawValue) 只能指定一次。"
             case .missingValue(let option): return "\(option.rawValue) 缺少参数值。"
             case .invalidValue(let option): return "请为 \(option.rawValue) 指定一个有效的值。"
+            case .incompatibleAll: return "--all 不能与 --provider、--model 或 --list-models 同时使用。"
             case .incompatibleModelList(let purpose):
                 let timeout = purpose == .live ? "、超时" : ""
                 return "模型列表仅支持 Codex 来源、账号\(timeout)和输出格式选项。"

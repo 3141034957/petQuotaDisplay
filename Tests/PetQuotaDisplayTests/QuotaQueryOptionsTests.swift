@@ -41,6 +41,16 @@ final class QuotaQueryOptionsTests: XCTestCase {
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--list-models", "--period", "weekly"]))
     }
 
+    func testLiveBatchAcceptsAnAccountButRejectsSingleProviderOptions() throws {
+        let batch = try QuotaQueryOptions(arguments: ["--all", "--account", "Work", "--period", "weekly"])
+        XCTAssertTrue(batch.allProviders)
+        XCTAssertEqual(batch.account, "Work")
+        XCTAssertEqual(batch.period, "weekly")
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all", "--provider", "codex"]))
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all", "--list-models"]))
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all"], purpose: .savedHistory))
+    }
+
     func testSavedHistoryRejectsLiveQueryOptions() throws {
         let history = try QuotaQueryOptions(arguments: ["--provider", "codex", "--account", "Work",
                                                         "--model", "extra", "--format", "csv"], purpose: .savedHistory)

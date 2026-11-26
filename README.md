@@ -32,6 +32,8 @@ swift run PetQuotaDisplay
 
 用 `python3 main.py --query --provider gemini` 可在终端读取一次额度并输出 JSON，无需打开悬浮球。省略 `--provider` 时使用保存的来源。该命令沿用各来源原有的登录和密钥配置，Claude Code 会读取本机状态栏快照。运行 `python3 main.py --query --help` 可查看所有查询参数。
 
+用 `python3 main.py --query --all --format text` 可并行查询所有来源，共用同一个等待期限。某个来源缺少配置或查询失败时，命令仍会输出其他来源的结果并返回 `1`。CSV 会用 `error` 列标记失败来源。
+
 加上 `--period weekly` 只输出周额度，`--period lowestRemaining` 则选择剩余百分比最低的周期。指定的周期没有数据时，命令会返回错误。
 
 用 `--timeout 10` 可将网络来源的单次查询等待时间缩短为 10 秒。支持 1 到 3600 秒，各来源本身也有超时限制。

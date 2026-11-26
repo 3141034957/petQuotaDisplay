@@ -33,6 +33,27 @@ final class QuotaExportTests: XCTestCase {
         XCTAssertEqual(export.exitStatus(failBelow: 21), 2)
     }
 
+    func testBatchPreservesSuccessfulSourcesAndOmitsRawServiceDetails() throws {
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 90, resetsAt: nil),
+                                    fetchedAt: Date(timeIntervalSince1970: 60))
+        let quota = try XCTUnwrap(QuotaExport(provider: .gemini, state: .stale(snapshot, "old")))
+        let gemini = QuotaBatchExport.Source(provider: .gemini, result: .success(quota))
+        let codex = QuotaBatchExport.Source(provider: .codex, result: .failure(CodexQuotaClient.ClientError.server("server details")))
+        let partial = QuotaBatchExport(sources: [codex, gemini])
+        XCTAssertEqual(partial.exitStatus(failBelow: 20, requireFresh: true), 1)
+        XCTAssertEqual(QuotaBatchExport(sources: [gemini]).exitStatus(failBelow: 20, requireFresh: true), 3)
+        XCTAssertEqual(QuotaBatchExport(sources: [gemini]).exitStatus(failBelow: 20, requireFresh: false), 2)
+
+        let report = try partial.render(as: .json)
+        XCTAssertTrue(report.contains("Codex 服务无法返回额度"))
+        XCTAssertFalse(report.contains("server details"))
+        XCTAssertEqual(try partial.render(as: .csv), """
+        provider,codexLimitID,status,fetchedAt,period,remainingPercent,resetsAt,error
+        codex,,,,,,,Codex 服务无法返回额度
+        gemini,,stale,1970-01-01T00:01:00Z,weekly,10,,
+        """)
+    }
+
     func testCSVOutputEscapesModelIDAndLeavesUnknownResetEmpty() throws {
         let window = QuotaWindow(usedPercent: 25, resetsAt: nil)
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: window, weekly: nil, fetchedAt: Date(timeIntervalSince1970: 60))
