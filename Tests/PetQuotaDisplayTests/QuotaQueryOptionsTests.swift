@@ -43,12 +43,21 @@ final class QuotaQueryOptionsTests: XCTestCase {
 
     func testLiveBatchAcceptsAnAccountButRejectsSingleProviderOptions() throws {
         let batch = try QuotaQueryOptions(arguments: ["--all", "--account", "Work", "--period", "weekly"])
-        XCTAssertTrue(batch.allProviders)
+        XCTAssertEqual(batch.batchProviders, QuotaProvider.allCases)
         XCTAssertEqual(batch.account, "Work")
         XCTAssertEqual(batch.period, "weekly")
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all", "--provider", "codex"]))
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all", "--list-models"]))
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--all"], purpose: .savedHistory))
+    }
+
+    func testBatchCanSelectAnOrderedSetOfProviders() throws {
+        let batch = try QuotaQueryOptions(arguments: ["--providers", "gemini, kimiCode"])
+        XCTAssertEqual(batch.batchProviders, [.gemini, .kimiCode])
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--providers", "gemini,gemini"]))
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--providers", "gemini,"]))
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--providers", "gemini", "--account", "Work"]))
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--providers", "gemini", "--all"]))
     }
 
     func testSavedHistoryRejectsLiveQueryOptions() throws {

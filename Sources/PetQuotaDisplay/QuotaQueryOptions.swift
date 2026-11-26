@@ -10,6 +10,7 @@ struct QuotaQueryOptions {
 
     private enum Option: String, CaseIterable {
         case provider = "--provider"
+        case providers = "--providers"
         case all = "--all"
         case period = "--period"
         case timeout = "--timeout"
@@ -27,7 +28,7 @@ struct QuotaQueryOptions {
     }
 
     private(set) var provider: QuotaProvider?
-    private(set) var allProviders = false
+    private(set) var batchProviders: [QuotaProvider]?
     private(set) var period: String?
     private(set) var timeout: TimeInterval = 65
     private(set) var format: QuotaExport.Format = .json
@@ -60,7 +61,15 @@ struct QuotaQueryOptions {
             let value = option.requiresValue ? arguments.popFirst() : nil
             switch option {
             case .all:
-                allProviders = true
+                batchProviders = QuotaProvider.allCases
+            case .providers:
+                guard let value else { throw Failure.invalidValue(option) }
+                let names = value.components(separatedBy: ",")
+                let providers = names.compactMap { QuotaProvider(rawValue: $0.trimmingCharacters(in: .whitespaces)) }
+                guard providers.count == names.count, Set(providers).count == names.count else {
+                    throw Failure.invalidValue(option)
+                }
+                batchProviders = providers
             case .provider:
                 guard let value, let provider = QuotaProvider(rawValue: value) else { throw Failure.invalidValue(option) }
                 self.provider = provider
@@ -103,7 +112,12 @@ struct QuotaQueryOptions {
                 limit = count
             }
         }
-        if allProviders, provider != nil || modelID != nil || listModels { throw Failure.incompatibleAll }
+        if let batchProviders {
+            guard !(seen.contains(.all) && seen.contains(.providers)), provider == nil, modelID == nil, !listModels else {
+                throw Failure.incompatibleBatch
+            }
+            guard account == nil || batchProviders.contains(.codex) else { throw Failure.missingBatchCodex }
+        }
         if listModels {
             var allowed: Set<Option> = [.listModels, .provider, .account, .format]
             if purpose == .live { allowed.insert(.timeout) }
@@ -117,7 +131,7 @@ struct QuotaQueryOptions {
     private enum Failure: LocalizedError {
         case unknownOption(Purpose), duplicateOption(Option), missingValue(Option), invalidValue(Option)
         case incompatibleModelList(Purpose), unsupportedHistoryOption(Option)
-        case incompatibleAll
+        case incompatibleBatch, missingBatchCodex
         case dateOnlyForHistory, invalidDateRange, limitOnlyForHistory
 
         var errorDescription: String? {
@@ -126,7 +140,8 @@ struct QuotaQueryOptions {
             case .duplicateOption(let option): return "\(option.rawValue) 只能指定一次。"
             case .missingValue(let option): return "\(option.rawValue) 缺少参数值。"
             case .invalidValue(let option): return "请为 \(option.rawValue) 指定一个有效的值。"
-            case .incompatibleAll: return "--all 不能与 --provider、--model 或 --list-models 同时使用。"
+            case .incompatibleBatch: return "请在 --all、--providers 和 --provider 中选择其一。批量查询不支持 --model 或 --list-models。"
+            case .missingBatchCodex: return "使用 --account 时，批量查询的来源必须包含 codex。"
             case .incompatibleModelList(let purpose):
                 let timeout = purpose == .live ? "、超时" : ""
                 return "模型列表仅支持 Codex 来源、账号\(timeout)和输出格式选项。"

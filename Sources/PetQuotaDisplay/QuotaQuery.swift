@@ -11,8 +11,8 @@ enum QuotaQuery {
         }
     }
 
-    static func allSnapshots(timeout: TimeInterval, selecting period: String?, accountSelector: String?) -> QuotaBatchExport {
-        let providers = QuotaProvider.allCases
+    static func snapshots(from providers: [QuotaProvider], timeout: TimeInterval, selecting period: String?,
+                          accountSelector: String?) -> QuotaBatchExport {
         var results: [QuotaProvider: Result<QuotaExport, Error>] = [:]
         _ = try? waitForResult(timeout: timeout) { (finish: @escaping (Result<Void, Error>) -> Void) in
             let stops = providers.compactMap { provider -> Stop? in

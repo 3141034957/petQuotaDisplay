@@ -29,6 +29,7 @@ let queryUsage = """
 用法：PetQuotaDisplay --query [查询选项]
   --provider      来源：\(sourceHelp)，默认使用保存的来源
   --all           并行查询所有来源，输出成功结果和各来源的失败信息
+  --providers     并行查询逗号分隔的来源，按输入顺序输出
   --period        只输出指定周期：\(periodHelp)
   --account       Codex 账号本地名称或标识
   --model         查询指定标识的 Codex 模型额度
@@ -107,8 +108,9 @@ case _ where arguments.first == "--query":
         exit(64)
     }
     do {
-        if options.allProviders {
-            let batch = QuotaQuery.allSnapshots(timeout: options.timeout, selecting: options.period, accountSelector: options.account)
+        if let providers = options.batchProviders {
+            let batch = QuotaQuery.snapshots(from: providers, timeout: options.timeout, selecting: options.period,
+                                            accountSelector: options.account)
             print(try batch.render(as: options.format))
             exit(batch.exitStatus(failBelow: options.failBelow, requireFresh: options.requireFresh))
         }
