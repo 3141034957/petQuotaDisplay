@@ -198,7 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         orbView.onPresentationChanged = { [weak self] in self?.updateStatusItem() }
         orbView.onShowQuotaHistory = { [weak self] context, readings in self?.showQuotaHistory(context: context, readings: readings) }
-        orbView.onQuotaHistoryChanged = { [weak self] context, readings in self?.historyDidChange(context, readings: readings) }
+        orbView.onQuotaHistoryChanged = { [weak self] changes in self?.historyDidChange(changes) }
         orbView.onQuotaHistoryCleared = { [weak self] in self?.clearHistory() }
         orbView.onToggleHistoryArchive = { [weak self] in self?.toggleHistoryArchive() }
         orbView.onResetHistoryArchive = { [weak self] in self?.resetHistoryArchive() }
@@ -320,15 +320,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func historyDidChange(_ context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
-        updateQuotaHistory(context: context, readings: readings)
-        if readings.isEmpty { lowQuotaReminder.remove(context) }
+    private func historyDidChange(_ changes: [QuotaHistoryContext: [QuotaSnapshot]]) {
+        for (context, readings) in changes {
+            updateQuotaHistory(context: context, readings: readings)
+            if readings.isEmpty { lowQuotaReminder.remove(context) }
+        }
         guard orbView.retainsHistoryAcrossLaunches else { return }
         let archive = historyArchive
-        let latest = readings.last
+        let snapshots = changes.mapValues(\.last)
         let generation = historyArchiveGeneration
         historyArchiveWriter.async { [weak self] in
-            let result = Result { try archive.update(context, latest: latest) }
+            let result = Result { try archive.update(snapshots) }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.historyArchiveGeneration == generation else { return }
                 if case .success(let enabled) = result {

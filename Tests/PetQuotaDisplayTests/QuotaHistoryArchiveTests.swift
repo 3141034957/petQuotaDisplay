@@ -15,7 +15,7 @@ final class QuotaHistoryArchiveTests: XCTestCase {
 
         try archive.setEnabled(true, initial: [main: [original]])
         XCTAssertEqual(try archive.load().histories[main], [original])
-        try archive.update(model, latest: additional)
+        try archive.update([model: additional])
         XCTAssertEqual(try archive.load().histories, [main: [original], model: [additional]])
 
         let export = try archive.export(for: model)
@@ -73,7 +73,7 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertTrue(try archive.export(for: QuotaHistoryContext(provider: .kimiCode, account: nil)).readings.isEmpty)
 
         try archive.setEnabled(false)
-        XCTAssertFalse(try archive.update(context, latest: snapshot(at: 101)))
+        XCTAssertFalse(try archive.update([context: snapshot(at: 101)]))
         XCTAssertFalse(try archive.load().isEnabled)
         XCTAssertTrue(try archive.load().histories.isEmpty)
     }
@@ -87,7 +87,7 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         try archive.setEnabled(true)
         DispatchQueue.concurrentPerform(iterations: 20) { index in
             do {
-                try archive.update(index.isMultiple(of: 2) ? first : second, latest: snapshot(at: Double(index)))
+                try archive.update([index.isMultiple(of: 2) ? first : second: snapshot(at: Double(index))])
             } catch {
                 XCTFail("Archive write failed: \(error)")
             }
@@ -95,9 +95,9 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         let restored = try archive.load().histories
         XCTAssertEqual(restored[first]?.count, 10)
         XCTAssertEqual(restored[second]?.count, 10)
-        try archive.update(first, latest: nil)
+        try archive.update([first: nil, second: snapshot(at: 20)])
         XCTAssertNil(try archive.load().histories[first])
-        XCTAssertEqual(try archive.load().histories[second]?.count, 10)
+        XCTAssertEqual(try archive.load().histories[second]?.count, 11)
         try archive.clear()
         XCTAssertTrue(try archive.load().isEnabled)
         XCTAssertTrue(try archive.load().histories.isEmpty)

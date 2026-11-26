@@ -10,12 +10,15 @@ final class QuotaOrbView: NSView {
         didSet {
             if case .loaded(let snapshot) = state, provider != .codex || selectedAccount != nil {
                 let context = quotaContext(for: provider)
-                recordHistory(snapshot, for: context)
+                var changes: [QuotaHistoryContext: [QuotaSnapshot]] = [:]
+                changes[context] = recordHistory(snapshot, for: context)
                 if provider == .codex {
                     for bucket in codexMeteredQuotas {
-                        recordHistory(bucket.snapshot, for: quotaContext(for: .codex, modelID: bucket.id))
+                        let model = quotaContext(for: .codex, modelID: bucket.id)
+                        changes[model] = recordHistory(bucket.snapshot, for: model)
                     }
                 }
+                if !changes.isEmpty { onQuotaHistoryChanged?(changes) }
                 let scope = quotaContext(for: provider, modelID: displayedCodexBucket?.id)
                 onFreshQuota?(scope, displaySnapshot(snapshot))
             }
@@ -30,7 +33,7 @@ final class QuotaOrbView: NSView {
     }
     var onRefresh: (() -> Void)?
     var onShowQuotaHistory: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
-    var onQuotaHistoryChanged: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
+    var onQuotaHistoryChanged: (([QuotaHistoryContext: [QuotaSnapshot]]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
     var onToggleHistoryArchive: (() -> Void)?
     var onFreshQuota: ((QuotaHistoryContext, QuotaSnapshot) -> Void)?
@@ -478,20 +481,20 @@ final class QuotaOrbView: NSView {
         QuotaHistoryContext(provider: source, account: source == .codex ? selectedAccount : nil, modelID: modelID)
     }
 
-    private func recordHistory(_ snapshot: QuotaSnapshot, for context: QuotaHistoryContext) {
+    private func recordHistory(_ snapshot: QuotaSnapshot, for context: QuotaHistoryContext) -> [QuotaSnapshot]? {
         let previous = recentQuotas[context]?.latest
         recentQuotas[context, default: QuotaReadingHistory()].record(snapshot)
-        if let current = recentQuotas[context], current.latest != previous {
-            onQuotaHistoryChanged?(context, current.readings)
-        }
+        guard let current = recentQuotas[context], current.latest != previous else { return nil }
+        return current.readings
     }
 
     func forgetQuota(for source: QuotaProvider, account: CodexAccountSlot? = nil) {
         let matching = recentQuotas.keys.filter { $0.provider == source && $0.account == account }
+        guard !matching.isEmpty else { return }
         for context in matching {
             recentQuotas.removeValue(forKey: context)
-            onQuotaHistoryChanged?(context, [])
         }
+        onQuotaHistoryChanged?(Dictionary(uniqueKeysWithValues: matching.map { ($0, []) }))
     }
 
     func beginPollingWithRecentQuota() {

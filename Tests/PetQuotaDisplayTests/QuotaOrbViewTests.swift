@@ -450,7 +450,9 @@ final class QuotaOrbViewTests: XCTestCase {
         let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
         view.selectedAccount = account
         var changes: [(QuotaHistoryContext, Int)] = []
-        view.onQuotaHistoryChanged = { context, readings in changes.append((context, readings.count)) }
+        view.onQuotaHistoryChanged = { batch in
+            changes.append(contentsOf: batch.map { ($0.key, $0.value.count) })
+        }
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 5, resetsAt: nil))
         view.state = .loaded(snapshot)
         view.state = .loaded(snapshot)
@@ -466,7 +468,13 @@ final class QuotaOrbViewTests: XCTestCase {
         let primary = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 20, resetsAt: nil))
         let additional = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 90, resetsAt: nil))
         view.codexMeteredQuotas = [CodexMeteredQuota(id: "extra", name: "Extra", snapshot: additional)]
+        var batches: [[QuotaHistoryContext: [QuotaSnapshot]]] = []
+        view.onQuotaHistoryChanged = { batches.append($0) }
         view.state = .loaded(primary)
+        XCTAssertEqual(batches.count, 1)
+        XCTAssertEqual(batches.first?.count, 2)
+        view.state = .loaded(primary)
+        XCTAssertEqual(batches.count, 1)
         let models = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu?
             .item(withTitle: "Codex")?.submenu?.item(withTitle: "独立模型")?.submenu)
         let trend = try XCTUnwrap(models.item(withTitle: "extra")?.submenu?.item(withTitle: "查看额度趋势…"))

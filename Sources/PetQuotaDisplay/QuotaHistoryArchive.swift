@@ -53,14 +53,16 @@ struct QuotaHistoryArchive {
     }
 
     @discardableResult
-    func update(_ context: QuotaHistoryContext, latest: QuotaSnapshot?) throws -> Bool {
+    func update(_ snapshots: [QuotaHistoryContext: QuotaSnapshot?]) throws -> Bool {
         try withLock {
             var state = try load()
             guard state.isEnabled else { return false }
-            if let latest {
-                state.histories[context] = Self.merge(state.histories[context] ?? [], with: [latest])
-            } else {
-                state.histories.removeValue(forKey: context)
+            for (context, latest) in snapshots {
+                if let latest {
+                    state.histories[context] = Self.merge(state.histories[context] ?? [], with: [latest])
+                } else {
+                    state.histories.removeValue(forKey: context)
+                }
             }
             try save(state)
             return true
