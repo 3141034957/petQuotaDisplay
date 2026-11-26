@@ -19,7 +19,6 @@ enum QuotaProvider: String, CaseIterable {
 
 final class QuotaOrbView: NSView {
     private static let designDiameter: CGFloat = 148
-    private static let displayedWindowDefaultsKey = "quota.displayedWindow"
     private let defaults: UserDefaults
     private struct QuotaContext: Hashable {
         let provider: QuotaProvider
@@ -108,11 +107,12 @@ final class QuotaOrbView: NSView {
     private var windowOriginAtMouseDown: NSPoint?
     private var dragged = false
     private var windowPreferenceKey: String {
-        "\(Self.displayedWindowDefaultsKey).\(provider.rawValue)"
+        QuotaWindowPreference.key(for: provider, account: selectedAccount)
     }
     private var displayedWindow: DisplayedWindow {
         let saved = defaults.string(forKey: windowPreferenceKey)
-            ?? defaults.string(forKey: Self.displayedWindowDefaultsKey)
+            ?? defaults.string(forKey: QuotaWindowPreference.key(for: provider))
+            ?? defaults.string(forKey: QuotaWindowPreference.legacyKey)
         return saved.flatMap(DisplayedWindow.init(rawValue:)) ?? .weekly
     }
 

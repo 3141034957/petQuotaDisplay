@@ -71,6 +71,7 @@ enum CodexAccountProfile {
         let remaining = loadAccounts(defaults: defaults).filter { $0 != slot }
         defaults.set(remaining.map(\.rawValue), forKey: additionalAccountsDefaultsKey)
         defaults.removeObject(forKey: nameKey(for: slot))
+        defaults.removeObject(forKey: QuotaWindowPreference.key(for: .codex, account: slot))
     }
 
     static func name(for slot: CodexAccountSlot, defaults: UserDefaults = .standard) -> String? {
