@@ -172,6 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.refreshDisplayedQuota()
         }
         orbView.onQuit = { [weak self] in self?.quitOrHideOrb() }
+        orbView.onShowAbout = { [weak self] in self?.showAbout() }
         orbView.onPositionChanged = { [weak self] in self?.finishOrbDrag() }
         orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
         orbView.onSelectCorner = { [weak self] corner in self?.moveOrb(to: corner) }
@@ -557,6 +558,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func togglePositionLock() {
         orbView.isPositionLocked.toggle()
         QuotaPreferences.shared.set(orbView.isPositionLocked, forKey: QuotaPreferences.orbPositionLockedKey)
+    }
+
+    private func showAbout() {
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [
+            .applicationName: "额度悬浮球",
+            .applicationVersion: QuotaBuildInformation.version,
+        ]
+        if let revision = QuotaBuildInformation.revision { options[.version] = revision }
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: options)
     }
 
     private func setOrbOpacity(_ opacity: OrbOpacityPreference) {

@@ -55,6 +55,7 @@ final class QuotaOrbView: NSView {
     var reminderPausedUntil: Date?
     var onToggleReminderPause: (() -> Void)?
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
+    var onShowAbout: (() -> Void)?
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
     var onResetPosition: (() -> Void)?
@@ -464,6 +465,9 @@ final class QuotaOrbView: NSView {
                 raise.target = self
             }
         }
+        menu.addItem(.separator())
+        let about = menu.addItem(withTitle: "关于额度悬浮球", action: #selector(showAboutFromMenu), keyEquivalent: "")
+        about.target = self
         let quit = NSMenuItem(title: quitMenuTitle, action: #selector(quitFromMenu), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
@@ -828,6 +832,7 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func refreshFromMenu() { onRefresh?() }
+    @objc private func showAboutFromMenu() { onShowAbout?() }
     @objc private func quitFromMenu() { onQuit?() }
     @objc private func resetPositionFromMenu() { onResetPosition?() }
     @objc private func toggleMenuBarQuota() { onToggleMenuBarQuota?() }
