@@ -94,6 +94,12 @@ final class QuotaOrbView: NSView {
     var codexMeteredQuotas: [CodexMeteredQuota] = []
     var selectedAccount: CodexAccountSlot?
     var accountStatuses: [CodexAccountSlot: CodexAccountStatus] = [:]
+    var isCodexLoginPending = false {
+        didSet {
+            needsDisplay = true
+            updateAccessibility()
+        }
+    }
     var accountNames: [CodexAccountSlot: String] = [:]
     var quitMenuTitle = "退出额度悬浮球"
 
@@ -208,9 +214,11 @@ final class QuotaOrbView: NSView {
     private func drawLabels() {
         switch state {
         case .loading:
-            drawCentered("正在同步", y: 34, font: .systemFont(ofSize: 12, weight: .medium), alpha: 0.82)
+            let title = isCodexLoginPending ? "等待登录" : "正在同步"
+            let detail = isCodexLoginPending ? "请在浏览器继续" : "连接 \(provider.title)"
+            drawCentered(title, y: 34, font: .systemFont(ofSize: 12, weight: .medium), alpha: 0.82)
             drawCentered("•••", y: 53, font: .systemFont(ofSize: 30, weight: .bold), alpha: 1)
-            drawCentered("连接 \(provider.title)", y: 99, font: .systemFont(ofSize: 11, weight: .medium), alpha: 0.78)
+            drawCentered(detail, y: 99, font: .systemFont(ofSize: 11, weight: .medium), alpha: 0.78)
         case .failed:
             let title = provider == .codex ? "额度暂不可用" : "\(provider.title) 暂不可用"
             drawCentered(title, y: 34, font: .systemFont(ofSize: 12, weight: .medium), alpha: 0.82)
@@ -533,7 +541,7 @@ final class QuotaOrbView: NSView {
         addAccount.target = self
         accountMenu.addItem(addAccount)
 
-        if let selectedAccount,
+        if !isCodexLoginPending, let selectedAccount,
            accountStatuses[selectedAccount] == .signedOut {
             let login = NSMenuItem(
                 title: "登录当前额度账号…",
@@ -736,7 +744,7 @@ final class QuotaOrbView: NSView {
         var description: String
         switch state {
         case .loading:
-            description = "\(provider.title) 额度正在同步"
+            description = isCodexLoginPending ? "请在浏览器完成 Codex 额度账号登录" : "\(provider.title) 额度正在同步"
         case .failed(let message):
             description = "\(provider.title) 额度不可用，\(message)"
         case .loaded(let snapshot), .refreshing(let snapshot), .stale(let snapshot, _):

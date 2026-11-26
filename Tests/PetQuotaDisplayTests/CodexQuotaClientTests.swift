@@ -15,6 +15,8 @@ final class CodexQuotaClientTests: XCTestCase {
         defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }
         let browser = expectation(description: "browser URL issued")
         let quota = expectation(description: "active login returned quota")
+        var pendingStates: [Bool] = []
+        fixture.client.onLoginPendingChanged = { pendingStates.append($0) }
         fixture.client.onLoginURL = { url in
             XCTAssertEqual(url.host, "auth.example.com")
             browser.fulfill()
@@ -23,6 +25,7 @@ final class CodexQuotaClientTests: XCTestCase {
         fixture.client.onError = { XCTFail($0.localizedDescription) }
         fixture.client.loginWithChatGPT(replacingExisting: false)
         wait(for: [browser, quota], timeout: 5, enforceOrder: true)
+        XCTAssertEqual(pendingStates, [true, false])
     }
 
     func testInitializationTimeoutRestartsAndRecovers() throws {

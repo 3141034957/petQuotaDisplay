@@ -260,9 +260,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.updateAccountMenuState()
             if account == nil {
                 self.orbView.forgetQuota(for: .codex, account: clientAccount)
+                guard !self.orbView.isCodexLoginPending else { return }
                 let name = self.accountName(for: clientAccount)
                 self.orbView.state = .failed("\(name)未登录，请右键登录")
             }
+        }
+        client.onLoginPendingChanged = { [weak self, weak client] pending in
+            guard let self, let client, self.client === client else { return }
+            self.orbView.isCodexLoginPending = pending
+            if pending { self.orbView.state = .loading }
         }
         client.onLoginURL = { [weak self, weak client] url in
             guard let self, let client, self.client === client else { return }
@@ -332,6 +338,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         countdownTimer = nil
         client?.stop()
         client = nil
+        orbView.isCodexLoginPending = false
         pollingClient?.stop()
         pollingClient = nil
         if hideWindow {

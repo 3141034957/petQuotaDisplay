@@ -35,6 +35,7 @@ final class CodexQuotaClient {
     var onReport: ((CodexQuotaReport) -> Void)?
     var onAccount: ((CodexAccountSummary?) -> Void)?
     var onLoginURL: ((URL) -> Void)?
+    var onLoginPendingChanged: ((Bool) -> Void)?
     var onError: ((Error) -> Void)?
 
     private enum PendingRequest: Equatable {
@@ -294,7 +295,7 @@ final class CodexQuotaClient {
                 emit(error: ClientError.malformedResponse)
                 return
             }
-            activeLoginID = loginID
+            setActiveLoginLocked(loginID)
             DispatchQueue.main.async { [weak self] in self?.onLoginURL?(authURL) }
         case .logoutThenLogin:
             startLoginLocked()
@@ -343,12 +344,18 @@ final class CodexQuotaClient {
     private func handleLoginCompletedLocked(_ params: [String: Any]?) {
         guard let params, let activeLoginID, params["loginId"] as? String == activeLoginID,
               let success = params["success"] as? Bool else { return }
-        self.activeLoginID = nil
+        setActiveLoginLocked(nil)
         if success {
             requestAccountLocked()
         } else {
             emit(error: ClientError.loginFailed(params["error"] as? String ?? ""))
         }
+    }
+
+    private func setActiveLoginLocked(_ loginID: String?) {
+        guard activeLoginID != loginID else { return }
+        activeLoginID = loginID
+        DispatchQueue.main.async { [weak self] in self?.onLoginPendingChanged?(loginID != nil) }
     }
 
     private func sendRequestLocked(
@@ -442,7 +449,7 @@ final class CodexQuotaClient {
         process = nil
         initialized = false
         verifiedAccount = nil
-        activeLoginID = nil
+        setActiveLoginLocked(nil)
         outputBuffer.removeAll(keepingCapacity: false)
         cancelPendingRequestsLocked()
     }
