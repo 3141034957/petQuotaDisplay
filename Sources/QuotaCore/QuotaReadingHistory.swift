@@ -20,6 +20,19 @@ public struct QuotaReadingHistory {
         trim()
     }
 
+    public mutating func merge(_ additional: [QuotaSnapshot]) {
+        readings = Self.merged(readings, with: additional, keepingExisting: true, capacity: capacity)
+    }
+
+    public static func merged(_ existing: [QuotaSnapshot], with additional: [QuotaSnapshot],
+                              keepingExisting: Bool = false, capacity: Int = maximumReadings) -> [QuotaSnapshot] {
+        var readingsByDate: [Date: QuotaSnapshot] = [:]
+        for snapshot in keepingExisting ? additional + existing : existing + additional {
+            readingsByDate[snapshot.fetchedAt] = snapshot
+        }
+        return readingsByDate.keys.sorted().suffix(max(1, capacity)).compactMap { readingsByDate[$0] }
+    }
+
     public mutating func record(_ snapshot: QuotaSnapshot) {
         if let latest {
             guard snapshot.fetchedAt >= latest.fetchedAt else { return }

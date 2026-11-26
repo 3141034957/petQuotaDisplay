@@ -1,8 +1,25 @@
 import Foundation
+import QuotaCore
 
 struct QuotaPortableHistory {
     private static let maximumFileSize = 64 * 1_024 * 1_024
     let sources: [QuotaHistoryExport]
+
+    var hasCodexReadings: Bool {
+        sources.contains { $0.provider == QuotaProvider.codex.rawValue && !$0.readings.isEmpty }
+    }
+
+    func snapshots(codexAccount: CodexAccountSlot?) -> [QuotaHistoryContext: [QuotaSnapshot]] {
+        var result: [QuotaHistoryContext: [QuotaSnapshot]] = [:]
+        for source in sources {
+            guard let provider = QuotaProvider(rawValue: source.provider), !source.readings.isEmpty,
+                  provider != .codex || codexAccount != nil else { continue }
+            let context = QuotaHistoryContext(provider: provider, account: provider == .codex ? codexAccount : nil,
+                                              modelID: source.modelID)
+            result[context, default: []].append(contentsOf: source.readings.compactMap(\.snapshot))
+        }
+        return result
+    }
 
     static func read(from url: URL) throws -> Self {
         let file = url.resolvingSymlinksInPath()

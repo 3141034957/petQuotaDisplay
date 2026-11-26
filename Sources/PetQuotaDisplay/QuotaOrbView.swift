@@ -42,6 +42,7 @@ final class QuotaOrbView: NSView {
     var onQuotaHistoryChanged: (([QuotaHistoryContext: [QuotaSnapshot]]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
     var onSaveQuotaHistory: ((String, QuotaExport.Format) -> Void)?
+    var onImportQuotaHistory: (() -> Void)?
     var onToggleHistoryArchive: (() -> Void)?
     var onSelectHistoryRetention: ((QuotaHistoryRetention) -> Void)?
     var historyRetention: QuotaHistoryRetention = .standard {
@@ -575,6 +576,12 @@ final class QuotaOrbView: NSView {
         }
     }
 
+    func mergeImportedHistory(_ snapshots: [QuotaHistoryContext: [QuotaSnapshot]]) {
+        for (context, readings) in snapshots {
+            recentQuotas[context, default: QuotaReadingHistory(capacity: historyRetention.rawValue)].merge(readings)
+        }
+    }
+
     private func recentQuotasMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "最近读取的额度", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: item.title)
@@ -596,6 +603,8 @@ final class QuotaOrbView: NSView {
         }
         save.submenu = formats
         save.isEnabled = export.isEnabled
+        let importItem = submenu.addItem(withTitle: "导入采集记录 JSON…", action: #selector(importQuotaHistory), keyEquivalent: "")
+        importItem.target = self
         let clear = submenu.addItem(withTitle: "清空最近额度记录", action: #selector(clearRecentQuotas), keyEquivalent: "")
         clear.target = self
         clear.isEnabled = !recentQuotas.isEmpty
@@ -1109,6 +1118,7 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func copyAllQuotaHistory() { QuotaClipboard.copy(allQuotaHistoryJSON) }
+    @objc private func importQuotaHistory() { onImportQuotaHistory?() }
 
     @objc private func saveAllQuotaHistory(_ sender: NSMenuItem) {
         guard let value = sender.representedObject as? String, let format = QuotaExport.Format(rawValue: value),

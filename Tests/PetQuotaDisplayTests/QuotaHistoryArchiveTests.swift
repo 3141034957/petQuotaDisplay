@@ -114,6 +114,30 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertThrowsError(try QuotaPortableHistory(data: unsupported))
     }
 
+    func testImportedHistoryFillsGapsWithoutReplacingLocalReadings() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let archive = QuotaHistoryArchive(directory: directory)
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let context = QuotaHistoryContext(provider: .codex, account: account, modelID: "extra")
+        let oldest = snapshot(at: 10)
+        let local = snapshot(at: 20)
+        let duplicate = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 99, resetsAt: nil),
+                                      fetchedAt: local.fetchedAt)
+        let export = QuotaHistoryExport(provider: .codex, snapshots: [oldest, duplicate], modelID: "extra")
+        let portable = try QuotaPortableHistory(data: Data(export.render(as: .json).utf8))
+        XCTAssertTrue(portable.hasCodexReadings)
+        XCTAssertTrue(portable.snapshots(codexAccount: nil).isEmpty)
+        let mapped = portable.snapshots(codexAccount: account)
+        XCTAssertEqual(mapped[context], [oldest, duplicate])
+
+        XCTAssertFalse(try archive.mergeImported(mapped))
+        try archive.setEnabled(true, initial: [context: [local]])
+        XCTAssertTrue(try archive.mergeImported(mapped))
+        XCTAssertTrue(try archive.mergeImported(mapped))
+        XCTAssertEqual(try archive.load().histories[context], [oldest, local])
+    }
+
     func testBatchHistoryPreservesSourceOrderFiltersAndAccountScope() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

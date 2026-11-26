@@ -220,6 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.onQuotaHistoryChanged = { [weak self] changes in self?.historyDidChange(changes) }
         orbView.onQuotaHistoryCleared = { [weak self] in self?.clearHistory() }
         orbView.onSaveQuotaHistory = { [weak self] contents, format in self?.saveHistory(contents, format: format) }
+        orbView.onImportQuotaHistory = { [weak self] in self?.importHistory() }
         orbView.onToggleHistoryArchive = { [weak self] in self?.toggleHistoryArchive() }
         orbView.onSelectHistoryRetention = { [weak self] retention in self?.setHistoryRetention(retention) }
         orbView.onResetHistoryArchive = { [weak self] in self?.resetHistoryArchive() }
@@ -417,6 +418,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                 alert.runModal()
             }
         }
+    }
+
+    private func importHistory() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.prompt = "读取"
+        NSApp.activate(ignoringOtherApps: true)
+        panel.begin { [weak self] response in
+            guard response == .OK, let source = panel.url else { return }
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                let result = Result { try QuotaPortableHistory.read(from: source) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    do {
+                        try self.applyImportedHistory(result.get())
+                    } catch {
+                        self.showHistoryImportMessage("无法导入采集记录", detail: error.localizedDescription)
+                    }
+                }
+            }
+        }
+    }
+
+    private func applyImportedHistory(_ history: QuotaPortableHistory) throws {
+        let account = selectedAccount
+        let imported = history.snapshots(codexAccount: account)
+        guard !imported.isEmpty else {
+            let detail = history.hasCodexReadings ? "请先选择或添加接收记录的 Codex 额度账号。" : "该文件中没有采集记录。"
+            showHistoryImportMessage("暂无可导入的采集记录", detail: detail)
+            return
+        }
+        if history.hasCodexReadings {
+            let confirm = NSAlert()
+            confirm.messageText = "导入额度采集记录？"
+            if let account {
+                confirm.informativeText = "文件中的 Codex 记录将合并到 \(accountName(for: account)) 的历史。"
+                confirm.addButton(withTitle: "导入")
+            } else {
+                confirm.informativeText = "当前没有选中的 Codex 额度账号。可先导入文件中的其他来源。"
+                confirm.addButton(withTitle: "导入其他来源")
+            }
+            confirm.addButton(withTitle: "取消")
+            guard confirm.runModal() == .alertFirstButtonReturn else { return }
+        }
+
+        if orbView.retainsHistoryAcrossLaunches {
+            historyArchiveGeneration = UUID()
+            orbView.retainsHistoryAcrossLaunches = try historyArchiveWriter.sync { try historyArchive.mergeImported(imported) }
+            applyHistoryArchiveResult(.success(()))
+        }
+        orbView.mergeImportedHistory(imported)
+        updateQuotaHistory(after: imported)
+        showHistoryImportMessage("采集记录已合并", detail: "可从“最近读取的额度”查看导入的来源和趋势。")
+    }
+
+    private func showHistoryImportMessage(_ title: String, detail: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = detail
+        alert.addButton(withTitle: "关闭")
+        alert.runModal()
     }
 
     private func performHistoryArchiveOperation(_ operation: () throws -> Void) {
