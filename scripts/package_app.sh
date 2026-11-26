@@ -2,21 +2,29 @@
 set -euo pipefail
 
 usage() {
-    printf '%s\n' '用法：zsh scripts/package_app.sh [输出目录]'
+    printf '%s\n' '用法：zsh scripts/package_app.sh [--zip] [输出目录]'
 }
 
-if (( $# > 1 )); then
-    usage >&2
-    exit 2
-fi
-case "${1:-}" in
-    -h|--help) usage; exit 0 ;;
-    -*) usage >&2; exit 2 ;;
-esac
+output=""
+zip_app=false
+for argument in "$@"; do
+    case "${argument}" in
+        -h|--help) usage; exit 0 ;;
+        --zip) zip_app=true ;;
+        -*) usage >&2; exit 2 ;;
+        *)
+            if [[ -n "${output}" ]]; then
+                usage >&2
+                exit 2
+            fi
+            output="${argument}"
+            ;;
+    esac
+done
 
 script_dir="${0:A:h}"
 repository_dir="${script_dir:h}"
-output="${1:-${repository_dir}/.build/distribution}"
+output="${output:-${repository_dir}/.build/distribution}"
 output="${output:A}"
 
 cd "${repository_dir}"
@@ -39,5 +47,14 @@ cp "${binary_dir}/PetQuotaDisplay" "${app}/Contents/MacOS/PetQuotaDisplay"
 /usr/bin/codesign --force --sign - --timestamp=none "${app}"
 /usr/bin/codesign --verify --strict "${app}"
 
+if [[ "${zip_app}" == true ]]; then
+    archive="${distribution}/PetQuotaDisplay.zip"
+    /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${app}" "${archive}"
+    /usr/bin/unzip -tq "${archive}"
+fi
+
 completed=true
 printf 'App：%s\n' "${app}"
+if [[ "${zip_app}" == true ]]; then
+    printf 'ZIP：%s\n' "${archive}"
+fi

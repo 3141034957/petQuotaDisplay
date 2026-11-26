@@ -156,3 +156,5 @@ swift build -c release
 ## 构建 macOS 应用
 
 运行 `zsh scripts/package_app.sh` 会在 `.build/distribution` 下生成一个本机签名的 `PetQuotaDisplay.app`，并打印路径。也可传入其他输出目录。双击打开时会沿用本机已有的悬浮球设置和 Codex 额度账号。
+
+需要压缩包时，可运行 `zsh scripts/package_app.sh --zip`，同一目录会同时生成 `PetQuotaDisplay.zip`。
