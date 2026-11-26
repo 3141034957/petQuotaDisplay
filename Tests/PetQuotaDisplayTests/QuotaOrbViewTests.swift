@@ -5,6 +5,16 @@ import XCTest
 
 @MainActor
 final class QuotaOrbViewTests: XCTestCase {
+    func testAccessibilityPressRefreshesWhenReady() {
+        let view = QuotaOrbView(frame: .zero)
+        var refreshes = 0
+        view.onRefresh = { refreshes += 1 }
+        XCTAssertFalse(view.accessibilityPerformPress())
+        view.state = .failed("连接中断")
+        XCTAssertTrue(view.accessibilityPerformPress())
+        XCTAssertEqual(refreshes, 1)
+    }
+
     func testStaleQuotaShowsLastUpdateAndFailureUntilRecovery() throws {
         let view = QuotaOrbView(frame: NSRect(x: 0, y: 0, width: 111, height: 111))
         let snapshot = QuotaSnapshot(

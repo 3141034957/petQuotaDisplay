@@ -269,7 +269,20 @@ final class QuotaOrbView: NSView {
         windowOriginAtMouseDown = nil
     }
 
-    override func menu(for event: NSEvent) -> NSMenu? {
+    override func accessibilityPerformPress() -> Bool {
+        guard let onRefresh, !state.isRefreshing else { return false }
+        onRefresh()
+        return true
+    }
+
+    override func accessibilityPerformShowMenu() -> Bool {
+        guard window?.isVisible == true else { return false }
+        return makeMenu().popUp(positioning: nil, at: NSPoint(x: bounds.midX, y: bounds.midY), in: self)
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? { makeMenu() }
+
+    private func makeMenu() -> NSMenu {
         let menu = NSMenu(title: "\(provider.title) 额度")
         menu.autoenablesItems = false
         let refresh = NSMenuItem(title: "立即刷新", action: #selector(refreshFromMenu), keyEquivalent: "r")
