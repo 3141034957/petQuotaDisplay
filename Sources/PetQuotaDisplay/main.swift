@@ -4,7 +4,7 @@ import QuotaCore
 let usage = """
 用法：PetQuotaDisplay [显示模式] [--provider 来源] [--period 周期] [--refresh-interval 秒数]
       PetQuotaDisplay --diagnose [--json]
-      PetQuotaDisplay --query [--provider 来源] [--period 周期]
+      PetQuotaDisplay --query [--provider 来源] [--period 周期] [--timeout 秒数]
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端
@@ -14,6 +14,7 @@ let usage = """
   --refresh-interval  定时刷新间隔：\(QuotaRefreshCadence.allCases.map { String($0.rawValue) }.joined(separator: ", "))，0 表示关闭
   --diagnose      在终端检查各额度来源的本机配置
   --query         在终端读取一次额度并输出 JSON
+  --timeout       单次查询等待秒数，默认 65 秒
   --json          将诊断输出为 JSON，供脚本读取
   -h, --help      显示帮助
 """
@@ -35,20 +36,16 @@ case ["--diagnose", "--json"]:
     }
     exit(0)
 case _ where arguments.first == "--query":
-    let options: QuotaDisplayOptions
+    let options: QuotaQueryOptions
     do {
-        options = try QuotaDisplayOptions(arguments: Array(arguments.dropFirst()))
-        guard options.mode == nil, options.refreshCadence == nil else {
-            FileHandle.standardError.write(Data("--query 接受 --provider 和 --period 选项。\n".utf8))
-            exit(64)
-        }
+        options = try QuotaQueryOptions(arguments: Array(arguments.dropFirst()))
     } catch {
         FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
         exit(64)
     }
     do {
         let provider = options.provider ?? QuotaPreferences.selectedProvider()
-        var export = try QuotaQuery.snapshot(from: provider)
+        var export = try QuotaQuery.snapshot(from: provider, timeout: options.timeout)
         if let period = options.period { try export.selectPeriod(period) }
         print(try export.json())
         exit(0)

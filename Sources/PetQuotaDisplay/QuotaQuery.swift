@@ -2,7 +2,7 @@ import Foundation
 import QuotaCore
 
 enum QuotaQuery {
-    static func snapshot(from provider: QuotaProvider) throws -> QuotaExport {
+    static func snapshot(from provider: QuotaProvider, timeout: TimeInterval) throws -> QuotaExport {
         let state: QuotaDisplayState
         switch provider {
         case .claudeCode:
@@ -13,7 +13,7 @@ enum QuotaQuery {
                   CodexAccountProfile.hasStoredCredentials(for: account) else { throw Failure.codexAccountRequired }
             let client = CodexQuotaClient(codexHome: try CodexAccountProfile.homeURL(for: account))
             defer { client.stop() }
-            state = try waitForResult { complete in
+            state = try waitForResult(timeout: timeout) { complete in
                 client.onAccount = { account in
                     if account == nil { complete(.failure(Failure.codexAccountRequired)) }
                 }
@@ -22,26 +22,27 @@ enum QuotaQuery {
                 client.start()
             }
         case .gemini:
-            state = try run(GeminiQuotaClient())
+            state = try run(GeminiQuotaClient(), timeout: timeout)
         case .openCodeGo:
-            state = try run(OpenCodeGoQuotaClient())
+            state = try run(OpenCodeGoQuotaClient(), timeout: timeout)
         case .kimiCode:
-            state = try run(KimiQuotaClient())
+            state = try run(KimiQuotaClient(), timeout: timeout)
         }
 
         guard let export = QuotaExport(provider: provider, state: state) else { throw Failure.noResult }
         return export
     }
 
-    private static func run(_ client: PollingQuotaClient) throws -> QuotaDisplayState {
+    private static func run(_ client: PollingQuotaClient, timeout: TimeInterval) throws -> QuotaDisplayState {
         defer { client.stop() }
-        return try waitForResult { complete in
+        return try waitForResult(timeout: timeout) { complete in
             client.onResult = complete
             client.refresh()
         }
     }
 
     private static func waitForResult(
+        timeout: TimeInterval,
         start: (@escaping (Result<QuotaSnapshot, Error>) -> Void) -> Void
     ) throws -> QuotaDisplayState {
         var result: Result<QuotaSnapshot, Error>?
@@ -49,7 +50,7 @@ enum QuotaQuery {
             if result == nil { result = response }
         }
 
-        let deadline = Date().addingTimeInterval(65)
+        let deadline = Date().addingTimeInterval(timeout)
         let timer = Timer(fire: deadline, interval: 0, repeats: false) { _ in }
         RunLoop.main.add(timer, forMode: .default)
         defer { timer.invalidate() }
