@@ -259,4 +259,6 @@ swift build -c release
 
 加上 `--checksum` 会同时生成 ZIP 和 `PetQuotaDisplay.zip.sha256`。收到这两个文件后，可在同一目录运行 `shasum -a 256 -c PetQuotaDisplay.zip.sha256` 核对压缩包。
 
+加上 `--json` 可让脚本直接读取生成的应用、压缩包、校验文件路径和可用的构建提交标识。
+
 用 `python3 main.py --version` 查看版本。通过 Git 工作区打包的 `.app` 会记录构建时的提交标识，包含未提交改动时会带 `+dirty`。

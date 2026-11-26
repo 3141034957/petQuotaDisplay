@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-    printf '%s\n' '用法：zsh scripts/package_app.sh [--universal] [--zip] [--checksum] [输出目录]' \
+    printf '%s\n' '用法：zsh scripts/package_app.sh [--universal] [--zip] [--checksum] [--json] [输出目录]' \
         '--checksum 会生成 ZIP 和对应的 SHA-256 校验文件'
 }
 
@@ -10,12 +10,14 @@ output=""
 zip_app=false
 universal=false
 checksum=false
+json_output=false
 for argument in "$@"; do
     case "${argument}" in
         -h|--help) usage; exit 0 ;;
         --zip) zip_app=true ;;
         --universal) universal=true ;;
         --checksum) checksum=true; zip_app=true ;;
+        --json) json_output=true ;;
         -*) usage >&2; exit 2 ;;
         *)
             if [[ -n "${output}" ]]; then
@@ -47,7 +49,9 @@ fi
 mkdir -p "${output}"
 distribution="$(mktemp -d "${output}/PetQuotaDisplay.XXXXXX")"
 completed=false
+report=""
 cleanup() {
+    [[ -z "${report}" ]] || rm -f "${report}"
     [[ "${completed}" == true ]] || rm -rf "${distribution}"
 }
 trap cleanup EXIT
@@ -69,28 +73,45 @@ if build_revision="$(git rev-parse --short=12 HEAD 2>/dev/null)"; then
     fi
     /usr/libexec/PlistBuddy -c "Add :PetQuotaDisplayRevision string ${build_revision}" "${app}/Contents/Info.plist"
 fi
-/usr/bin/plutil -lint "${app}/Contents/Info.plist"
+/usr/bin/plutil -lint "${app}/Contents/Info.plist" >&2
 /usr/bin/codesign --force --sign - --timestamp=none "${app}"
 /usr/bin/codesign --verify --strict "${app}"
 
 if [[ "${zip_app}" == true ]]; then
     archive="${distribution}/PetQuotaDisplay.zip"
     /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${app}" "${archive}"
-    /usr/bin/unzip -tq "${archive}"
+    /usr/bin/unzip -tq "${archive}" >&2
 fi
 if [[ "${checksum}" == true ]]; then
     (
         cd "${distribution}"
         /usr/bin/shasum -a 256 PetQuotaDisplay.zip > PetQuotaDisplay.zip.sha256
-        /usr/bin/shasum -a 256 -c PetQuotaDisplay.zip.sha256
+        /usr/bin/shasum -a 256 -c PetQuotaDisplay.zip.sha256 >&2
     )
 fi
 
+if [[ "${json_output}" == true ]]; then
+    report="$(mktemp "${TMPDIR:-/tmp}/PetQuotaDisplay.package.XXXXXX")"
+    /usr/bin/plutil -create xml1 "${report}"
+    /usr/bin/plutil -insert appPath -string "${app}" "${report}"
+    if [[ "${zip_app}" == true ]]; then
+        /usr/bin/plutil -insert zipPath -string "${archive}" "${report}"
+    fi
+    if [[ "${checksum}" == true ]]; then
+        /usr/bin/plutil -insert checksumPath -string "${archive}.sha256" "${report}"
+    fi
+    if [[ -n "${build_revision}" ]]; then
+        /usr/bin/plutil -insert revision -string "${build_revision}" "${report}"
+    fi
+    /usr/bin/plutil -convert json -o - "${report}"
+    printf '\n'
+else
+    printf 'App：%s\n' "${app}"
+    if [[ "${zip_app}" == true ]]; then
+        printf 'ZIP：%s\n' "${archive}"
+    fi
+    if [[ "${checksum}" == true ]]; then
+        printf 'SHA-256：%s\n' "${archive}.sha256"
+    fi
+fi
 completed=true
-printf 'App：%s\n' "${app}"
-if [[ "${zip_app}" == true ]]; then
-    printf 'ZIP：%s\n' "${archive}"
-fi
-if [[ "${checksum}" == true ]]; then
-    printf 'SHA-256：%s\n' "${archive}.sha256"
-fi
