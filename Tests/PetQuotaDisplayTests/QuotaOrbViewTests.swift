@@ -285,6 +285,22 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertNotNil(cleared.item(withTitle: "Codex · 尚无结果"))
     }
 
+    func testReturningToAProviderShowsItsPreviousResultWhileRefreshing() throws {
+        let view = QuotaOrbView(frame: .zero)
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 32, resetsAt: nil))
+        view.provider = .gemini
+        view.state = .loaded(snapshot)
+
+        view.provider = .kimiCode
+        view.beginPollingWithRecentQuota()
+        XCTAssertEqual(view.state, .loading)
+        view.provider = .gemini
+        view.beginPollingWithRecentQuota()
+        XCTAssertEqual(view.state, .refreshing(snapshot))
+        XCTAssertEqual(view.menuBarTitle, "68%…")
+        XCTAssertNotNil(try menu(view).item(withTitle: "正在刷新，显示上次数据"))
+    }
+
     func testClearingRecentQuotaLeavesTheCurrentDisplayIntact() throws {
         let view = QuotaOrbView(frame: .zero)
         view.provider = .gemini

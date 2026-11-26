@@ -232,7 +232,14 @@ final class QuotaOrbView: NSView {
                 let status = state.errorMessage != nil ? "上次" : "缓存"
                 title = "Claude · \(status)\(displayed.title)"
             } else if provider != .codex {
-                let status = state.errorMessage != nil ? "上次\(displayed.title)" : displayed.title
+                let status: String
+                if state.errorMessage != nil {
+                    status = "上次\(displayed.title)"
+                } else if state.isRefreshing {
+                    status = "同步中"
+                } else {
+                    status = displayed.title
+                }
                 title = "\(provider.title) · \(status)"
             } else if state.errorMessage != nil {
                 title = "上次\(displayed.title)额度"
@@ -418,6 +425,10 @@ final class QuotaOrbView: NSView {
             detail.isEnabled = false
             menu.addItem(detail)
             menu.addItem(.separator())
+        } else if loadedSnapshot != nil, state.isRefreshing {
+            let status = menu.addItem(withTitle: "正在刷新，显示上次数据", action: nil, keyEquivalent: "")
+            status.isEnabled = false
+            menu.addItem(.separator())
         }
 
         menu.addItem(appearanceMenuItem())
@@ -442,6 +453,11 @@ final class QuotaOrbView: NSView {
 
     func forgetQuota(for source: QuotaProvider, account: CodexAccountSlot? = nil) {
         recentQuotas.removeValue(forKey: QuotaContext(provider: source, account: account))
+    }
+
+    func beginPollingWithRecentQuota() {
+        let previous = recentQuotas[quotaContext(for: provider)]?.latest
+        state = previous.map(QuotaDisplayState.refreshing) ?? .loading
     }
 
     private func recentQuotasMenuItem() -> NSMenuItem {

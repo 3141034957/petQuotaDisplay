@@ -295,7 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func startPollingClient(_ client: PollingQuotaClient) {
-        orbView.state = .loading
+        orbView.beginPollingWithRecentQuota()
         client.onRefreshing = { [weak self, weak client] in
             guard let self, let client, self.pollingClient === client else { return }
             self.orbView.state.beginRefresh()
