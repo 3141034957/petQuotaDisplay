@@ -287,6 +287,13 @@ final class CodexQuotaClient {
                 requestAccountLocked()
             }
         case .accountRead:
+            let rawAccount = result["account"]
+            let accountType = (rawAccount as? [String: Any])?["type"] as? String
+            let signedOut = rawAccount is NSNull || (rawAccount == nil && result["requiresOpenaiAuth"] is Bool)
+            guard signedOut || accountType?.isEmpty == false else {
+                emit(error: ClientError.malformedResponse)
+                return
+            }
             let account = CodexAccountParser.parse(result: result)
             if verifiedAccount != account,
                let id = pendingRequests.first(where: { $0.value == .rateLimits })?.key {

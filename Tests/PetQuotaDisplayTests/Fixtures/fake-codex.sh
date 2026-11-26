@@ -60,6 +60,13 @@ while IFS= read -r line; do
             printf '{"id":%s,"result":{"status":"canceled"}}\n' "$id"
             ;;
         *refreshToken*)
+            if [ "$scenario" = malformed-account-on-refresh ]; then
+                account_reads=$((${account_reads:-0} + 1))
+                if [ "$account_reads" -gt 1 ]; then
+                    printf '{"id":%s,"result":{}}\n' "$id"
+                    continue
+                fi
+            fi
             if [ "$scenario" = login-cancel ]; then
                 printf '{"id":%s,"result":{"account":null}}\n' "$id"
                 continue

@@ -130,6 +130,20 @@ final class CodexQuotaClientTests: XCTestCase {
         wait(for: [replacement], timeout: 5)
     }
 
+    func testMalformedAccountReplyDoesNotReportASignOut() throws {
+        let fixture = try makeClient(scenario: "malformed-account-on-refresh")
+        defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let invalid = expectation(description: "malformed account read reported")
+        fixture.client.onAccount = { account in XCTAssertNotNil(account) }
+        fixture.client.onReport = { [weak client = fixture.client] _ in client?.refresh() }
+        fixture.client.onError = { error in
+            guard case CodexQuotaClient.ClientError.malformedResponse = error else { return XCTFail("Unexpected error: \(error)") }
+            invalid.fulfill()
+        }
+        fixture.client.start()
+        wait(for: [invalid], timeout: 5)
+    }
+
     func testStopCancelsScheduledRestart() throws {
         let fixture = try makeClient(scenario: "always-timeout", restartDelay: 0.2)
         defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }
