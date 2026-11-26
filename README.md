@@ -79,7 +79,7 @@ printf '%s\n' "$payload" | /usr/bin/env python3 '/你的路径/petQuotaDisplay/s
 # 继续使用 "$payload" 生成原有的状态栏输出
 ```
 
-右键切换到 **Claude Code**。使用 Claude 订阅账号进行一次正常对话后，状态栏会提供 5 小时和 7 天额度。悬浮球显示最近采集的数据及采集时间。某个周期过期时会优先显示仍有效的周期。如果都已过期，会把结果标为上次缓存，等 Claude Code 写入新数据。采集脚本只保存用量百分比、重置时间和采集时间。[Claude Code 状态栏文档](https://code.claude.com/docs/en/statusline#rate-limits)
+右键切换到 **Claude Code**。使用 Claude 订阅账号进行一次正常对话后，状态栏会提供 5 小时和 7 天额度。悬浮球显示最近采集的数据及采集时间。某个周期过期时会优先显示仍有效的周期。缺少重置时间时，从采集时刻起满一个周期即视为过期。如果都已过期，会把结果标为上次缓存，等 Claude Code 写入新数据。采集脚本只保存用量百分比、重置时间和采集时间。[Claude Code 状态栏文档](https://code.claude.com/docs/en/statusline#rate-limits)
 
 ## OpenCode Go 额度
 

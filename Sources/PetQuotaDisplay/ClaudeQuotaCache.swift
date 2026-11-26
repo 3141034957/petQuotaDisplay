@@ -25,19 +25,20 @@ enum ClaudeQuotaCache {
         let weekly = report.sevenDay?.quota
         guard fiveHour != nil || weekly != nil else { throw Failure.invalidSnapshot }
 
-        let activeFiveHour = fiveHour.flatMap { window in
-            window.resetsAt.map { $0 <= now } == true ? nil : window
+        func active(_ quota: QuotaWindow?, maximumAge: TimeInterval) -> QuotaWindow? {
+            guard let quota else { return nil }
+            let expiresAt = quota.resetsAt ?? fetchedAt.addingTimeInterval(maximumAge)
+            return expiresAt > now ? quota : nil
         }
-        let activeWeekly = weekly.flatMap { window in
-            window.resetsAt.map { $0 <= now } == true ? nil : window
-        }
+        let activeFiveHour = active(fiveHour, maximumAge: 5 * 3_600)
+        let activeWeekly = active(weekly, maximumAge: 7 * 24 * 3_600)
         if activeFiveHour != nil || activeWeekly != nil {
             return .loaded(QuotaSnapshot(
                 planType: nil, fiveHour: activeFiveHour, weekly: activeWeekly, fetchedAt: fetchedAt
             ))
         }
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: fiveHour, weekly: weekly, fetchedAt: fetchedAt)
-        return .stale(snapshot, "额度周期已重置，等待 Claude Code 提供新的状态栏数据")
+        return .stale(snapshot, "额度快照已过期，等待 Claude Code 提供新的状态栏数据")
     }
 
     private enum Failure: LocalizedError {
@@ -62,9 +63,10 @@ enum ClaudeQuotaCache {
 
             var quota: QuotaWindow? {
                 guard (0...100).contains(usedPercentage) else { return nil }
+                let reset = resetsAt.flatMap { $0 > 0 && $0.isFinite ? Date(timeIntervalSince1970: $0) : nil }
                 return QuotaWindow(
                     usedPercent: Int(usedPercentage.rounded()),
-                    resetsAt: resetsAt.map(Date.init(timeIntervalSince1970:))
+                    resetsAt: reset
                 )
             }
         }
