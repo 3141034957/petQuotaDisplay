@@ -18,6 +18,8 @@ swift run PetQuotaDisplay
 
 独立运行会立即显示额度，并沿用上次选择的显示方式。运行 `python3 main.py --always-show` 可在本次启动强制显示悬浮球，使用 `--follow-codex` 可在 Codex 运行时显示额度。用 `python3 main.py --help` 查看启动选项。
 
+如果只想跟随一种 Codex 使用方式，可用 `--follow-codex-desktop` 或 `--follow-codex-cli`，分别跟随桌面端或独立终端 CLI。
+
 可用 `python3 main.py --provider gemini` 指定本次启动时的来源。切换来源会照常保存，而仅使用启动参数会保留已有设置。
 
 可以组合 `--provider openCodeGo --period monthly` 指定初次展示的周期。`--period lowestRemaining` 会自动选择剩余最少的周期。切换来源、账号或手动选择周期后，会使用对应的保存设置。

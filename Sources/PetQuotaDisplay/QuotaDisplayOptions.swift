@@ -4,7 +4,12 @@ import QuotaCore
 struct QuotaDisplayOptions {
     enum Mode: String {
         case followCodex = "--follow-codex"
+        case followCodexDesktop = "--follow-codex-desktop"
+        case followCodexCLI = "--follow-codex-cli"
         case forceOrb = "--always-show"
+
+        var monitorsCodexDesktop: Bool { self == .followCodex || self == .followCodexDesktop }
+        var monitorsCodexCLI: Bool { self == .followCodex || self == .followCodexCLI }
     }
 
     private(set) var mode: Mode?

@@ -2,10 +2,12 @@ import AppKit
 import QuotaCore
 
 let usage = """
-用法：PetQuotaDisplay [--always-show | --follow-codex] [--provider 来源] [--period 周期] [--refresh-interval 秒数]
+用法：PetQuotaDisplay [显示模式] [--provider 来源] [--period 周期] [--refresh-interval 秒数]
       PetQuotaDisplay --diagnose [--json]
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
+  --follow-codex-desktop  仅跟随 Codex 桌面端
+  --follow-codex-cli      仅跟随独立 Codex CLI
   --provider      本次启动的来源：\(QuotaProvider.allCases.map(\.rawValue).joined(separator: ", "))
   --period        初次展示的周期：\((QuotaPeriod.allCases.map(\.rawValue) + [QuotaWindowPreference.lowestRemaining]).joined(separator: ", "))
   --refresh-interval  定时刷新间隔：\(QuotaRefreshCadence.allCases.map { String($0.rawValue) }.joined(separator: ", "))，0 表示关闭

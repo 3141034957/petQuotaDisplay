@@ -9,7 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var orbSizePreference = OrbSizePreference.load()
     private var orbSize: NSSize { orbSizePreference.size }
     private let displayOptions: QuotaDisplayOptions
-    private var followCodex: Bool { displayOptions.mode == .followCodex }
+    private var monitorsCodexDesktop: Bool { displayOptions.mode?.monitorsCodexDesktop == true }
+    private var monitorsCodexCLI: Bool { displayOptions.mode?.monitorsCodexCLI == true }
+    private var followCodex: Bool { monitorsCodexDesktop || monitorsCodexCLI }
     private var forceOrbVisible: Bool { displayOptions.mode == .forceOrb }
     private var client: CodexQuotaClient?
     private var pollingClient: PollingQuotaClient?
@@ -64,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             object: nil
         )
 
-        if followCodex {
+        if monitorsCodexDesktop {
             let notifications = NSWorkspace.shared.notificationCenter
             notifications.addObserver(
                 self,
@@ -79,6 +81,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 object: nil
             )
             codexGUIRunning = isCodexRunning
+        }
+        if monitorsCodexCLI {
             let cliMonitor = CodexCLIProcessMonitor()
             cliMonitor.onRunningStateChanged = { [weak self] isRunning in
                 self?.codexCLIRunning = isRunning
@@ -86,6 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             self.cliMonitor = cliMonitor
             cliMonitor.start()
+        }
+        if followCodex {
             reconcileOrbVisibility()
         } else {
             startOrb()

@@ -30,4 +30,18 @@ final class QuotaDisplayOptionsTests: XCTestCase {
         XCTAssertThrowsError(try QuotaDisplayOptions(arguments: ["--refresh-interval", "-1"]))
         XCTAssertThrowsError(try QuotaDisplayOptions(arguments: ["--refresh-interval", "15"]))
     }
+
+    func testFollowModesOnlyWatchTheirConfiguredCodexEntryPoint() throws {
+        let desktop = try QuotaDisplayOptions(arguments: ["--follow-codex-desktop"]).mode
+        XCTAssertEqual(desktop?.monitorsCodexDesktop, true)
+        XCTAssertEqual(desktop?.monitorsCodexCLI, false)
+
+        let cli = try QuotaDisplayOptions(arguments: ["--follow-codex-cli"]).mode
+        XCTAssertEqual(cli?.monitorsCodexDesktop, false)
+        XCTAssertEqual(cli?.monitorsCodexCLI, true)
+
+        let either = try QuotaDisplayOptions(arguments: ["--follow-codex"]).mode
+        XCTAssertEqual(either?.monitorsCodexDesktop, true)
+        XCTAssertEqual(either?.monitorsCodexCLI, true)
+    }
 }
