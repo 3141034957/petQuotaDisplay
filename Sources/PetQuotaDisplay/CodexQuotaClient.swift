@@ -525,8 +525,9 @@ final class CodexQuotaClient {
         guard let address = value as? String,
               let components = URLComponents(string: address),
               let scheme = components.scheme?.lowercased(), ["https", "http"].contains(scheme),
-              let host = components.host, !host.isEmpty,
+              let host = components.host?.lowercased(), !host.isEmpty,
               components.user == nil, components.password == nil else { return nil }
+        if scheme == "http", !["localhost", "127.0.0.1", "::1", "[::1]"].contains(host) { return nil }
         return components.url
     }
 

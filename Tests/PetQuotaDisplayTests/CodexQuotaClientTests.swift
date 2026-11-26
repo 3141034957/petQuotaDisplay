@@ -5,7 +5,11 @@ final class CodexQuotaClientTests: XCTestCase {
     func testBrowserLoginURLAcceptsWebAddressesOnly() {
         let address = "https://auth.example.com/oauth?state=fixture"
         XCTAssertEqual(CodexQuotaClient.browserLoginURL(address)?.absoluteString, address)
-        for invalid in ["file:///tmp/fixture", "codex://login", "https:/relative", "https://user@example.com/login"] {
+        for localhost in ["http://localhost:12345/login", "http://127.0.0.1:12345/login", "http://[::1]:12345/login"] {
+            XCTAssertNotNil(CodexQuotaClient.browserLoginURL(localhost), localhost)
+        }
+        for invalid in ["file:///tmp/fixture", "codex://login", "https:/relative", "https://user@example.com/login",
+                        "http://auth.example.com/login", "http://localhost.example.com/login"] {
             XCTAssertNil(CodexQuotaClient.browserLoginURL(invalid), invalid)
         }
     }
