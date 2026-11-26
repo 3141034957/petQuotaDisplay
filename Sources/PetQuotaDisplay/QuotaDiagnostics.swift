@@ -20,12 +20,15 @@ enum QuotaDiagnostics {
     }
 
     struct Report: Encodable {
+        let version = QuotaBuildInformation.version
+        let revision = QuotaBuildInformation.revision
         let sources: [Source]
         let display: DisplayPreferences
 
         var summary: String {
             let sourceLines = sources.map { "\($0.title)：\($0.detail)" }
-            return (["额度来源本机检查"] + sourceLines + ["", display.summary]).joined(separator: "\n")
+            return ([QuotaBuildInformation.summary, "额度来源本机检查"] + sourceLines + ["", display.summary])
+                .joined(separator: "\n")
         }
     }
 
@@ -33,6 +36,9 @@ enum QuotaDiagnostics {
         let provider: String
         let refreshIntervalSeconds: Int
         let orbDiameter: Int
+        let orbOpacityPercent: Int
+        let orbPositionLocked: Bool
+        let orbShowsOnAllSpaces: Bool
         let showsMenuBar: Bool
         let showsOrb: Bool
 
@@ -40,6 +46,9 @@ enum QuotaDiagnostics {
             provider = QuotaPreferences.selectedProvider(defaults: defaults).rawValue
             refreshIntervalSeconds = QuotaRefreshCadence.load(defaults: defaults).rawValue
             orbDiameter = OrbSizePreference.load(defaults: defaults).rawValue
+            orbOpacityPercent = OrbOpacityPreference.load(defaults: defaults).rawValue
+            orbPositionLocked = defaults.bool(forKey: QuotaPreferences.orbPositionLockedKey)
+            orbShowsOnAllSpaces = defaults.object(forKey: QuotaPreferences.orbAllSpacesKey) as? Bool ?? true
             showsMenuBar = defaults.bool(forKey: QuotaPreferences.menuBarEnabledKey)
             showsOrb = !showsMenuBar || !defaults.bool(forKey: QuotaPreferences.menuBarOnlyKey)
         }
@@ -48,7 +57,9 @@ enum QuotaDiagnostics {
             let source = QuotaProvider(rawValue: provider)?.title ?? provider
             let interval = refreshIntervalSeconds == 0 ? "关闭" : "\(refreshIntervalSeconds) 秒"
             let mode = showsOrb ? (showsMenuBar ? "悬浮球和菜单栏" : "悬浮球") : "仅菜单栏"
-            return "保存的显示设置：\(source) · 定时刷新 \(interval) · \(mode)"
+            let placement = orbPositionLocked ? "位置已锁定" : "允许拖动"
+            let spaces = orbShowsOnAllSpaces ? "所有桌面" : "按系统桌面归属显示"
+            return "保存的显示设置：\(source) · 定时刷新 \(interval) · \(mode)\n悬浮球：\(orbDiameter) pt · \(orbOpacityPercent)% 不透明度 · \(placement) · \(spaces)"
         }
     }
 

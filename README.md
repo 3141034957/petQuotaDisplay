@@ -26,7 +26,7 @@ swift run PetQuotaDisplay
 
 `--refresh-interval 120` 可临时指定每 120 秒刷新，`--refresh-interval 0` 则关闭本次运行的定时刷新。
 
-运行 `python3 main.py --diagnose` 可在终端检查 Codex、Gemini、Kimi 的命令是否可用，以及 Claude Code 是否采集过额度，同时查看保存的来源、定时刷新和显示模式。检查在本机完成，无需登录或读取钥匙串。脚本可通过 `--diagnose --json` 读取结构化结果。
+运行 `python3 main.py --diagnose` 可在终端检查 Codex、Gemini、Kimi 的命令是否可用，以及 Claude Code 是否采集过额度，同时查看构建版本、刷新周期和悬浮球外观设置。检查在本机完成，无需登录或读取钥匙串。脚本可通过 `--diagnose --json` 读取结构化结果。
 
 用 `python3 main.py --query --provider gemini` 可在终端读取一次额度并输出 JSON，无需打开悬浮球。省略 `--provider` 时使用保存的来源。该命令沿用各来源原有的登录和密钥配置，Claude Code 会读取本机状态栏快照。
 
