@@ -23,5 +23,7 @@ final class QuotaHistorySeriesTests: XCTestCase {
         let nearest = chart.nearestPoint(to: Date(timeIntervalSince1970: 2.25))
         XCTAssertEqual(nearest?.remainingPercent, 95)
         XCTAssertEqual(nearest?.resetsAt, secondReset)
+        XCTAssertEqual(chart.csv(provider: .gemini, period: .weekly).split(separator: "\n").count, 5)
+        XCTAssertTrue(chart.csv(provider: .gemini, period: .weekly).contains("gemini,weekly,1970-01-01T00:00:01Z,50,"))
     }
 }

@@ -664,11 +664,11 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func copyQuotaSummary() {
-        copyText(quotaSummary)
+        QuotaClipboard.copy(quotaSummary)
     }
 
     @objc private func copyQuotaJSON() {
-        copyText(quotaJSON)
+        QuotaClipboard.copy(quotaJSON)
     }
 
     var quotaJSON: String? {
@@ -676,7 +676,7 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func copyRecentQuotaSummary() {
-        copyText(recentQuotaSummary)
+        QuotaClipboard.copy(recentQuotaSummary)
     }
 
     @objc private func clearRecentQuotas() {
@@ -689,13 +689,6 @@ final class QuotaOrbView: NSView {
               let source = QuotaProvider(rawValue: rawValue),
               let history = recentQuotas[quotaContext(for: source)] else { return }
         onShowQuotaHistory?(source, history.readings)
-    }
-
-    private func copyText(_ text: String?) {
-        guard let text else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
     }
 
     var recentQuotaSummary: String? {

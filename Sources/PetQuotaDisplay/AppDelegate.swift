@@ -187,7 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func showQuotaHistory(source: QuotaProvider, readings: [QuotaSnapshot]) {
-        let content = NSHostingController(rootView: QuotaHistoryView(readings: readings))
+        let content = NSHostingController(rootView: QuotaHistoryView(source: source, readings: readings))
         let controller: NSWindowController
         if let historyWindowController, let window = historyWindowController.window {
             window.contentViewController = content

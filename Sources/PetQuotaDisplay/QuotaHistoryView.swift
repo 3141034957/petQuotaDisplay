@@ -3,11 +3,13 @@ import QuotaCore
 import SwiftUI
 
 struct QuotaHistoryView: View {
+    let source: QuotaProvider
     let readings: [QuotaSnapshot]
     @State private var selectedPeriod: QuotaPeriod
     @State private var hoveredTime: Date?
 
-    init(readings: [QuotaSnapshot]) {
+    init(source: QuotaProvider, readings: [QuotaSnapshot]) {
+        self.source = source
         self.readings = readings
         let initial = QuotaWindowPreference.presentationOrder.first { period in
             readings.contains { $0[period] != nil }
@@ -23,11 +25,18 @@ struct QuotaHistoryView: View {
         let series = QuotaHistorySeries(readings: readings, period: selectedPeriod)
         let hoveredPoint = hoveredTime.flatMap(series.nearestPoint(to:))
         VStack(alignment: .leading, spacing: 14) {
-            Picker("额度周期", selection: $selectedPeriod) {
-                ForEach(periods, id: \.self) { period in Text(period.title).tag(period) }
+            HStack {
+                Picker("额度周期", selection: $selectedPeriod) {
+                    ForEach(periods, id: \.self) { period in Text(period.title).tag(period) }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: selectedPeriod) { _ in hoveredTime = nil }
+                Button("复制 CSV") {
+                    QuotaClipboard.copy(series.csv(provider: source, period: selectedPeriod))
+                }
+                .disabled(series.points.isEmpty)
+                .help("复制当前周期的采集记录")
             }
-            .pickerStyle(.segmented)
-            .onChange(of: selectedPeriod) { _ in hoveredTime = nil }
 
             Chart {
                 ForEach(series.points) { point in
