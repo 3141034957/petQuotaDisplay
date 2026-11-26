@@ -2,19 +2,30 @@
 set -euo pipefail
 
 usage() {
-    printf '%s\n' '用法：zsh scripts/install_autostart.sh [--follow-codex | --follow-codex-desktop | --follow-codex-cli | --always-show | --status]'
+    printf '%s\n' '用法：zsh scripts/install_autostart.sh [显示模式] [--dry-run]' \
+        '      zsh scripts/install_autostart.sh --status' \
+        '显示模式：--follow-codex、--follow-codex-desktop、--follow-codex-cli、--always-show'
 }
 
-mode="${1:-}"
-if (( $# > 1 )); then
+mode=""
+show_status=false
+dry_run=false
+for argument in "$@"; do
+    case "${argument}" in
+        --follow-codex|--follow-codex-desktop|--follow-codex-cli|--always-show)
+            if [[ -n "${mode}" ]]; then usage >&2; exit 2; fi
+            mode="${argument}"
+            ;;
+        --status) show_status=true ;;
+        --dry-run) dry_run=true ;;
+        -h|--help) usage; exit 0 ;;
+        *) usage >&2; exit 2 ;;
+    esac
+done
+if [[ "${show_status}" == true && ( -n "${mode}" || "${dry_run}" == true ) ]]; then
     usage >&2
     exit 2
 fi
-case "${mode}" in
-    ""|--follow-codex|--follow-codex-desktop|--follow-codex-cli|--always-show|--status) ;;
-    -h|--help) usage; exit 0 ;;
-    *) usage >&2; exit 2 ;;
-esac
 
 script_dir="${0:A:h}"
 repository_dir="${script_dir:h}"
@@ -32,7 +43,7 @@ read_installed_mode() {
     printf '%s\n' "${argument:---always-show}"
 }
 
-if [[ "${mode}" == --status ]]; then
+if [[ "${show_status}" == true ]]; then
     if [[ -x "${installed_binary}" ]]; then
         printf '%s\n' '程序：已安装'
     else
@@ -66,6 +77,12 @@ if [[ -z "${mode}" ]]; then
             --follow-codex|--follow-codex-desktop|--follow-codex-cli|--always-show) mode="${launch_argument}" ;;
         esac
     fi
+fi
+
+if [[ "${dry_run}" == true ]]; then
+    printf '程序路径：%s\nLaunchAgent 路径：%s\n拟采用模式：%s\n' \
+        "${installed_binary}" "${installed_plist}" "${mode}"
+    exit 0
 fi
 
 cd "${repository_dir}"

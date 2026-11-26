@@ -138,6 +138,8 @@ zsh scripts/install_autostart.sh --follow-codex
 
 运行 `zsh scripts/install_autostart.sh --status` 可查看安装状态、模式，以及 LaunchAgent 是否已加载。
 
+运行 `zsh scripts/install_autostart.sh --dry-run` 可只预览将使用的路径和模式，也可同时传入一个模式参数。
+
 更新时直接重新运行安装脚本即可。脚本会编译 Release 版本、替换程序并重启 LaunchAgent，保留已选的自启动模式、账号和悬浮球设置。独立运行 `python3 main.py` 会打开另一个实例。
 
 这个方案不会修改或注入 Codex 应用，不受 Codex 代码签名影响。若要停用：
