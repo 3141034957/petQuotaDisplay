@@ -511,6 +511,23 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(opened?.modelID, "extra")
     }
 
+    func testModelTrendHasAGapWhenASuccessfulCodexRefreshOmitsTheModel() throws {
+        let view = QuotaOrbView(frame: .zero)
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        view.selectedAccount = account
+        let scope = QuotaHistoryContext(provider: .codex, account: account, modelID: "extra")
+        for offset in 1...3 {
+            let reading = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 20, resetsAt: nil),
+                                        fetchedAt: Date(timeIntervalSince1970: TimeInterval(offset)))
+            view.codexMeteredQuotas = offset == 2 ? [] : [CodexMeteredQuota(id: "extra", name: "Extra", snapshot: reading)]
+            view.state = .loaded(reading)
+        }
+        XCTAssertEqual(view.historyForArchive[scope]?.count, 2)
+        let readings = view.trendReadings(for: scope)
+        XCTAssertEqual(readings.count, 3)
+        XCTAssertEqual(QuotaHistorySeries(readings: readings, period: .weekly).points.map(\.segment), [0, 1])
+    }
+
     func testCopySummaryIsAvailableForSnapshotsAndIdentifiesStaleData() throws {
         let view = QuotaOrbView(frame: .zero)
         XCTAssertNil(view.quotaSummary)

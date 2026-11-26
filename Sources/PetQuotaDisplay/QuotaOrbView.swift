@@ -508,6 +508,17 @@ final class QuotaOrbView: NSView {
 
     var historyForArchive: [QuotaHistoryContext: [QuotaSnapshot]] { recentQuotas.mapValues(\.readings) }
 
+    func trendReadings(for context: QuotaHistoryContext) -> [QuotaSnapshot] {
+        guard let readings = recentQuotas[context]?.readings, let start = readings.first?.fetchedAt else { return [] }
+        guard context.modelID != nil, let primary = recentQuotas[context.primary]?.readings else { return readings }
+        let modelTimes = Set(readings.map(\.fetchedAt))
+        let gaps = primary.compactMap { reading -> QuotaSnapshot? in
+            guard reading.fetchedAt > start, !modelTimes.contains(reading.fetchedAt) else { return nil }
+            return QuotaSnapshot(planType: nil, fiveHour: nil, weekly: nil, fetchedAt: reading.fetchedAt)
+        }
+        return (readings + gaps).sorted { $0.fetchedAt < $1.fetchedAt }
+    }
+
     func restoreHistory(_ snapshots: [QuotaHistoryContext: [QuotaSnapshot]]) {
         for (context, readings) in snapshots {
             for snapshot in readings {
@@ -970,9 +981,9 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func showQuotaHistory(_ sender: NSMenuItem) {
-        guard let context = sender.representedObject as? QuotaHistoryContext,
-              let history = recentQuotas[context] else { return }
-        onShowQuotaHistory?(context, history.readings)
+        guard let context = sender.representedObject as? QuotaHistoryContext else { return }
+        let readings = trendReadings(for: context)
+        if !readings.isEmpty { onShowQuotaHistory?(context, readings) }
     }
 
     var recentQuotaSummary: String? {

@@ -11,6 +11,8 @@ struct QuotaHistoryContext: Hashable {
         self.account = account
         self.modelID = modelID
     }
+
+    var primary: Self { Self(provider: provider, account: account) }
 }
 
 struct QuotaHistorySeries {

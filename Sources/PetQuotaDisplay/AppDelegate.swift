@@ -266,7 +266,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func showHistoryFromNotification(_ context: QuotaHistoryContext) {
-        if let readings = orbView.historyForArchive[context], !readings.isEmpty {
+        let readings = orbView.trendReadings(for: context)
+        if !readings.isEmpty {
             showQuotaHistory(context: context, readings: readings)
         } else {
             let alert = NSAlert()
@@ -277,8 +278,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    private func updateQuotaHistory(context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
-        guard let historyWindowModel, historyWindowModel.context == context else { return }
+    private func updateQuotaHistory(after changes: [QuotaHistoryContext: [QuotaSnapshot]]) {
+        guard let historyWindowModel else { return }
+        let context = historyWindowModel.context
+        guard changes[context] != nil || changes[context.primary] != nil else { return }
+        let readings = orbView.trendReadings(for: context)
         if readings.isEmpty {
             closeQuotaHistory()
         } else {
@@ -321,10 +325,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func historyDidChange(_ changes: [QuotaHistoryContext: [QuotaSnapshot]]) {
-        for (context, readings) in changes {
-            updateQuotaHistory(context: context, readings: readings)
-            if readings.isEmpty { lowQuotaReminder.remove(context) }
-        }
+        updateQuotaHistory(after: changes)
+        for (context, readings) in changes where readings.isEmpty { lowQuotaReminder.remove(context) }
         guard orbView.retainsHistoryAcrossLaunches else { return }
         let archive = historyArchive
         let snapshots = changes.mapValues(\.last)
