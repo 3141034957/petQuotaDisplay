@@ -104,6 +104,7 @@ enum QuotaDiagnostics {
         let orbDiameter: Int
         let orbOpacityPercent: Int
         let orbPositionLocked: Bool
+        let orbStaysOnTop: Bool
         let orbShowsOnAllSpaces: Bool
         let showsMenuBar: Bool
         let showsOrb: Bool
@@ -114,6 +115,7 @@ enum QuotaDiagnostics {
             orbDiameter = OrbSizePreference.load(defaults: defaults).rawValue
             orbOpacityPercent = OrbOpacityPreference.load(defaults: defaults).rawValue
             orbPositionLocked = defaults.bool(forKey: QuotaPreferences.orbPositionLockedKey)
+            orbStaysOnTop = QuotaPreferences.orbStaysOnTop(defaults: defaults)
             orbShowsOnAllSpaces = defaults.object(forKey: QuotaPreferences.orbAllSpacesKey) as? Bool ?? true
             showsMenuBar = defaults.bool(forKey: QuotaPreferences.menuBarEnabledKey)
             showsOrb = !showsMenuBar || !defaults.bool(forKey: QuotaPreferences.menuBarOnlyKey)
@@ -125,7 +127,8 @@ enum QuotaDiagnostics {
             let mode = showsOrb ? (showsMenuBar ? "悬浮球和菜单栏" : "悬浮球") : "仅菜单栏"
             let placement = orbPositionLocked ? "位置已锁定" : "允许拖动"
             let spaces = orbShowsOnAllSpaces ? "所有桌面" : "按系统桌面归属显示"
-            return "保存的显示设置：\(source) · 定时刷新 \(interval) · \(mode)\n悬浮球：\(orbDiameter) pt · \(orbOpacityPercent)% 不透明度 · \(placement) · \(spaces)"
+            let level = orbStaysOnTop ? "置顶" : "普通窗口层级"
+            return "保存的显示设置：\(source) · 定时刷新 \(interval) · \(mode)\n悬浮球：\(orbDiameter) pt · \(orbOpacityPercent)% 不透明度 · \(placement) · \(level) · \(spaces)"
         }
     }
 

@@ -5,7 +5,6 @@ import UniformTypeIdentifiers
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
-    private static let floatingOrbDefaultsKey = "orb.staysOnTop"
     private static let quotaMenuBarImage = NSImage(systemSymbolName: "gauge", accessibilityDescription: nil)
     private static let lowQuotaMenuBarImage = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)
 
@@ -141,7 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
-        let staysOnTop = forceOrbVisible || (QuotaPreferences.shared.object(forKey: Self.floatingOrbDefaultsKey) as? Bool ?? true)
+        let staysOnTop = QuotaPreferences.orbStaysOnTop()
         window.level = staysOnTop ? .floating : .normal
         window.isReleasedWhenClosed = false
         window.animationBehavior = .utilityWindow
@@ -867,7 +866,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     private func toggleWindowLevel() {
         orbView.staysOnTop.toggle()
-        QuotaPreferences.shared.set(orbView.staysOnTop, forKey: Self.floatingOrbDefaultsKey)
+        QuotaPreferences.shared.set(orbView.staysOnTop, forKey: QuotaPreferences.orbStaysOnTopKey)
         window.level = orbView.staysOnTop ? .floating : .normal
         reconcileWindowVisibility()
     }
