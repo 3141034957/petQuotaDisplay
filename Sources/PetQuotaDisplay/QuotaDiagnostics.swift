@@ -4,6 +4,7 @@ enum QuotaDiagnostics {
     struct Options {
         private(set) var provider: QuotaProvider?
         private(set) var json = false
+        private(set) var requireReady = false
 
         init(arguments: [String]) throws {
             var arguments = arguments[...]
@@ -16,6 +17,8 @@ enum QuotaDiagnostics {
                     provider = source
                 case "--json" where !json:
                     json = true
+                case "--require-ready" where !requireReady:
+                    requireReady = true
                 default:
                     throw InvalidOptions()
                 }
@@ -23,7 +26,7 @@ enum QuotaDiagnostics {
         }
 
         private struct InvalidOptions: LocalizedError {
-            var errorDescription: String? { "用法：PetQuotaDisplay --diagnose [--provider 来源] [--json]" }
+            var errorDescription: String? { "用法：PetQuotaDisplay --diagnose [--provider 来源] [--json] [--require-ready]" }
         }
     }
 
@@ -50,6 +53,8 @@ enum QuotaDiagnostics {
         let revision = QuotaBuildInformation.revision
         let sources: [Source]
         let display: DisplayPreferences
+
+        var allSourcesAvailable: Bool { sources.allSatisfy { $0.status == .available } }
 
         var summary: String {
             let sourceLines = sources.map { "\($0.title)：\($0.detail)" }

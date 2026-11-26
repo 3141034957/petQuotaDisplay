@@ -6,7 +6,7 @@ let periodHelp = (QuotaPeriod.allCases.map(\.rawValue) + [QuotaWindowPreference.
 let formatHelp = QuotaExport.Format.allCases.map(\.rawValue).joined(separator: ", ")
 let usage = """
 用法：PetQuotaDisplay [显示模式] [--provider 来源] [--period 周期] [--refresh-interval 秒数]
-      PetQuotaDisplay --diagnose [--provider 来源] [--json]
+      PetQuotaDisplay --diagnose [--provider 来源] [--json] [--require-ready]
       PetQuotaDisplay --query [查询选项]
       PetQuotaDisplay --list-codex-accounts
       PetQuotaDisplay --history [历史选项]
@@ -74,7 +74,7 @@ case _ where arguments.first == "--diagnose":
         FileHandle.standardError.write(Data("无法生成诊断 JSON。\n".utf8))
         exit(70)
     }
-    exit(0)
+    exit(options.requireReady && !report.allSourcesAvailable ? 1 : 0)
 case ["--list-codex-accounts"]:
     do {
         print(try QuotaOutput.json(CodexAccountProfile.accountList()))

@@ -32,6 +32,8 @@ swift run PetQuotaDisplay
 
 加上 `--diagnose --provider gemini` 可指定只检查一个来源，也可与 `--json` 一起使用。
 
+脚本可加 `--require-ready`。配置缺失、缓存过期或需要在应用内检查时，诊断会照常输出，退出码为 `1`。诊断只检查本机配置，验证登录和实际额度请运行实时查询。
+
 用 `python3 main.py --query --provider gemini` 可在终端读取一次额度并输出 JSON，无需打开悬浮球。省略 `--provider` 时使用保存的来源。该命令沿用各来源原有的登录和密钥配置，Claude Code 会读取本机状态栏快照。运行 `python3 main.py --query --help` 可查看所有查询参数。
 
 用 `python3 main.py --query --all --format text` 可并行查询所有来源，共用同一个等待期限。某个来源缺少配置或查询失败时，命令仍会输出其他来源的结果并返回 `1`。CSV 会用 `error` 列标记失败来源。
