@@ -328,15 +328,18 @@ final class QuotaOrbView: NSView {
         }
         menu.addItem(.separator())
 
-        if let snapshot = loadedSnapshot, let displayed = displayedQuota(in: snapshot) {
-            let reset = displayed.quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知"
-            let detail = NSMenuItem(
-                title: "\(displayed.title)额度：剩余 \(displayed.quota.remainingPercent)% · \(reset) 重置",
-                action: nil,
-                keyEquivalent: ""
-            )
-            detail.isEnabled = false
-            menu.addItem(detail)
+        if let snapshot = loadedSnapshot {
+            for period in DisplayedWindow.allCases {
+                guard let quota = period.quota(in: snapshot) else { continue }
+                let reset = quota.resetsAt.map { "\(Self.longDateFormatter.string(from: $0)) 重置" } ?? "重置时间未知"
+                let detail = NSMenuItem(
+                    title: "\(period.title)额度：剩余 \(quota.remainingPercent)% · \(reset)",
+                    action: nil,
+                    keyEquivalent: ""
+                )
+                detail.isEnabled = false
+                menu.addItem(detail)
+            }
             let updated = NSMenuItem(
                 title: "\(lastUpdatedLabel)：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))",
                 action: nil,

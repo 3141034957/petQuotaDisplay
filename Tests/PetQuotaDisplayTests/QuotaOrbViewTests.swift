@@ -127,6 +127,22 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertNil(try menu(view).item(withTitle: "展示本月额度"))
     }
 
+    func testMenuShowsAllReturnedWindowsAtOnce() throws {
+        let view = QuotaOrbView(frame: .zero)
+        view.provider = .kimiCode
+        view.state = .loaded(QuotaSnapshot(
+            planType: nil,
+            fiveHour: QuotaWindow(usedPercent: 20, resetsAt: nil),
+            weekly: QuotaWindow(usedPercent: 30, resetsAt: Date(timeIntervalSince1970: 1_800_000_000)),
+            monthly: QuotaWindow(usedPercent: 40, resetsAt: nil)
+        ))
+
+        let items = try menu(view).items.map(\.title)
+        XCTAssertTrue(items.contains("5 小时额度：剩余 80% · 重置时间未知"))
+        XCTAssertTrue(items.contains { $0.hasPrefix("本周额度：剩余 70% · ") && $0.hasSuffix("重置") })
+        XCTAssertTrue(items.contains("本月额度：剩余 60% · 重置时间未知"))
+    }
+
     private func menu(_ view: QuotaOrbView) throws -> NSMenu {
         let menu = try XCTUnwrap(view.menu(for: NSEvent()))
         menu.update()
