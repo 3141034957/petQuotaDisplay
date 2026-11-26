@@ -6,45 +6,55 @@ final class CodexCLIProcessMonitor {
     var onRunningStateChanged: ((Bool) -> Void)?
 
     private let queue = DispatchQueue(label: "com.petquotadisplay.cli-monitor", qos: .utility)
+    private let readSnapshot: () -> [ProcessRecord]?
     private var timer: DispatchSourceTimer?
+    private var timerID: UUID?
     private var lastRunningState: Bool?
+
+    init(readSnapshot: @escaping () -> [ProcessRecord]? = CodexCLIProcessMonitor.processSnapshot) {
+        self.readSnapshot = readSnapshot
+    }
 
     func start() {
         guard timer == nil else { return }
+        let id = UUID()
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now(), repeating: .seconds(3), leeway: .milliseconds(500))
-        timer.setEventHandler { [weak self] in self?.scan() }
+        timer.setEventHandler { [weak self] in self?.scan(timerID: id) }
+        timerID = id
         self.timer = timer
         timer.resume()
     }
 
     func stop() {
+        timerID = nil
+        lastRunningState = nil
         timer?.setEventHandler {}
         timer?.cancel()
         timer = nil
     }
 
-    private func scan() {
-        let records = Self.processSnapshot()
+    private func scan(timerID: UUID) {
+        guard let records = readSnapshot() else { return }
         let isRunning = CodexProcessClassifier.containsInteractiveCLI(
             in: records,
             monitorPID: ProcessInfo.processInfo.processIdentifier
         )
-        guard isRunning != lastRunningState else { return }
-        lastRunningState = isRunning
         DispatchQueue.main.async { [weak self] in
-            self?.onRunningStateChanged?(isRunning)
+            guard let self, self.timerID == timerID, isRunning != self.lastRunningState else { return }
+            self.lastRunningState = isRunning
+            self.onRunningStateChanged?(isRunning)
         }
     }
 
-    private static func processSnapshot() -> [ProcessRecord] {
+    private static func processSnapshot() -> [ProcessRecord]? {
         let estimatedCount = max(256, Int(proc_listallpids(nil, 0)) + 64)
         var pids = [pid_t](repeating: 0, count: estimatedCount)
         let bytes = Int32(pids.count * MemoryLayout<pid_t>.stride)
         let actualCount = pids.withUnsafeMutableBufferPointer { buffer in
             Int(proc_listallpids(buffer.baseAddress, bytes))
         }
-        guard actualCount > 0 else { return [] }
+        guard actualCount > 0 else { return nil }
 
         return pids.prefix(min(actualCount, pids.count)).compactMap { pid in
             guard pid > 0,
