@@ -140,8 +140,17 @@ if [[ "${json_output}" == true ]]; then
     /usr/bin/plutil -insert appPath -string "${app}" "${report}"
     version="$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "${metadata}")"
     build_number="$(/usr/bin/plutil -extract CFBundleVersion raw -o - "${metadata}")"
+    minimum_macos="$(/usr/bin/plutil -extract LSMinimumSystemVersion raw -o - "${metadata}")"
     /usr/bin/plutil -insert version -string "${version}" "${report}"
     /usr/bin/plutil -insert buildNumber -string "${build_number}" "${report}"
+    /usr/bin/plutil -insert minimumMacOS -string "${minimum_macos}" "${report}"
+    architecture_list="$(/usr/bin/lipo -archs "${binary}")"
+    /usr/bin/plutil -insert architectures -json '[]' "${report}"
+    architecture_index=0
+    for architecture in ${=architecture_list}; do
+        /usr/bin/plutil -insert "architectures.${architecture_index}" -string "${architecture}" "${report}"
+        architecture_index=$((architecture_index + 1))
+    done
     if [[ "${zip_app}" == true ]]; then
         /usr/bin/plutil -insert zipPath -string "${archive}" "${report}"
     fi
