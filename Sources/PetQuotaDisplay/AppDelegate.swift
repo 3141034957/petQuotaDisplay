@@ -165,6 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onQuotaHistoryChanged = { [weak self] context, readings in self?.historyDidChange(context, readings: readings) }
         orbView.onQuotaHistoryCleared = { [weak self] in self?.clearHistory() }
         orbView.onToggleHistoryArchive = { [weak self] in self?.toggleHistoryArchive() }
+        orbView.onResetHistoryArchive = { [weak self] in self?.resetHistoryArchive() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
@@ -248,6 +249,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let initial = orbView.historyForArchive
             try historyArchiveWriter.sync { try historyArchive.setEnabled(enabled, initial: initial) }
             orbView.retainsHistoryAcrossLaunches = enabled
+        }
+    }
+
+    private func resetHistoryArchive() {
+        let alert = NSAlert()
+        alert.messageText = "重置本机额度存档？"
+        alert.informativeText = "确认后会清除本机存档并关闭跨启动保留。本次运行中的采集记录仍可查看。"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "重置存档")
+        alert.addButton(withTitle: "取消")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        performHistoryArchiveOperation {
+            try historyArchiveWriter.sync { try historyArchive.setEnabled(false) }
+            orbView.retainsHistoryAcrossLaunches = false
         }
     }
 

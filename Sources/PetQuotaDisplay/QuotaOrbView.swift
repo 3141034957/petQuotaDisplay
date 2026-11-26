@@ -30,6 +30,7 @@ final class QuotaOrbView: NSView {
     var onQuotaHistoryChanged: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
     var onToggleHistoryArchive: (() -> Void)?
+    var onResetHistoryArchive: (() -> Void)?
     var retainsHistoryAcrossLaunches = false
     var historyArchiveError: String?
     var refreshCadence: QuotaRefreshCadence = .thirtySeconds
@@ -473,6 +474,8 @@ final class QuotaOrbView: NSView {
         if let historyArchiveError {
             let message = submenu.addItem(withTitle: historyArchiveError, action: nil, keyEquivalent: "")
             message.isEnabled = false
+            let reset = submenu.addItem(withTitle: "重置本机存档…", action: #selector(resetHistoryArchive), keyEquivalent: "")
+            reset.target = self
         }
         submenu.addItem(.separator())
         for source in QuotaProvider.allCases {
@@ -716,6 +719,7 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func toggleHistoryArchive() { onToggleHistoryArchive?() }
+    @objc private func resetHistoryArchive() { onResetHistoryArchive?() }
 
     @objc private func clearSourceQuotaHistory(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,

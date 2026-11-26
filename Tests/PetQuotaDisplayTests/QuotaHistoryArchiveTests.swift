@@ -3,6 +3,19 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaHistoryArchiveTests: XCTestCase {
+    func testResetCanReplaceAnUnreadableArchive() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = QuotaHistoryArchive(directory: root)
+        try archive.setEnabled(true)
+        try Data("invalid JSON".utf8).write(to: root.appendingPathComponent("history.json"))
+        XCTAssertThrowsError(try archive.load())
+        try archive.setEnabled(false)
+        XCTAssertFalse(try archive.load().isEnabled)
+        try archive.setEnabled(true)
+        XCTAssertTrue(try archive.load().isEnabled)
+    }
+
     func testHistoryLimitUsesTheNewestMatchingReadings() {
         let older = snapshot(at: 10)
         let matching = snapshot(at: 20)
