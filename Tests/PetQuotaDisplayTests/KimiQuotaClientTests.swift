@@ -100,6 +100,55 @@ final class KimiQuotaClientTests: XCTestCase {
         XCTAssertEqual(launches.split(separator: "\n").count, 1)
     }
 
+    func testLocalRateLimitBlocksAFollowUpRequestUntilRetryAfter() throws {
+        let files = FileManager.default
+        let directory = files.temporaryDirectory.appendingPathComponent("kimi-rate-\(UUID().uuidString)")
+        try files.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? files.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("kimi")
+        try #"""
+        #!/bin/sh
+        printf '%s\n' '{"origin":"http://127.0.0.1:58627","token":"local-token"}'
+        exec /bin/sleep 10
+        """#.write(to: executable, atomically: true, encoding: .utf8)
+        try files.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RateLimitedUsageStub.self]
+        let session = URLSession(configuration: configuration)
+        let client = KimiQuotaClient(executable: { executable }, session: session)
+        defer { client.stop(); session.invalidateAndCancel() }
+
+        let first = expectation(description: "local usage reports a retry delay")
+        client.onResult = { response in
+            if case .failure(let error) = response {
+                XCTAssertTrue(error.localizedDescription.contains("暂时受限"))
+            } else {
+                XCTFail("Expected a rate-limit error")
+            }
+            first.fulfill()
+        }
+        client.refresh()
+        wait(for: [first], timeout: 5)
+        var reportedImmediately = false
+        client.onResult = { _ in reportedImmediately = true }
+        client.refresh()
+        XCTAssertTrue(reportedImmediately)
+    }
+
+    private final class RateLimitedUsageStub: URLProtocol {
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+        override func startLoading() {
+            let response = HTTPURLResponse(url: request.url!, statusCode: 429, httpVersion: nil,
+                                           headerFields: ["Retry-After": "45"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocolDidFinishLoading(self)
+        }
+
+        override func stopLoading() {}
+    }
+
     private final class UsageStub: URLProtocol {
         static let report = Data("""
         {"code":0,"data":{"kind":"ok","quota":{"usages":{

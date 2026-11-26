@@ -10,6 +10,7 @@ final class KimiQuotaClient: PollingQuotaClient {
     private var startupTimeout: DispatchWorkItem?
     private var connection: Connection?
     private var request: URLSessionDataTask?
+    private var rateLimitedUntil: Date?
 
     var onRefreshing: (() -> Void)?
     var onResult: ((Result<QuotaSnapshot, Error>) -> Void)?
@@ -26,6 +27,10 @@ final class KimiQuotaClient: PollingQuotaClient {
 
     func refresh() {
         guard request == nil, startupTimeout == nil else { return }
+        if let rateLimitedUntil, rateLimitedUntil > Date() {
+            onResult?(.failure(Failure.rateLimited))
+            return
+        }
         onRefreshing?()
         if let server, server.isRunning, let connection {
             fetchUsage(from: connection, server: server)
@@ -123,10 +128,14 @@ final class KimiQuotaClient: PollingQuotaClient {
     private func fetchUsage(from connection: Connection, server: Process) {
         let request = QuotaHTTP.request(to: connection.usageURL, token: connection.token)
         self.request = session.dataTask(with: request) { [weak self] data, response, error in
+            let httpResponse = response as? HTTPURLResponse
+            let retryDate = httpResponse?.statusCode == 429
+                ? QuotaHTTP.retryDate(httpResponse?.value(forHTTPHeaderField: "Retry-After")) : nil
             let result = Result {
                 if (error as? URLError)?.code == .timedOut { throw Failure.requestTimedOut }
-                if (response as? HTTPURLResponse)?.statusCode == 404 { throw Failure.unsupportedCLI }
-                guard error == nil, (response as? HTTPURLResponse)?.statusCode == 200, let data else {
+                if httpResponse?.statusCode == 404 { throw Failure.unsupportedCLI }
+                if httpResponse?.statusCode == 429 { throw Failure.rateLimited }
+                guard error == nil, httpResponse?.statusCode == 200, let data else {
                     throw Failure.requestFailed
                 }
                 return try Self.parseReport(data)
@@ -134,6 +143,7 @@ final class KimiQuotaClient: PollingQuotaClient {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.server === server else { return }
                 self.request = nil
+                self.rateLimitedUntil = retryDate
                 self.onResult?(result)
             }
         }
@@ -243,7 +253,7 @@ final class KimiQuotaClient: PollingQuotaClient {
 
     private enum Failure: LocalizedError {
         case missingCLI, startupFailed, startupTimedOut, serverExited, unsupportedCLI
-        case requestFailed, requestTimedOut, invalidReport, accountUnavailable, noQuota
+        case requestFailed, requestTimedOut, invalidReport, accountUnavailable, noQuota, rateLimited
 
         var errorDescription: String? {
             switch self {
@@ -257,6 +267,7 @@ final class KimiQuotaClient: PollingQuotaClient {
             case .invalidReport: return "Kimi Code 返回的额度格式无法识别"
             case .accountUnavailable: return "Kimi Code 未能读取订阅额度，请在终端运行 kimi login 检查登录"
             case .noQuota: return "当前 Kimi Code 账号未返回可用的额度周期"
+            case .rateLimited: return "Kimi Code 额度查询暂时受限，请稍后再试"
             }
         }
     }
