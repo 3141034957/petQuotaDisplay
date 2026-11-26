@@ -2,7 +2,7 @@ import AppKit
 import QuotaCore
 import SwiftUI
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
     private static let floatingOrbDefaultsKey = "orb.staysOnTop"
     private static let quotaMenuBarImage = NSImage(systemSymbolName: "gauge", accessibilityDescription: nil)
@@ -21,8 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var orbView: QuotaOrbView!
     private var refreshTimer: Timer?
     private let claudeCacheMonitor = ClaudeQuotaCacheMonitor(directory: ClaudeQuotaCache.directory)
-    private var historyWindowController: NSWindowController?
-    private var historyWindowModel: QuotaHistoryWindowModel?
+    private var historyWindows: [QuotaHistoryContext: (controller: NSWindowController, model: QuotaHistoryWindowModel)] = [:]
+    private var nextHistoryWindowLocation = NSPoint.zero
     private let historyArchive = QuotaHistoryArchive.local
     private let historyArchiveWriter = DispatchQueue(label: "com.erenshwang.petquotadisplay.history", qos: .utility)
     private var historyArchiveGeneration = UUID()
@@ -234,37 +234,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func showQuotaHistory(context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
-        if let historyWindowController, let historyWindowModel, historyWindowModel.context == context {
-            historyWindowModel.readings = readings
+        if let existing = historyWindows[context] {
+            existing.model.readings = readings
             NSApp.activate(ignoringOtherApps: true)
-            historyWindowController.showWindow(nil)
+            existing.controller.showWindow(nil)
+            existing.controller.window?.makeKeyAndOrderFront(nil)
             return
         }
         let model = QuotaHistoryWindowModel(context: context, readings: readings)
-        historyWindowModel = model
         let content = NSHostingController(rootView: QuotaHistoryView(model: model))
-        let controller: NSWindowController
-        if let historyWindowController, let window = historyWindowController.window {
-            window.contentViewController = content
-            controller = historyWindowController
-        } else {
-            let historyWindow = NSWindow(contentViewController: content)
-            historyWindow.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            historyWindow.isReleasedWhenClosed = false
-            historyWindow.setContentSize(NSSize(width: 540, height: 360))
+        let historyWindow = NSWindow(contentViewController: content)
+        historyWindow.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        historyWindow.isReleasedWhenClosed = false
+        historyWindow.setContentSize(NSSize(width: 540, height: 360))
+        historyWindow.delegate = self
+        if historyWindows.isEmpty {
             historyWindow.center()
-            controller = NSWindowController(window: historyWindow)
-            historyWindowController = controller
+            nextHistoryWindowLocation = NSPoint(x: historyWindow.frame.minX + 24, y: historyWindow.frame.maxY - 24)
+        } else {
+            nextHistoryWindowLocation = historyWindow.cascadeTopLeft(from: nextHistoryWindowLocation)
         }
-        updateHistoryWindowTitle()
+        historyWindow.title = historyWindowTitle(for: context)
+        let controller = NSWindowController(window: historyWindow)
+        historyWindows[context] = (controller, model)
         NSApp.activate(ignoringOtherApps: true)
         controller.showWindow(nil)
     }
 
-    private func updateHistoryWindowTitle() {
-        guard let context = historyWindowModel?.context else { return }
+    private func historyWindowTitle(for context: QuotaHistoryContext) -> String {
         let parts = [context.provider.title, context.account.map(accountName(for:)), context.modelID, "额度趋势"].compactMap { $0 }
-        historyWindowController?.window?.title = parts.joined(separator: " · ")
+        return parts.joined(separator: " · ")
+    }
+
+    private func updateHistoryWindowTitles() {
+        for (context, openWindow) in historyWindows {
+            openWindow.controller.window?.title = historyWindowTitle(for: context)
+        }
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              let context = historyWindows.first(where: { $0.value.controller.window === window })?.key else { return }
+        historyWindows.removeValue(forKey: context)
     }
 
     private func showHistoryFromNotification(_ context: QuotaHistoryContext) {
@@ -281,14 +292,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateQuotaHistory(after changes: [QuotaHistoryContext: [QuotaSnapshot]]) {
-        guard let historyWindowModel else { return }
-        let context = historyWindowModel.context
-        guard changes[context] != nil || changes[context.primary] != nil else { return }
-        let readings = orbView.trendReadings(for: context)
-        if readings.isEmpty {
-            closeQuotaHistory()
-        } else {
-            historyWindowModel.readings = readings
+        let affected = historyWindows.filter { context, _ in changes[context] != nil || changes[context.primary] != nil }
+        for (context, openWindow) in affected {
+            let readings = orbView.trendReadings(for: context)
+            if readings.isEmpty {
+                historyWindows.removeValue(forKey: context)
+                openWindow.controller.close()
+            } else {
+                openWindow.model.readings = readings
+            }
         }
     }
 
@@ -346,7 +358,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func clearHistory() {
-        closeQuotaHistory()
+        let previous = historyWindows.values
+        historyWindows.removeAll()
+        previous.forEach { $0.controller.close() }
         guard orbView.retainsHistoryAcrossLaunches else { return }
         performHistoryArchiveOperation { try historyArchiveWriter.sync { try historyArchive.clear() } }
     }
@@ -361,12 +375,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .success: orbView.historyArchiveError = nil
         case .failure(let error): orbView.historyArchiveError = "本机历史记录暂不可用：\(error.localizedDescription)"
         }
-    }
-
-    private func closeQuotaHistory() {
-        historyWindowController?.close()
-        historyWindowController = nil
-        historyWindowModel = nil
     }
 
     private func setResetDisplay(_ mode: OrbResetDisplay) {
@@ -565,7 +573,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func toggleAccountEmail() {
         orbView.hidesAccountEmail.toggle()
         QuotaPreferences.shared.set(orbView.hidesAccountEmail, forKey: QuotaPreferences.hidesAccountEmailKey)
-        updateHistoryWindowTitle()
+        updateHistoryWindowTitles()
     }
 
     private func togglePositionLock() {
@@ -847,7 +855,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard alert.runModal() == .alertFirstButtonReturn, accounts.contains(account) else { return }
         CodexAccountProfile.setName(input.stringValue, for: account)
         updateAccountMenuState()
-        updateHistoryWindowTitle()
+        updateHistoryWindowTitles()
     }
 
     private func deleteAccount(_ account: CodexAccountSlot) {
