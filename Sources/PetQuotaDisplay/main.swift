@@ -10,6 +10,7 @@ let usage = """
       PetQuotaDisplay --query [查询选项]
       PetQuotaDisplay --list-codex-accounts
       PetQuotaDisplay --history [历史选项]
+      PetQuotaDisplay --inspect-history 文件 [--format text|json|csv]
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端
@@ -94,6 +95,24 @@ case ["--query", "-h"], ["--query", "--help"]:
 case ["--history", "-h"], ["--history", "--help"]:
     print(historyUsage)
     exit(0)
+case _ where arguments.first == "--inspect-history":
+    let format: QuotaExport.Format
+    if arguments.count == 2, !arguments[1].hasPrefix("--") {
+        format = .text
+    } else if arguments.count == 4, arguments[2] == "--format", let requested = QuotaExport.Format(rawValue: arguments[3]) {
+        format = requested
+    } else {
+        FileHandle.standardError.write(Data("用法：PetQuotaDisplay --inspect-history 文件 [--format text|json|csv]\n".utf8))
+        exit(64)
+    }
+    do {
+        let file = try QuotaPortableHistory.read(from: URL(fileURLWithPath: arguments[1]))
+        print(try QuotaHistoryStatistics(file.sources).render(as: format))
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
+        exit(1)
+    }
 case _ where arguments.first == "--history":
     let options: QuotaQueryOptions
     do {

@@ -102,6 +102,18 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertTrue(try statistics.render(as: .csv).hasSuffix("gemini,,weekly,2,50,80,50"))
     }
 
+    func testPortableHistoryReadsSingleAndBatchExportsAndRejectsOtherVersions() throws {
+        let reading = snapshot(at: 65)
+        let export = QuotaHistoryExport(provider: .codex, snapshots: [reading], modelID: "extra")
+        let single = try QuotaPortableHistory(data: Data(export.render(as: .json).utf8))
+        XCTAssertEqual(single.sources.first?.modelID, "extra")
+        XCTAssertEqual(single.sources.first?.readings.first?.snapshot, reading)
+        let batch = try QuotaHistoryBatchExport(sources: [export]).render(as: .json)
+        XCTAssertEqual(try QuotaPortableHistory(data: Data(batch.utf8)).sources.count, 1)
+        let unsupported = Data(#"{"schemaVersion":9,"provider":"codex","readings":[]}"#.utf8)
+        XCTAssertThrowsError(try QuotaPortableHistory(data: unsupported))
+    }
+
     func testBatchHistoryPreservesSourceOrderFiltersAndAccountScope() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

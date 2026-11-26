@@ -90,6 +90,8 @@ Codex 查询可加 `--model <额度标识>` 获取独立模型额度。省略 `-
 
 用 `--history --all --summary --format text` 可查看筛选后各周期的采集条数、最低与最高余量和最新余量。统计也支持 JSON 和 CSV。
 
+用 `python3 main.py --inspect-history quota-history.json` 可检查一个导出的历史 JSON 并查看统计。这个命令直接读取指定文件，无需启用本机存档。
+
 ### 悬浮球和菜单栏
 
 首次运行会编译原生程序，后续启动会快很多。悬浮球默认置顶，程序不会出现在 Dock 中：
