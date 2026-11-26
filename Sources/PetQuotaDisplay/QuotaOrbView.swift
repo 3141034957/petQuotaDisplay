@@ -290,6 +290,11 @@ final class QuotaOrbView: NSView {
         refresh.isEnabled = !state.isRefreshing
         menu.addItem(refresh)
 
+        let copy = NSMenuItem(title: "复制额度摘要", action: #selector(copyQuotaSummary), keyEquivalent: "c")
+        copy.target = self
+        copy.isEnabled = state.snapshot != nil
+        menu.addItem(copy)
+
         let sourceItem = NSMenuItem(title: "切换额度来源", action: nil, keyEquivalent: "")
         let sourceMenu = NSMenu(title: sourceItem.title)
         for source in QuotaProvider.allCases {
@@ -329,19 +334,13 @@ final class QuotaOrbView: NSView {
         menu.addItem(.separator())
 
         if let snapshot = loadedSnapshot {
-            for period in DisplayedWindow.allCases {
-                guard let quota = period.quota(in: snapshot) else { continue }
-                let reset = quota.resetsAt.map { "\(Self.longDateFormatter.string(from: $0)) 重置" } ?? "重置时间未知"
-                let detail = NSMenuItem(
-                    title: "\(period.title)额度：剩余 \(quota.remainingPercent)% · \(reset)",
-                    action: nil,
-                    keyEquivalent: ""
-                )
+            for line in quotaDetails(in: snapshot) {
+                let detail = NSMenuItem(title: line, action: nil, keyEquivalent: "")
                 detail.isEnabled = false
                 menu.addItem(detail)
             }
             let updated = NSMenuItem(
-                title: "\(lastUpdatedLabel)：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))",
+                title: updatedDetail(for: snapshot),
                 action: nil,
                 keyEquivalent: ""
             )
@@ -424,6 +423,36 @@ final class QuotaOrbView: NSView {
 
     @objc private func refreshFromMenu() { onRefresh?() }
     @objc private func quitFromMenu() { onQuit?() }
+
+    @objc private func copyQuotaSummary() {
+        guard let quotaSummary else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(quotaSummary, forType: .string)
+    }
+
+    var quotaSummary: String? {
+        guard let snapshot = state.snapshot else { return nil }
+        var lines = ["\(provider.title) 额度"] + quotaDetails(in: snapshot) + [updatedDetail(for: snapshot)]
+        if state.errorMessage != nil {
+            lines.append(staleMenuLabel)
+        } else if state.isRefreshing {
+            lines.append("正在刷新，显示上次数据")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func quotaDetails(in snapshot: QuotaSnapshot) -> [String] {
+        DisplayedWindow.allCases.compactMap { period in
+            guard let quota = period.quota(in: snapshot) else { return nil }
+            let reset = quota.resetsAt.map { "\(Self.longDateFormatter.string(from: $0)) 重置" } ?? "重置时间未知"
+            return "\(period.title)额度：剩余 \(quota.remainingPercent)% · \(reset)"
+        }
+    }
+
+    private func updatedDetail(for snapshot: QuotaSnapshot) -> String {
+        "\(lastUpdatedLabel)：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))"
+    }
 
     @objc private func selectProvider(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,

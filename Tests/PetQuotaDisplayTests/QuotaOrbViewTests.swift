@@ -143,6 +143,22 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertTrue(items.contains("本月额度：剩余 60% · 重置时间未知"))
     }
 
+    func testCopySummaryIsAvailableForSnapshotsAndIdentifiesStaleData() throws {
+        let view = QuotaOrbView(frame: .zero)
+        XCTAssertNil(view.quotaSummary)
+        XCTAssertFalse(try XCTUnwrap(menu(view).item(withTitle: "复制额度摘要")).isEnabled)
+
+        view.state = .stale(QuotaSnapshot(
+            planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 35, resetsAt: nil)
+        ), "连接中断")
+        XCTAssertTrue(try XCTUnwrap(menu(view).item(withTitle: "复制额度摘要")).isEnabled)
+        let summary = try XCTUnwrap(view.quotaSummary)
+        XCTAssertTrue(summary.hasPrefix("Codex 额度\n本周额度：剩余 65%"))
+        XCTAssertTrue(summary.contains("最后更新："))
+        XCTAssertTrue(summary.hasSuffix("刷新失败（显示上次数据）"))
+        XCTAssertFalse(summary.contains("连接中断"))
+    }
+
     private func menu(_ view: QuotaOrbView) throws -> NSMenu {
         let menu = try XCTUnwrap(view.menu(for: NSEvent()))
         menu.update()
