@@ -82,16 +82,24 @@ public enum QuotaParser {
 
     /// Parses the `result` object returned by `account/rateLimits/read`.
     public static func parse(result: [String: Any], now: Date = Date()) throws -> QuotaSnapshot {
-        guard let limits = result["rateLimits"] as? [String: Any] else {
+        let legacy = result["rateLimits"] as? [String: Any]
+        let metered = result["rateLimitsByLimitId"] as? [String: Any]
+        let namedCodex = metered?["codex"] as? [String: Any]
+        guard legacy != nil || namedCodex != nil else {
             throw QuotaParseError.missingRateLimits
         }
+        guard let snapshot = legacy.flatMap({ parseWindows($0, now: now) })
+            ?? namedCodex.flatMap({ parseWindows($0, now: now) }) else {
+            throw QuotaParseError.missingQuotaWindow
+        }
+        return snapshot
+    }
 
+    private static func parseWindows(_ limits: [String: Any], now: Date) -> QuotaSnapshot? {
         let candidates = ["primary", "secondary"].compactMap { limits[$0] as? [String: Any] }
         let fiveHour = window(durationMinutes: fiveHourDurationMinutes, in: candidates)
         let weekly = window(durationMinutes: weeklyDurationMinutes, in: candidates)
-        guard fiveHour != nil || weekly != nil else {
-            throw QuotaParseError.missingQuotaWindow
-        }
+        guard fiveHour != nil || weekly != nil else { return nil }
 
         return QuotaSnapshot(
             planType: limits["planType"] as? String,

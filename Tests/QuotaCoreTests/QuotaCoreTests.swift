@@ -161,4 +161,17 @@ final class QuotaCoreTests: XCTestCase {
             XCTAssertNil(snapshot.fiveHour?.resetsAt)
         }
     }
+
+    func testFallsBackToNamedCodexBucketWithoutUsingOtherModelQuotas() throws {
+        let payload: [String: Any] = [
+            "rateLimits": ["primary": NSNull()],
+            "rateLimitsByLimitId": [
+                "codex": ["primary": ["usedPercent": 20, "windowDurationMins": 10_080]],
+                "separate-model": ["primary": ["usedPercent": 99, "windowDurationMins": 300]],
+            ],
+        ]
+        let snapshot = try QuotaParser.parse(result: payload)
+        XCTAssertEqual(snapshot.weekly?.remainingPercent, 80)
+        XCTAssertNil(snapshot.fiveHour)
+    }
 }
