@@ -2,6 +2,10 @@ import Foundation
 import QuotaCore
 
 struct QuotaExport: Encodable {
+    enum Format: String, CaseIterable {
+        case json, text
+    }
+
     enum Status: String, Encodable {
         case current, refreshing, stale
     }
@@ -53,5 +57,30 @@ struct QuotaExport: Encodable {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return String(decoding: try encoder.encode(self), as: UTF8.self)
+    }
+
+    func render(as format: Format) throws -> String {
+        switch format {
+        case .json: return try json()
+        case .text: return text()
+        }
+    }
+
+    private func text() -> String {
+        let providerTitle = QuotaProvider(rawValue: provider)?.title ?? provider
+        let statusTitle: String
+        switch status {
+        case .current: statusTitle = "当前结果"
+        case .refreshing: statusTitle = "正在刷新，显示上次结果"
+        case .stale: statusTitle = "上次结果"
+        }
+        let formatter = ISO8601DateFormatter()
+        let source = [providerTitle, codexLimitID, statusTitle].compactMap { $0 }.joined(separator: " · ")
+        let rows = periods.map { period in
+            let title = QuotaPeriod(rawValue: period.id)?.title ?? period.id
+            let reset = period.resetsAt.map(formatter.string(from:)) ?? "未知"
+            return "\(title)剩余 \(period.remainingPercent)% · 重置时间 \(reset)"
+        }
+        return ([source, "采集时间 \(formatter.string(from: fetchedAt))"] + rows).joined(separator: "\n")
     }
 }

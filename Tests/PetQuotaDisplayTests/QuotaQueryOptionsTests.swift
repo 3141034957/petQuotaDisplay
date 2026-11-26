@@ -8,11 +8,14 @@ final class QuotaQueryOptionsTests: XCTestCase {
         XCTAssertEqual(options.period, "weekly")
         XCTAssertEqual(options.timeout, 5)
         XCTAssertEqual(try QuotaQueryOptions(arguments: []).timeout, 65)
+        XCTAssertEqual(try QuotaQueryOptions(arguments: []).format, .json)
+        XCTAssertEqual(try QuotaQueryOptions(arguments: ["--format", "text"]).format, .text)
     }
 
     func testRejectsUnsupportedFlagsAndInvalidValues() throws {
         for arguments in [["--always-show"], ["--timeout"], ["--timeout", "0"], ["--timeout", "3601"],
-                          ["--timeout", "1", "--timeout", "2"], ["--period", "yearly"], ["--provider", "typo"]] {
+                          ["--timeout", "1", "--timeout", "2"], ["--period", "yearly"], ["--provider", "typo"],
+                          ["--format", "markdown"]] {
             XCTAssertThrowsError(try QuotaQueryOptions(arguments: arguments), arguments.joined(separator: " "))
         }
     }

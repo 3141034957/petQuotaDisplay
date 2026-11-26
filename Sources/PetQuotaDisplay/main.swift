@@ -4,7 +4,7 @@ import QuotaCore
 let usage = """
 用法：PetQuotaDisplay [显示模式] [--provider 来源] [--period 周期] [--refresh-interval 秒数]
       PetQuotaDisplay --diagnose [--json]
-      PetQuotaDisplay --query [--provider 来源] [--period 周期] [--timeout 秒数]
+      PetQuotaDisplay --query [--provider 来源] [--period 周期] [--timeout 秒数] [--format 格式]
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端
@@ -15,6 +15,7 @@ let usage = """
   --diagnose      在终端检查各额度来源的本机配置
   --query         在终端读取一次额度并输出 JSON
   --timeout       单次查询等待秒数，默认 65 秒
+  --format        终端查询格式：\(QuotaExport.Format.allCases.map(\.rawValue).joined(separator: ", "))，默认 json
   --json          将诊断输出为 JSON，供脚本读取
   -h, --help      显示帮助
 """
@@ -47,7 +48,7 @@ case _ where arguments.first == "--query":
         let provider = options.provider ?? QuotaPreferences.selectedProvider()
         var export = try QuotaQuery.snapshot(from: provider, timeout: options.timeout)
         if let period = options.period { try export.selectPeriod(period) }
-        print(try export.json())
+        print(try export.render(as: options.format))
         exit(0)
     } catch {
         FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
