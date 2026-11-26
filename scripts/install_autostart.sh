@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-    printf '%s\n' '用法：zsh scripts/install_autostart.sh [--follow-codex | --always-show | --status]'
+    printf '%s\n' '用法：zsh scripts/install_autostart.sh [--follow-codex | --follow-codex-desktop | --follow-codex-cli | --always-show | --status]'
 }
 
 mode="${1:-}"
@@ -11,7 +11,7 @@ if (( $# > 1 )); then
     exit 2
 fi
 case "${mode}" in
-    ""|--follow-codex|--always-show|--status) ;;
+    ""|--follow-codex|--follow-codex-desktop|--follow-codex-cli|--always-show|--status) ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
 esac
@@ -25,6 +25,13 @@ installed_binary="${install_dir}/PetQuotaDisplay"
 installed_plist="${launch_agents_dir}/${label}.plist"
 launch_domain="gui/$(id -u)"
 
+read_installed_mode() {
+    /usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "${installed_plist}" >/dev/null 2>&1 || return 1
+    local argument
+    argument="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:1' "${installed_plist}" 2>/dev/null || true)"
+    printf '%s\n' "${argument:---always-show}"
+}
+
 if [[ "${mode}" == --status ]]; then
     if [[ -x "${installed_binary}" ]]; then
         printf '%s\n' '程序：已安装'
@@ -33,13 +40,14 @@ if [[ "${mode}" == --status ]]; then
     fi
     if [[ ! -f "${installed_plist}" ]]; then
         printf '%s\n' '自启动配置：未安装'
-    elif ! /usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "${installed_plist}" >/dev/null 2>&1; then
+    elif ! launch_argument="$(read_installed_mode)"; then
         printf '%s\n' '自启动配置：无法读取'
     else
-        launch_argument="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:1' "${installed_plist}" 2>/dev/null || true)"
         case "${launch_argument}" in
             --follow-codex) printf '%s\n' '自启动配置：跟随 Codex' ;;
-            ""|--always-show) printf '%s\n' '自启动配置：登录后显示额度' ;;
+            --follow-codex-desktop) printf '%s\n' '自启动配置：跟随 Codex 桌面端' ;;
+            --follow-codex-cli) printf '%s\n' '自启动配置：跟随独立 Codex CLI' ;;
+            --always-show) printf '%s\n' '自启动配置：登录后显示额度' ;;
             *) printf '%s\n' '自启动配置：启动模式无法识别' ;;
         esac
     fi
@@ -53,10 +61,10 @@ fi
 
 if [[ -z "${mode}" ]]; then
     mode=--follow-codex
-    if [[ -f "${installed_plist}" ]] &&
-        /usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "${installed_plist}" >/dev/null 2>&1 &&
-        ! /usr/libexec/PlistBuddy -c 'Print :ProgramArguments:1' "${installed_plist}" >/dev/null 2>&1; then
-        mode=--always-show
+    if [[ -f "${installed_plist}" ]] && launch_argument="$(read_installed_mode)"; then
+        case "${launch_argument}" in
+            --follow-codex|--follow-codex-desktop|--follow-codex-cli|--always-show) mode="${launch_argument}" ;;
+        esac
     fi
 fi
 
@@ -78,6 +86,8 @@ cp "${repository_dir}/autostart/${label}.plist" "${staged_plist}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${installed_binary}" "${staged_plist}"
 if [[ "${mode}" == --always-show ]]; then
     /usr/libexec/PlistBuddy -c 'Delete :ProgramArguments:1' "${staged_plist}"
+else
+    /usr/libexec/PlistBuddy -c "Set :ProgramArguments:1 ${mode}" "${staged_plist}"
 fi
 /usr/bin/plutil -lint "${staged_plist}"
 cp "${binary_dir}/PetQuotaDisplay" "${staged_binary}"

@@ -134,6 +134,8 @@ zsh scripts/install_autostart.sh --always-show
 zsh scripts/install_autostart.sh --follow-codex
 ```
 
+安装脚本也接受 `--follow-codex-desktop` 和 `--follow-codex-cli`。以后直接运行安装脚本更新时，会保留选定的跟随方式。
+
 运行 `zsh scripts/install_autostart.sh --status` 可查看安装状态、模式，以及 LaunchAgent 是否已加载。
 
 更新时直接重新运行安装脚本即可。脚本会编译 Release 版本、替换程序并重启 LaunchAgent，保留已选的自启动模式、账号和悬浮球设置。独立运行 `python3 main.py` 会打开另一个实例。
