@@ -9,12 +9,23 @@ struct QuotaHistoryArchive {
     }
 
     static let local = QuotaHistoryArchive(directory: FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support/PetQuotaDisplay/QuotaHistory", isDirectory: true))
+        .appendingPathComponent("Library/Application Support/PetQuotaDisplay/QuotaHistory", isDirectory: true),
+        retention: { QuotaHistoryRetention.load() })
 
     let directory: URL
+    private let retention: () -> QuotaHistoryRetention
     private var archiveURL: URL { directory.appendingPathComponent("history.json") }
 
+    init(directory: URL, retention: @escaping () -> QuotaHistoryRetention = { .standard }) {
+        self.directory = directory
+        self.retention = retention
+    }
+
     func load() throws -> State {
+        try load(capacity: retention().rawValue)
+    }
+
+    private func load(capacity: Int) throws -> State {
         let data: Data
         do {
             data = try Data(contentsOf: archiveURL)
@@ -32,7 +43,7 @@ struct QuotaHistoryArchive {
             guard let context = entry.context else { continue }
             let valid = entry.readings.compactMap(\.snapshot)
             guard !valid.isEmpty else { continue }
-            state.histories[context] = Self.merge(state.histories[context] ?? [], with: valid)
+            state.histories[context] = Self.merge(state.histories[context] ?? [], with: valid, capacity: capacity)
         }
         return state
     }
@@ -43,10 +54,11 @@ struct QuotaHistoryArchive {
                 try save(State())
                 return
             }
-            var state = try load()
+            let capacity = retention().rawValue
+            var state = try load(capacity: capacity)
             state.isEnabled = true
             for (context, readings) in initial where !readings.isEmpty {
-                state.histories[context] = Self.merge(state.histories[context] ?? [], with: readings)
+                state.histories[context] = Self.merge(state.histories[context] ?? [], with: readings, capacity: capacity)
             }
             try save(state)
         }
@@ -55,11 +67,12 @@ struct QuotaHistoryArchive {
     @discardableResult
     func update(_ snapshots: [QuotaHistoryContext: QuotaSnapshot?]) throws -> Bool {
         try withLock {
-            var state = try load()
+            let capacity = retention().rawValue
+            var state = try load(capacity: capacity)
             guard state.isEnabled else { return false }
             for (context, latest) in snapshots {
                 if let latest {
-                    state.histories[context] = Self.merge(state.histories[context] ?? [], with: [latest])
+                    state.histories[context] = Self.merge(state.histories[context] ?? [], with: [latest], capacity: capacity)
                 } else {
                     state.histories.removeValue(forKey: context)
                 }
@@ -73,6 +86,13 @@ struct QuotaHistoryArchive {
         try withLock {
             let state = try load()
             if state.isEnabled { try save(State(isEnabled: true)) }
+        }
+    }
+
+    func applyRetention() throws {
+        try withLock {
+            let state = try load()
+            if state.isEnabled { try save(state) }
         }
     }
 
@@ -120,10 +140,10 @@ struct QuotaHistoryArchive {
         return state
     }
 
-    private static func merge(_ existing: [QuotaSnapshot], with incoming: [QuotaSnapshot]) -> [QuotaSnapshot] {
+    private static func merge(_ existing: [QuotaSnapshot], with incoming: [QuotaSnapshot], capacity: Int) -> [QuotaSnapshot] {
         var byDate: [Date: QuotaSnapshot] = [:]
         for snapshot in existing + incoming { byDate[snapshot.fetchedAt] = snapshot }
-        return byDate.keys.sorted().suffix(QuotaReadingHistory.maximumReadings).compactMap { byDate[$0] }
+        return byDate.keys.sorted().suffix(capacity).compactMap { byDate[$0] }
     }
 
     private func save(_ state: State) throws {

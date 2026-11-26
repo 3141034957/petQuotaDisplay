@@ -3,6 +3,27 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaHistoryArchiveTests: XCTestCase {
+    func testCustomRetentionKeepsRecentRecordsAndTrimsTheOnDiskArchive() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var retention = QuotaHistoryRetention.extended
+        let archive = QuotaHistoryArchive(directory: root, retention: { retention })
+        let context = QuotaHistoryContext(provider: .gemini, account: nil)
+        let captures = (1...180).map { snapshot(at: Double($0)) }
+        try archive.setEnabled(true, initial: [context: captures])
+        XCTAssertEqual(try archive.load().histories[context]?.count, 180)
+        var memory = QuotaReadingHistory(capacity: retention.rawValue)
+        for capture in captures { memory.record(capture) }
+        XCTAssertEqual(memory.readings.count, 180)
+        retention = .standard
+        memory.setCapacity(retention.rawValue)
+        try archive.applyRetention()
+        retention = .large
+        let stored = try archive.load().histories[context]
+        XCTAssertEqual(stored, memory.readings)
+        XCTAssertEqual(stored?.first?.fetchedAt, captures[60].fetchedAt)
+    }
+
     func testModelArchivePreservesExistingPrimaryHistoryAndMarksExports() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

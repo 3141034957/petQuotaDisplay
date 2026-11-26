@@ -36,6 +36,14 @@ final class QuotaOrbView: NSView {
     var onQuotaHistoryChanged: (([QuotaHistoryContext: [QuotaSnapshot]]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
     var onToggleHistoryArchive: (() -> Void)?
+    var onSelectHistoryRetention: ((QuotaHistoryRetention) -> Void)?
+    var historyRetention: QuotaHistoryRetention = .standard {
+        didSet {
+            for context in Array(recentQuotas.keys) {
+                recentQuotas[context]?.setCapacity(historyRetention.rawValue)
+            }
+        }
+    }
     var onFreshQuota: ((QuotaHistoryContext, QuotaSnapshot) -> Void)?
     var onResetHistoryArchive: (() -> Void)?
     var retainsHistoryAcrossLaunches = false
@@ -487,7 +495,7 @@ final class QuotaOrbView: NSView {
 
     private func recordHistory(_ snapshot: QuotaSnapshot, for context: QuotaHistoryContext) -> [QuotaSnapshot]? {
         let previous = recentQuotas[context]?.latest
-        recentQuotas[context, default: QuotaReadingHistory()].record(snapshot)
+        recentQuotas[context, default: QuotaReadingHistory(capacity: historyRetention.rawValue)].record(snapshot)
         guard let current = recentQuotas[context], current.latest != previous else { return nil }
         return current.readings
     }
@@ -522,7 +530,7 @@ final class QuotaOrbView: NSView {
     func restoreHistory(_ snapshots: [QuotaHistoryContext: [QuotaSnapshot]]) {
         for (context, readings) in snapshots {
             for snapshot in readings {
-                recentQuotas[context, default: QuotaReadingHistory()].record(snapshot)
+                recentQuotas[context, default: QuotaReadingHistory(capacity: historyRetention.rawValue)].record(snapshot)
             }
         }
     }
@@ -544,6 +552,15 @@ final class QuotaOrbView: NSView {
         let archive = submenu.addItem(withTitle: "跨启动保留采集记录", action: #selector(toggleHistoryArchive), keyEquivalent: "")
         archive.target = self
         archive.state = retainsHistoryAcrossLaunches ? .on : .off
+        let retentionItem = submenu.addItem(withTitle: "每组最多保留", action: nil, keyEquivalent: "")
+        let retentionMenu = NSMenu(title: retentionItem.title)
+        for retention in QuotaHistoryRetention.allCases {
+            let option = retentionMenu.addItem(withTitle: retention.title, action: #selector(selectHistoryRetention(_:)), keyEquivalent: "")
+            option.target = self
+            option.tag = retention.rawValue
+            option.state = retention == historyRetention ? .on : .off
+        }
+        retentionItem.submenu = retentionMenu
         if let historyArchiveError {
             let message = submenu.addItem(withTitle: historyArchiveError, action: nil, keyEquivalent: "")
             message.isEnabled = false
@@ -986,6 +1003,10 @@ final class QuotaOrbView: NSView {
 
     @objc private func toggleHistoryArchive() { onToggleHistoryArchive?() }
     @objc private func resetHistoryArchive() { onResetHistoryArchive?() }
+    @objc private func selectHistoryRetention(_ sender: NSMenuItem) {
+        guard let retention = QuotaHistoryRetention(rawValue: sender.tag) else { return }
+        onSelectHistoryRetention?(retention)
+    }
 
     @objc private func clearSourceQuotaHistory(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,

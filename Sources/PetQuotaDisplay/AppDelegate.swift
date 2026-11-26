@@ -144,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.provider = displayOptions.provider ?? QuotaPreferences.selectedProvider()
         orbView.startupPeriodOverride = displayOptions.period
         orbView.refreshCadence = displayOptions.refreshCadence ?? QuotaRefreshCadence.load()
+        orbView.historyRetention = QuotaHistoryRetention.load()
         orbView.showsMenuBarQuota = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarEnabledKey)
         orbView.hidesAccountEmail = QuotaPreferences.shared.bool(forKey: QuotaPreferences.hidesAccountEmailKey)
         orbView.isPositionLocked = QuotaPreferences.shared.bool(forKey: QuotaPreferences.orbPositionLockedKey)
@@ -203,6 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.onQuotaHistoryChanged = { [weak self] changes in self?.historyDidChange(changes) }
         orbView.onQuotaHistoryCleared = { [weak self] in self?.clearHistory() }
         orbView.onToggleHistoryArchive = { [weak self] in self?.toggleHistoryArchive() }
+        orbView.onSelectHistoryRetention = { [weak self] retention in self?.setHistoryRetention(retention) }
         orbView.onResetHistoryArchive = { [weak self] in self?.resetHistoryArchive() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
@@ -321,6 +323,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             try historyArchiveWriter.sync { try historyArchive.setEnabled(enabled, initial: initial) }
             orbView.retainsHistoryAcrossLaunches = enabled
         }
+    }
+
+    private func setHistoryRetention(_ retention: QuotaHistoryRetention) {
+        guard orbView.historyRetention != retention else { return }
+        if orbView.historyForArchive.values.contains(where: { $0.count > retention.rawValue }) {
+            let alert = NSAlert()
+            alert.messageText = "将每组采集记录减至 \(retention.title)？"
+            alert.informativeText = "超出上限的旧记录将从内存和本机存档中清除。"
+            alert.addButton(withTitle: "调整上限")
+            alert.addButton(withTitle: "取消")
+            NSApp.activate(ignoringOtherApps: true)
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
+        QuotaPreferences.shared.set(retention.rawValue, forKey: QuotaHistoryRetention.defaultsKey)
+        orbView.historyRetention = retention
+        updateQuotaHistory(after: orbView.historyForArchive)
+        guard orbView.retainsHistoryAcrossLaunches else { return }
+        performHistoryArchiveOperation { try historyArchiveWriter.sync { try historyArchive.applyRetention() } }
     }
 
     private func resetHistoryArchive() {

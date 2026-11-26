@@ -7,10 +7,18 @@ public struct QuotaReadingHistory {
     }
 
     public static let maximumReadings = 120
+    public private(set) var capacity: Int
     public private(set) var readings: [QuotaSnapshot] = []
     public var latest: QuotaSnapshot? { readings.last }
 
-    public init() {}
+    public init(capacity: Int = Self.maximumReadings) {
+        self.capacity = max(1, capacity)
+    }
+
+    public mutating func setCapacity(_ capacity: Int) {
+        self.capacity = max(1, capacity)
+        trim()
+    }
 
     public mutating func record(_ snapshot: QuotaSnapshot) {
         if let latest {
@@ -21,8 +29,12 @@ public struct QuotaReadingHistory {
             }
         }
         readings.append(snapshot)
-        if readings.count > Self.maximumReadings {
-            readings.removeFirst(readings.count - Self.maximumReadings)
+        trim()
+    }
+
+    private mutating func trim() {
+        if readings.count > capacity {
+            readings.removeFirst(readings.count - capacity)
         }
     }
 
