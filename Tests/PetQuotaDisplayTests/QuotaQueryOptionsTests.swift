@@ -23,6 +23,18 @@ final class QuotaQueryOptionsTests: XCTestCase {
         }
     }
 
+    func testMissingStringValueDoesNotConsumeTheNextFlag() {
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--account", "--format", "csv"])) {
+            XCTAssertEqual($0.localizedDescription, "--account 缺少参数值。")
+        }
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--model", "--require-fresh"])) {
+            XCTAssertEqual($0.localizedDescription, "--model 缺少参数值。")
+        }
+        XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--invalid"], purpose: .savedHistory)) {
+            XCTAssertTrue($0.localizedDescription.contains("--history --help"))
+        }
+    }
+
     func testModelListRejectsIncompatibleOptions() throws {
         XCTAssertTrue(try QuotaQueryOptions(arguments: ["--list-models", "--account", "Work", "--format", "text"]).listModels)
         XCTAssertThrowsError(try QuotaQueryOptions(arguments: ["--list-models", "--provider", "gemini"]))

@@ -4,6 +4,8 @@ import QuotaCore
 struct QuotaQueryOptions {
     enum Purpose {
         case live, savedHistory
+
+        var command: String { self == .live ? "--query" : "--history" }
     }
 
     private enum Option: String, CaseIterable {
@@ -41,13 +43,18 @@ struct QuotaQueryOptions {
         var seen = Set<Option>()
         let historyOptions: Set<Option> = [.provider, .account, .period, .since, .until, .format, .limit]
         while let argument = arguments.popFirst() {
-            guard let option = Option(rawValue: argument) else { throw Failure.unknownOption }
+            guard let option = Option(rawValue: argument) else { throw Failure.unknownOption(purpose) }
             if purpose == .savedHistory, !historyOptions.contains(option) {
-                throw Failure.unsupportedHistoryOption
+                throw Failure.unsupportedHistoryOption(option)
             }
             if purpose == .live, option == .since || option == .until { throw Failure.dateOnlyForHistory }
             if purpose == .live, option == .limit { throw Failure.limitOnlyForHistory }
-            guard seen.insert(option).inserted else { throw Failure.invalidValue(option) }
+            guard seen.insert(option).inserted else { throw Failure.duplicateOption(option) }
+            if option.requiresValue {
+                guard let next = arguments.first, Option(rawValue: next) == nil, next != "--help", next != "-h" else {
+                    throw Failure.missingValue(option)
+                }
+            }
             let value = option.requiresValue ? arguments.popFirst() : nil
             switch option {
             case .provider:
@@ -99,15 +106,18 @@ struct QuotaQueryOptions {
     }
 
     private enum Failure: LocalizedError {
-        case unknownOption, invalidValue(Option), incompatibleModelList, unsupportedHistoryOption
+        case unknownOption(Purpose), duplicateOption(Option), missingValue(Option), invalidValue(Option)
+        case incompatibleModelList, unsupportedHistoryOption(Option)
         case dateOnlyForHistory, invalidDateRange, limitOnlyForHistory
 
         var errorDescription: String? {
             switch self {
-            case .unknownOption: return "--query 接受 \(Option.allCases.map(\.rawValue).joined(separator: "、")) 选项。"
+            case .unknownOption(let purpose): return "未知选项。请运行 \(purpose.command) --help 查看支持的参数。"
+            case .duplicateOption(let option): return "\(option.rawValue) 只能指定一次。"
+            case .missingValue(let option): return "\(option.rawValue) 缺少参数值。"
             case .invalidValue(let option): return "请为 \(option.rawValue) 指定一个有效的值。"
             case .incompatibleModelList: return "模型列表仅支持 Codex 来源、账号、超时和输出格式选项。"
-            case .unsupportedHistoryOption: return "--history 不支持该选项。"
+            case .unsupportedHistoryOption(let option): return "--history 不支持 \(option.rawValue)。"
             case .dateOnlyForHistory: return "--since 和 --until 仅适用于历史查询。"
             case .invalidDateRange: return "历史查询的起始时间不能晚于结束时间。"
             case .limitOnlyForHistory: return "--limit 仅适用于历史查询。"
