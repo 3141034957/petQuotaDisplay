@@ -16,6 +16,8 @@ python3 main.py
 swift run PetQuotaDisplay
 ```
 
+独立运行时默认立即显示悬浮球。可以运行 `python3 main.py --follow-codex` 改为跟随 Codex，或用 `python3 main.py --help` 查看启动选项。
+
 首次运行会编译原生程序，后续启动会快很多。悬浮球不会出现在 Dock 中，并会始终置顶：
 
 - 拖动：移动悬浮球，松开后会自动收回当前屏幕的可见区域并保存位置；拔掉显示器或调整屏幕布局后也会自动校正。

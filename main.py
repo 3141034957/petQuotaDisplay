@@ -21,6 +21,7 @@ def main() -> int:
         "--scratch-path",
         str(repository / ".build"),
         "PetQuotaDisplay",
+        *sys.argv[1:],
     ]
     try:
         return subprocess.call(command, cwd=repository)
