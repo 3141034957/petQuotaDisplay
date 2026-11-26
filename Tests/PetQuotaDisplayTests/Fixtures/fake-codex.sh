@@ -38,12 +38,23 @@ while IFS= read -r line; do
             printf '{"id":%s,"result":{}}\n' "$id"
             ;;
         *'"account/login/start"'*|*'"account\/login\/start"'*)
-            if [ "$scenario" != login-completion ]; then exit 8; fi
+            if [ "$scenario" != login-completion ] && [ "$scenario" != login-cancel ]; then exit 8; fi
             printf '{"id":%s,"result":{"type":"chatgpt","loginId":"active-login","authUrl":"https://auth.example.com/login"}}\n' "$id"
-            printf '{"method":"account/login/completed","params":{"loginId":"old-login","success":false,"error":"fixture old login"}}\n'
-            printf '{"method":"account/login/completed","params":{"loginId":"active-login","success":true}}\n'
+            if [ "$scenario" = login-completion ]; then
+                printf '{"method":"account/login/completed","params":{"loginId":"old-login","success":false,"error":"fixture old login"}}\n'
+                printf '{"method":"account/login/completed","params":{"loginId":"active-login","success":true}}\n'
+            fi
+            ;;
+        *'"account/login/cancel"'*|*'"account\/login\/cancel"'*)
+            case "$line" in *'"loginId":"active-login"'*) ;; *) exit 8 ;; esac
+            printf '{"method":"account/login/completed","params":{"loginId":"active-login","success":false,"error":"fixture canceled"}}\n'
+            printf '{"id":%s,"result":{"status":"canceled"}}\n' "$id"
             ;;
         *refreshToken*)
+            if [ "$scenario" = login-cancel ]; then
+                printf '{"id":%s,"result":{"account":null}}\n' "$id"
+                continue
+            fi
             if [ "$scenario" = account-timeout ] && [ "$count" -eq 1 ]; then continue; fi
             if [ "$scenario" = sign-out-during-read ] && [ -n "${quota_id:-}" ]; then
                 printf '{"id":%s,"result":{"account":null}}\n' "$id"

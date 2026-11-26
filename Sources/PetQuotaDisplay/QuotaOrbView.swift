@@ -87,6 +87,7 @@ final class QuotaOrbView: NSView {
     var onSelectAccount: ((CodexAccountSlot) -> Void)?
     var onAddAccount: (() -> Void)?
     var onLoginAccount: ((CodexAccountSlot) -> Void)?
+    var onCancelLogin: (() -> Void)?
     var onRenameAccount: ((CodexAccountSlot) -> Void)?
     var onDeleteAccount: ((CodexAccountSlot) -> Void)?
     var onConfigureOpenCodeGo: (() -> Void)?
@@ -541,8 +542,10 @@ final class QuotaOrbView: NSView {
         addAccount.target = self
         accountMenu.addItem(addAccount)
 
-        if !isCodexLoginPending, let selectedAccount,
-           accountStatuses[selectedAccount] == .signedOut {
+        if isCodexLoginPending {
+            let cancel = accountMenu.addItem(withTitle: "取消当前登录", action: #selector(cancelLoginFromMenu), keyEquivalent: "")
+            cancel.target = self
+        } else if let selectedAccount, accountStatuses[selectedAccount] == .signedOut {
             let login = NSMenuItem(
                 title: "登录当前额度账号…",
                 action: #selector(loginCurrentAccountFromMenu),
@@ -663,6 +666,7 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func addAccountFromMenu() { onAddAccount?() }
+    @objc private func cancelLoginFromMenu() { onCancelLogin?() }
 
     @objc private func loginCurrentAccountFromMenu() {
         guard let selectedAccount else { return }

@@ -157,6 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
+        orbView.onCancelLogin = { [weak self] in self?.client?.cancelChatGPTLogin() }
         orbView.onRenameAccount = { [weak self] account in self?.renameAccount(account) }
         orbView.onDeleteAccount = { [weak self] account in self?.deleteAccount(account) }
         orbView.onConfigureOpenCodeGo = { [weak self] in self?.configureOpenCodeGo() }
@@ -275,6 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSApp.activate(ignoringOtherApps: true)
             if !NSWorkspace.shared.open(url) {
                 self.orbView.state = .failed("无法打开 ChatGPT 登录页面")
+                client.cancelChatGPTLogin()
             }
         }
         client.onError = { [weak self, weak client] error in

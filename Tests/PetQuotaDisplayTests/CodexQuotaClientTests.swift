@@ -28,6 +28,23 @@ final class CodexQuotaClientTests: XCTestCase {
         XCTAssertEqual(pendingStates, [true, false])
     }
 
+    func testCancelLoginClearsPendingStateAndReadsAccountAgain() throws {
+        let fixture = try makeClient(scenario: "login-cancel")
+        defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let signedOut = expectation(description: "account rechecked after cancellation")
+        var pendingStates: [Bool] = []
+        fixture.client.onLoginPendingChanged = { pendingStates.append($0) }
+        fixture.client.onLoginURL = { [weak client = fixture.client] _ in client?.cancelChatGPTLogin() }
+        fixture.client.onError = { XCTFail($0.localizedDescription) }
+        fixture.client.onAccount = { account in
+            XCTAssertNil(account)
+            XCTAssertEqual(pendingStates, [true, false])
+            signedOut.fulfill()
+        }
+        fixture.client.loginWithChatGPT(replacingExisting: false)
+        wait(for: [signedOut], timeout: 5)
+    }
+
     func testInitializationTimeoutRestartsAndRecovers() throws {
         try assertRecovers(scenario: "initialize-timeout") { error in
             guard case CodexQuotaClient.ClientError.initializationTimedOut = error else {

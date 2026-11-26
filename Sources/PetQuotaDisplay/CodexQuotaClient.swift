@@ -43,6 +43,7 @@ final class CodexQuotaClient {
         case accountRead
         case rateLimits
         case loginStart
+        case loginCancel
         case logoutThenLogin
     }
 
@@ -99,6 +100,7 @@ final class CodexQuotaClient {
         queue.async { [weak self] in
             guard let self, !self.loginWhenInitialized, self.activeLoginID == nil,
                   !self.pendingRequests.values.contains(.loginStart),
+                  !self.pendingRequests.values.contains(.loginCancel),
                   !self.pendingRequests.values.contains(.logoutThenLogin) else { return }
             self.loginWhenInitialized = true
             self.replaceLoginWhenInitialized = replacingExisting
@@ -107,6 +109,14 @@ final class CodexQuotaClient {
             } else if self.initialized {
                 self.beginRequestedLoginLocked()
             }
+        }
+    }
+
+    func cancelChatGPTLogin() {
+        queue.async { [weak self] in
+            guard let self, let loginID = self.activeLoginID,
+                  !self.pendingRequests.values.contains(.loginCancel) else { return }
+            self.sendRequestLocked(method: "account/login/cancel", params: ["loginId": loginID], kind: .loginCancel)
         }
     }
 
@@ -297,6 +307,13 @@ final class CodexQuotaClient {
             }
             setActiveLoginLocked(loginID)
             DispatchQueue.main.async { [weak self] in self?.onLoginURL?(authURL) }
+        case .loginCancel:
+            guard let status = result["status"] as? String, status == "canceled" || status == "notFound" else {
+                emit(error: ClientError.malformedResponse)
+                return
+            }
+            setActiveLoginLocked(nil)
+            requestAccountLocked()
         case .logoutThenLogin:
             startLoginLocked()
         }
@@ -345,7 +362,7 @@ final class CodexQuotaClient {
         guard let params, let activeLoginID, params["loginId"] as? String == activeLoginID,
               let success = params["success"] as? Bool else { return }
         setActiveLoginLocked(nil)
-        if success {
+        if success || pendingRequests.values.contains(.loginCancel) {
             requestAccountLocked()
         } else {
             emit(error: ClientError.loginFailed(params["error"] as? String ?? ""))
