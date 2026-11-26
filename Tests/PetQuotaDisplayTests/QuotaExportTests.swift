@@ -67,6 +67,15 @@ final class QuotaExportTests: XCTestCase {
         """#)
     }
 
+    func testCSVPreservesFormulaLikeModelNamesAsText() throws {
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 20, resetsAt: nil))
+        let model = CodexMeteredQuota(id: "=fixture", name: "Fixture", snapshot: snapshot)
+        let export = try XCTUnwrap(QuotaExport(provider: .codex, state: .loaded(snapshot), model: model))
+        XCTAssertTrue(try export.render(as: .csv).contains("codex,'=fixture,"))
+        XCTAssertTrue(try export.render(as: .json).contains(#""codexLimitID" : "=fixture""#))
+        XCTAssertEqual(QuotaOutput.csv([[" @fixture", "80"]]), "' @fixture,80")
+    }
+
     func testTextOutputLabelsStaleResultsAndFormatsResetInUTC() throws {
         let window = QuotaWindow(usedPercent: 35, resetsAt: Date(timeIntervalSince1970: 120))
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: window, fetchedAt: Date(timeIntervalSince1970: 60))
