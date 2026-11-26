@@ -9,6 +9,7 @@ final class OpenCodeGoQuotaClient: PollingQuotaClient {
     private let readKey: () throws -> String?
     private var task: URLSessionDataTask?
     private var requestID: UUID?
+    private var rateLimitedUntil: Date?
 
     var onRefreshing: (() -> Void)?
     var onResult: ((Result<QuotaSnapshot, Error>) -> Void)?
@@ -20,6 +21,10 @@ final class OpenCodeGoQuotaClient: PollingQuotaClient {
 
     func refresh() {
         guard task == nil else { return }
+        if let rateLimitedUntil, rateLimitedUntil > Date() {
+            onResult?(.failure(Failure.rateLimited))
+            return
+        }
         onRefreshing?()
 
         let key: String?
@@ -38,12 +43,15 @@ final class OpenCodeGoQuotaClient: PollingQuotaClient {
         let id = UUID()
         requestID = id
         task = session.dataTask(with: request) { [weak self] data, response, error in
+            let httpResponse = response as? HTTPURLResponse
+            let retryDate = httpResponse?.statusCode == 429
+                ? QuotaHTTP.retryDate(httpResponse?.value(forHTTPHeaderField: "Retry-After")) : nil
             let result = Result {
                 if (error as? URLError)?.code == .timedOut { throw Failure.timedOut }
-                guard error == nil, let response = response as? HTTPURLResponse else {
+                guard error == nil, let httpResponse else {
                     throw Failure.requestFailed
                 }
-                switch response.statusCode {
+                switch httpResponse.statusCode {
                 case 200:
                     guard let data else { throw Failure.invalidReport }
                     return try Self.parseReport(data)
@@ -57,6 +65,7 @@ final class OpenCodeGoQuotaClient: PollingQuotaClient {
                 guard let self, self.requestID == id else { return }
                 self.task = nil
                 self.requestID = nil
+                self.rateLimitedUntil = retryDate
                 self.onResult?(result)
             }
         }

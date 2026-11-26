@@ -28,6 +28,19 @@ enum QuotaHTTP {
             ?? (try? Date(value, strategy: Date.ISO8601FormatStyle()))
     }
 
+    static func retryDate(_ header: String?, now: Date = Date()) -> Date? {
+        guard let value = header?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        if let seconds = Int(value) {
+            return seconds > 0 ? now.addingTimeInterval(TimeInterval(seconds)) : nil
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
+        guard let date = formatter.date(from: value), date > now else { return nil }
+        return date
+    }
+
     private final class RedirectPolicy: NSObject, URLSessionTaskDelegate {
         func urlSession(
             _ session: URLSession,

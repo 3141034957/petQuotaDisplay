@@ -41,6 +41,32 @@ final class OpenCodeGoQuotaClientTests: XCTestCase {
         wait(for: [result], timeout: 3)
     }
 
+    func testRateLimitedRefreshDoesNotStartAnotherRequestBeforeRetryAfter() {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [UsageStub.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        let client = OpenCodeGoQuotaClient(session: session, readKey: { "rate-limit-key" })
+        let first = expectation(description: "first rate-limited result")
+        var starts = 0
+        client.onRefreshing = { starts += 1 }
+        client.onResult = { result in
+            if case .success = result { XCTFail("Expected rate limit") }
+            first.fulfill()
+        }
+        client.refresh()
+        wait(for: [first], timeout: 3)
+
+        let second = expectation(description: "retry suppressed")
+        client.onResult = { result in
+            if case .success = result { XCTFail("Expected retry to remain rate limited") }
+            second.fulfill()
+        }
+        client.refresh()
+        wait(for: [second], timeout: 3)
+        XCTAssertEqual(starts, 1)
+    }
+
     private final class UsageStub: URLProtocol {
         static let report = Data("""
         {"usage":{
@@ -56,8 +82,12 @@ final class OpenCodeGoQuotaClientTests: XCTestCase {
         override func startLoading() {
             XCTAssertEqual(request.url?.absoluteString, "https://opencode.ai/inference/go/v1/usage")
             XCTAssertEqual(request.httpMethod, "GET")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key")
-            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let limited = request.value(forHTTPHeaderField: "Authorization") == "Bearer rate-limit-key"
+            if !limited { XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-key") }
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: limited ? 429 : 200, httpVersion: nil,
+                headerFields: limited ? ["Retry-After": "60"] : nil
+            )!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: Self.report)
             client?.urlProtocolDidFinishLoading(self)
