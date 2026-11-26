@@ -324,11 +324,24 @@ final class QuotaOrbViewTests: XCTestCase {
                                                fetchedAt: Date(timeIntervalSince1970: TimeInterval(offset))))
         }
 
-        let list = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu?
-            .item(withTitle: "Gemini")?.submenu?.item(withTitle: "最近采集记录")?.submenu)
+        let details = try XCTUnwrap(menu(view).item(withTitle: "最近读取的额度")?.submenu?
+            .item(withTitle: "Gemini")?.submenu)
+        let list = try XCTUnwrap(details.item(withTitle: "最近采集记录")?.submenu)
         XCTAssertEqual(list.items.count, 8)
         XCTAssertTrue(list.items.first?.title.hasSuffix("本周 90%") == true)
         XCTAssertTrue(list.items.last?.title.hasSuffix("本周 97%") == true)
+
+        var selectedProvider: QuotaProvider?
+        var readings: [QuotaSnapshot] = []
+        view.onShowQuotaHistory = { provider, history in
+            selectedProvider = provider
+            readings = history
+        }
+        let trend = try XCTUnwrap(details.item(withTitle: "查看额度趋势…"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(trend.action), to: trend.target, from: trend))
+        XCTAssertEqual(selectedProvider, .gemini)
+        XCTAssertEqual(readings.count, 10)
+        XCTAssertEqual(readings.last?.weekly?.remainingPercent, 90)
     }
 
     func testCopySummaryIsAvailableForSnapshotsAndIdentifiesStaleData() throws {

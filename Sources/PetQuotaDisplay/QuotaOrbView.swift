@@ -25,6 +25,8 @@ final class QuotaOrbView: NSView {
         }
     }
     var onRefresh: (() -> Void)?
+    var onShowQuotaHistory: ((QuotaProvider, [QuotaSnapshot]) -> Void)?
+    var onQuotaHistoryCleared: (() -> Void)?
     var refreshCadence: QuotaRefreshCadence = .thirtySeconds
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
     var onQuit: (() -> Void)?
@@ -463,6 +465,9 @@ final class QuotaOrbView: NSView {
             if let history = recentQuotas[quotaContext(for: source)], history.readings.count > 1 {
                 details.addItem(.separator())
                 details.addItem(readingListMenuItem(history.readings))
+                let trend = details.addItem(withTitle: "查看额度趋势…", action: #selector(showQuotaHistory(_:)), keyEquivalent: "")
+                trend.target = self
+                trend.representedObject = source.rawValue
             }
             entry.submenu = details
         }
@@ -676,6 +681,14 @@ final class QuotaOrbView: NSView {
 
     @objc private func clearRecentQuotas() {
         recentQuotas.removeAll()
+        onQuotaHistoryCleared?()
+    }
+
+    @objc private func showQuotaHistory(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let source = QuotaProvider(rawValue: rawValue),
+              let history = recentQuotas[quotaContext(for: source)] else { return }
+        onShowQuotaHistory?(source, history.readings)
     }
 
     private func copyText(_ text: String?) {
