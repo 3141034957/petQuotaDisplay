@@ -583,6 +583,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func loginAccount(_ account: CodexAccountSlot) {
         guard accounts.contains(account) else { return }
         let replacingExisting = CodexAccountProfile.hasStoredCredentials(for: account)
+        if replacingExisting {
+            orbView.forgetQuota(for: .codex, account: account)
+        }
         if selectedAccount == account {
             orbView.state = .loading
             client?.loginWithChatGPT(replacingExisting: replacingExisting)
