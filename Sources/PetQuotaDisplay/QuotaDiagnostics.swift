@@ -49,8 +49,9 @@ enum QuotaDiagnostics {
     }
 
     struct Report: Encodable {
-        let version = QuotaBuildInformation.version
-        let revision = QuotaBuildInformation.revision
+        let version = QuotaBuildInformation.current.version
+        let revision = QuotaBuildInformation.current.revision
+        let buildNumber = QuotaBuildInformation.current.buildNumber
         let sources: [Source]
         let display: DisplayPreferences
         let history: HistoryStatus
@@ -59,7 +60,10 @@ enum QuotaDiagnostics {
 
         var summary: String {
             let sourceLines = sources.map { "\($0.title)：\($0.detail)" }
-            return ([QuotaBuildInformation.summary, "额度来源本机检查"] + sourceLines + ["", display.summary, history.summary])
+            var heading = [QuotaBuildInformation.current.summary]
+            if let buildNumber { heading.append("构建号 \(buildNumber)") }
+            heading.append("额度来源本机检查")
+            return (heading + sourceLines + ["", display.summary, history.summary])
                 .joined(separator: "\n")
         }
     }

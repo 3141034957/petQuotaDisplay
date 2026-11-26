@@ -63,7 +63,7 @@ let arguments = Array(CommandLine.arguments.dropFirst())
 let display: QuotaDisplayOptions
 switch arguments {
 case ["--version"]:
-    print(QuotaBuildInformation.summary)
+    print(QuotaBuildInformation.current.summary)
     exit(0)
 case _ where arguments.first == "--diagnose":
     let options: QuotaDiagnostics.Options

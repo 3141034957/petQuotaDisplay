@@ -726,11 +726,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     private func showAbout() {
+        let build = QuotaBuildInformation.current
         var options: [NSApplication.AboutPanelOptionKey: Any] = [
             .applicationName: "额度悬浮球",
-            .applicationVersion: QuotaBuildInformation.version,
+            .applicationVersion: build.version,
         ]
-        if let revision = QuotaBuildInformation.revision { options[.version] = revision }
+        if let details = build.aboutDetails { options[.version] = details }
         NSApp.activate(ignoringOtherApps: true)
         NSApp.orderFrontStandardAboutPanel(options: options)
     }
