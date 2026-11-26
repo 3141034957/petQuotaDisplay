@@ -1,5 +1,6 @@
 """Capture only the subscription quota fields from Claude Code's status line."""
 
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,35 @@ def extract_bucket(bucket):
     if type(reset) in (int, float) and 0 < reset <= 253402300799:
         result["resetsAt"] = reset
     return result
+
+
+def save_snapshot(directory, snapshot):
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    destination = directory / "claude-usage.json"
+    descriptor = os.open(directory / "claude-usage.lock", os.O_CREAT | os.O_WRONLY, 0o600)
+    with os.fdopen(descriptor, "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            with destination.open("rb") as previous_input:
+                previous = json.loads(previous_input.read(4096))
+        except (OSError, ValueError, RecursionError):
+            previous = None
+        previous_time = previous.get("capturedAt") if isinstance(previous, dict) else None
+        if type(previous_time) in (int, float) and snapshot["capturedAt"] <= previous_time <= 253402300799:
+            return
+
+        temporary_path = None
+        try:
+            with NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory, delete=False) as output:
+                temporary_path = Path(output.name)
+                json.dump(snapshot, output)
+            os.replace(temporary_path, destination)
+        finally:
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink()
+                except FileNotFoundError:
+                    pass
 
 
 def main():
@@ -46,16 +76,7 @@ def main():
     snapshot["capturedAt"] = captured_at
 
     directory = Path.home() / "Library" / "Caches" / "PetQuotaDisplay"
-    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    temporary_path = None
-    try:
-        with NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory, delete=False) as output:
-            temporary_path = Path(output.name)
-            json.dump(snapshot, output)
-        os.replace(temporary_path, directory / "claude-usage.json")
-    finally:
-        if temporary_path is not None and temporary_path.exists():
-            temporary_path.unlink()
+    save_snapshot(directory, snapshot)
     return 0
 
 
