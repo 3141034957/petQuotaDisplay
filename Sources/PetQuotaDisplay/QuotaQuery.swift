@@ -2,49 +2,64 @@ import Foundation
 import QuotaCore
 
 enum QuotaQuery {
+    private typealias Stop = () -> Void
+
     static func snapshot(from provider: QuotaProvider, timeout: TimeInterval, modelID: String? = nil,
                          accountSelector: String? = nil) throws -> QuotaExport {
+        try waitForResult(timeout: timeout) { complete in
+            try startSnapshot(from: provider, modelID: modelID, accountSelector: accountSelector, complete: complete)
+        }
+    }
+
+    private static func startSnapshot(from provider: QuotaProvider, modelID: String?, accountSelector: String?,
+                                      complete: @escaping (Result<QuotaExport, Error>) -> Void) throws -> Stop {
         guard modelID == nil || provider == .codex else { throw Failure.modelOnlyForCodex }
         guard accountSelector == nil || provider == .codex else { throw Failure.accountOnlyForCodex }
-        defer { QuotaChildProcess.waitForTerminations() }
-        let state: QuotaDisplayState
+        func export(_ state: QuotaDisplayState) -> Result<QuotaExport, Error> {
+            guard let export = QuotaExport(provider: provider, state: state) else { return .failure(Failure.noResult) }
+            return .success(export)
+        }
+        func finishPolling(_ snapshot: Result<QuotaSnapshot, Error>) {
+            complete(snapshot.flatMap { export(.loaded($0)) })
+        }
         switch provider {
         case .claudeCode:
-            state = try ClaudeQuotaCache.read()
+            complete(export(try ClaudeQuotaCache.read()))
+            return {}
         case .codex:
-            let report = try codexReport(timeout: timeout, accountSelector: accountSelector)
-            return try codexExport(from: report, modelID: modelID)
+            return try startCodexReport(accountSelector: accountSelector) { report in
+                complete(report.flatMap { report in Result { try codexExport(from: report, modelID: modelID) } })
+            }
         case .gemini:
-            state = try run(GeminiQuotaClient(), timeout: timeout)
+            return start(GeminiQuotaClient(), complete: finishPolling)
         case .openCodeGo:
             let client = OpenCodeGoQuotaClient(readKey: { try OpenCodeGoKeychain.read(allowInteraction: false) })
-            state = try run(client, timeout: timeout)
+            return start(client, complete: finishPolling)
         case .kimiCode:
-            state = try run(KimiQuotaClient(), timeout: timeout)
+            return start(KimiQuotaClient(), complete: finishPolling)
         }
-
-        guard let export = QuotaExport(provider: provider, state: state) else { throw Failure.noResult }
-        return export
     }
 
     static func codexReport(timeout: TimeInterval, accountSelector: String?) throws -> CodexQuotaReport {
+        try waitForResult(timeout: timeout) { complete in
+            try startCodexReport(accountSelector: accountSelector, complete: complete)
+        }
+    }
+
+    private static func startCodexReport(accountSelector: String?,
+                                         complete: @escaping (Result<CodexQuotaReport, Error>) -> Void) throws -> Stop {
         let accounts = CodexAccountProfile.loadAccounts(persistNormalization: false)
         let requested = try accountSelector.map { try CodexAccountProfile.account(matching: $0, in: accounts) }
         guard let account = requested ?? CodexAccountProfile.selectedAccount(in: accounts),
               CodexAccountProfile.hasStoredCredentials(for: account) else { throw Failure.codexAccountRequired }
         let client = CodexQuotaClient(codexHome: try CodexAccountProfile.homeURL(for: account, create: false))
-        defer {
-            client.stop()
-            QuotaChildProcess.waitForTerminations()
+        client.onAccount = { account in
+            if account == nil { complete(.failure(Failure.codexAccountRequired)) }
         }
-        return try waitForResult(timeout: timeout) { complete in
-            client.onAccount = { account in
-                if account == nil { complete(.failure(Failure.codexAccountRequired)) }
-            }
-            client.onError = { complete(.failure($0)) }
-            client.onReport = { complete(.success($0)) }
-            client.start()
-        }
+        client.onError = { complete(.failure($0)) }
+        client.onReport = { complete(.success($0)) }
+        client.start()
+        return { client.stop() }
     }
 
     static func codexExport(from report: CodexQuotaReport, modelID: String?) throws -> QuotaExport {
@@ -61,18 +76,15 @@ enum QuotaQuery {
         return export
     }
 
-    private static func run(_ client: PollingQuotaClient, timeout: TimeInterval) throws -> QuotaDisplayState {
-        defer { client.stop() }
-        let snapshot: QuotaSnapshot = try waitForResult(timeout: timeout) { complete in
-            client.onResult = complete
-            client.refresh()
-        }
-        return .loaded(snapshot)
+    private static func start(_ client: PollingQuotaClient, complete: @escaping (Result<QuotaSnapshot, Error>) -> Void) -> Stop {
+        client.onResult = complete
+        client.refresh()
+        return { client.stop() }
     }
 
     private static func waitForResult<Value>(
         timeout: TimeInterval,
-        start: (@escaping (Result<Value, Error>) -> Void) -> Void
+        start: (@escaping (Result<Value, Error>) -> Void) throws -> Stop
     ) throws -> Value {
         var result: Result<Value, Error>?
         func complete(_ response: Result<Value, Error>) {
@@ -83,7 +95,11 @@ enum QuotaQuery {
         let timer = Timer(fire: deadline, interval: 0, repeats: false) { _ in }
         RunLoop.main.add(timer, forMode: .default)
         defer { timer.invalidate() }
-        start(complete)
+        let stop = try start(complete)
+        defer {
+            stop()
+            QuotaChildProcess.waitForTerminations()
+        }
         while result == nil, deadline > Date() {
             _ = RunLoop.main.run(mode: .default, before: deadline)
         }
