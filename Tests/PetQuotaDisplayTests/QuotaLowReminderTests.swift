@@ -3,6 +3,16 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaLowReminderTests: XCTestCase {
+    func testSystemNoticeCombinesAffectedPeriods() {
+        let notice = QuotaNotificationService.content(provider: .kimiCode, events: [
+            .init(period: .fiveHour, remainingPercent: 12, resetsAt: nil),
+            .init(period: .weekly, remainingPercent: 8, resetsAt: nil),
+        ])
+        XCTAssertEqual(notice.title, "Kimi Code 额度提醒")
+        XCTAssertEqual(notice.body, "5 小时剩余 12%，本周剩余 8%")
+        XCTAssertNil(notice.sound)
+    }
+
     func testReminderOnlyFiresForANewLowWindowOrAfterRecovery() {
         var tracker = QuotaLowReminder()
         let scope = QuotaReminderScope(context: .init(provider: .gemini, account: nil), modelID: nil)

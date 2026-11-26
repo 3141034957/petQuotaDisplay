@@ -46,6 +46,9 @@ final class QuotaOrbView: NSView {
     var onSelectWarningThreshold: ((QuotaWarningThreshold) -> Void)?
     var lowQuotaSoundEnabled = false
     var onToggleLowQuotaSound: (() -> Void)?
+    var supportsLowQuotaNotifications = false
+    var lowQuotaNotificationEnabled = false
+    var onToggleLowQuotaNotifications: (() -> Void)?
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
@@ -560,6 +563,11 @@ final class QuotaOrbView: NSView {
         let sound = submenu.addItem(withTitle: "低额度声音提醒", action: #selector(toggleLowQuotaSound), keyEquivalent: "")
         sound.target = self
         sound.state = lowQuotaSoundEnabled ? .on : .off
+        if supportsLowQuotaNotifications {
+            let notifications = submenu.addItem(withTitle: "低额度系统通知", action: #selector(toggleLowQuotaNotifications), keyEquivalent: "")
+            notifications.target = self
+            notifications.state = lowQuotaNotificationEnabled ? .on : .off
+        }
         item.submenu = submenu
         return item
     }
@@ -583,6 +591,7 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func toggleLowQuotaSound() { onToggleLowQuotaSound?() }
+    @objc private func toggleLowQuotaNotifications() { onToggleLowQuotaNotifications?() }
 
     private func refreshCadenceMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "定时刷新", action: nil, keyEquivalent: "")

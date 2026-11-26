@@ -26,6 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let historyArchiveWriter = DispatchQueue(label: "com.erenshwang.petquotadisplay.history", qos: .utility)
     private var historyArchiveGeneration = UUID()
     private var lowQuotaReminder = QuotaLowReminder()
+    private lazy var quotaNotifications = QuotaNotificationService()
+    private var isRequestingNotifications = false
     private var countdownTimer: Timer?
     private var statusItem: NSStatusItem?
     private var orbIsActive = false
@@ -141,6 +143,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.showsMenuBarSourceName = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarSourceNameKey)
         orbView.warningThreshold = QuotaWarningThreshold.load()
         orbView.lowQuotaSoundEnabled = QuotaPreferences.shared.bool(forKey: QuotaPreferences.lowQuotaSoundKey)
+        orbView.supportsLowQuotaNotifications = QuotaNotificationService.isSupported
+        orbView.lowQuotaNotificationEnabled = orbView.supportsLowQuotaNotifications
+            && QuotaPreferences.shared.bool(forKey: QuotaPreferences.lowQuotaNotificationKey)
         orbView.menuBarOnly = !forceOrbVisible && orbView.showsMenuBarQuota
             && QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarOnlyKey)
         orbView.sizePreference = orbSizePreference
@@ -163,6 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onToggleMenuBarSourceName = { [weak self] in self?.toggleMenuBarSourceName() }
         orbView.onSelectWarningThreshold = { [weak self] threshold in self?.setWarningThreshold(threshold) }
         orbView.onToggleLowQuotaSound = { [weak self] in self?.toggleLowQuotaSound() }
+        orbView.onToggleLowQuotaNotifications = { [weak self] in self?.toggleLowQuotaNotifications() }
         orbView.onFreshQuota = { [weak self] scope, snapshot in self?.handleLowQuota(scope, snapshot: snapshot) }
         orbView.onToggleWindowLevel = { [weak self] in self?.toggleWindowLevel() }
         orbView.onRaiseOrb = { [weak self] in self?.reconcileWindowVisibility() }
@@ -514,14 +520,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func toggleLowQuotaSound() {
         orbView.lowQuotaSoundEnabled.toggle()
-        lowQuotaReminder = QuotaLowReminder()
+        if !orbView.lowQuotaNotificationEnabled { lowQuotaReminder = QuotaLowReminder() }
         QuotaPreferences.shared.set(orbView.lowQuotaSoundEnabled, forKey: QuotaPreferences.lowQuotaSoundKey)
     }
 
+    private func toggleLowQuotaNotifications() {
+        guard orbView.supportsLowQuotaNotifications, !isRequestingNotifications else { return }
+        if orbView.lowQuotaNotificationEnabled {
+            setLowQuotaNotifications(false)
+            return
+        }
+        isRequestingNotifications = true
+        NSApp.activate(ignoringOtherApps: true)
+        quotaNotifications.requestAuthorization { [weak self] granted, error in
+            guard let self else { return }
+            self.isRequestingNotifications = false
+            self.setLowQuotaNotifications(granted)
+            if !granted {
+                let alert = NSAlert()
+                alert.messageText = "无法启用低额度通知"
+                alert.informativeText = error?.localizedDescription ?? "请在系统设置的“通知”中允许额度悬浮球发送通知。"
+                alert.addButton(withTitle: "关闭")
+                alert.runModal()
+            }
+        }
+    }
+
+    private func setLowQuotaNotifications(_ enabled: Bool) {
+        orbView.lowQuotaNotificationEnabled = enabled
+        if !orbView.lowQuotaSoundEnabled { lowQuotaReminder = QuotaLowReminder() }
+        QuotaPreferences.shared.set(enabled, forKey: QuotaPreferences.lowQuotaNotificationKey)
+    }
+
     private func handleLowQuota(_ scope: QuotaReminderScope, snapshot: QuotaSnapshot) {
-        guard orbView.lowQuotaSoundEnabled else { return }
+        guard orbView.lowQuotaSoundEnabled || orbView.lowQuotaNotificationEnabled else { return }
         let events = lowQuotaReminder.events(for: scope, snapshot: snapshot, threshold: orbView.warningThreshold)
-        if !events.isEmpty { NSSound.beep() }
+        guard !events.isEmpty else { return }
+        if orbView.lowQuotaSoundEnabled { NSSound.beep() }
+        if orbView.lowQuotaNotificationEnabled { quotaNotifications.post(provider: scope.context.provider, events: events) }
     }
 
     private func toggleWindowLevel() {

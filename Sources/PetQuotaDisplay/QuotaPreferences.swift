@@ -5,6 +5,7 @@ enum QuotaPreferences {
     static let menuBarEnabledKey = "quota.showsMenuBarItem"
     static let menuBarSourceNameKey = "quota.showsMenuBarSourceName"
     static let lowQuotaSoundKey = "quota.lowQuotaSound"
+    static let lowQuotaNotificationKey = "quota.lowQuotaNotification"
     static let menuBarOnlyKey = "orb.menuBarOnly"
 
     static let shared: UserDefaults = {
