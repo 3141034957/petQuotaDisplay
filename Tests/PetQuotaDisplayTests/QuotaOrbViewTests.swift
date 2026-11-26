@@ -56,6 +56,19 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(view.menuBarTitle, "额度 —")
     }
 
+    func testMenuBarOnlyModeKeepsAnActionForRestoringTheOrb() throws {
+        let view = QuotaOrbView(frame: .zero)
+        XCTAssertNil(try menu(view).item(withTitle: "仅在菜单栏显示"))
+        view.showsMenuBarQuota = true
+        view.onToggleOrbVisibility = { [weak view] in view?.menuBarOnly.toggle() }
+
+        let hide = try XCTUnwrap(menu(view).item(withTitle: "仅在菜单栏显示"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(hide.action), to: hide.target, from: hide))
+        let show = try XCTUnwrap(menu(view).item(withTitle: "显示悬浮球"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(show.action), to: show.target, from: show))
+        XCTAssertFalse(view.menuBarOnly)
+    }
+
     func testStaleQuotaShowsLastUpdateAndFailureUntilRecovery() throws {
         let view = QuotaOrbView(frame: NSRect(x: 0, y: 0, width: 111, height: 111))
         let snapshot = QuotaSnapshot(

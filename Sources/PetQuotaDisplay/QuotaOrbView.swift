@@ -68,7 +68,9 @@ final class QuotaOrbView: NSView {
     }
     var onSelectResetDisplay: ((OrbResetDisplay) -> Void)?
     var showsMenuBarQuota = false
+    var menuBarOnly = false
     var onToggleMenuBarQuota: (() -> Void)?
+    var onToggleOrbVisibility: (() -> Void)?
     var onPresentationChanged: (() -> Void)?
     var onSelectProvider: ((QuotaProvider) -> Void)?
     var onSelectAccount: ((CodexAccountSlot) -> Void)?
@@ -390,6 +392,12 @@ final class QuotaOrbView: NSView {
         menuBarToggle.target = self
         menuBarToggle.state = showsMenuBarQuota ? .on : .off
         menu.addItem(menuBarToggle)
+        if showsMenuBarQuota {
+            let title = menuBarOnly ? "显示悬浮球" : "仅在菜单栏显示"
+            let visibility = NSMenuItem(title: title, action: #selector(toggleOrbVisibility), keyEquivalent: "")
+            visibility.target = self
+            menu.addItem(visibility)
+        }
         let reset = NSMenuItem(title: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
@@ -529,6 +537,7 @@ final class QuotaOrbView: NSView {
     @objc private func quitFromMenu() { onQuit?() }
     @objc private func resetPositionFromMenu() { onResetPosition?() }
     @objc private func toggleMenuBarQuota() { onToggleMenuBarQuota?() }
+    @objc private func toggleOrbVisibility() { onToggleOrbVisibility?() }
 
     @objc private func selectOrbSize(_ sender: NSMenuItem) {
         guard let size = OrbSizePreference(rawValue: sender.tag) else { return }

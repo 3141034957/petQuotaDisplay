@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let selectedAccountDefaultsKey = "quota.selectedAccount"
     private static let selectedProviderDefaultsKey = "quota.selectedProvider"
     private static let showsMenuBarQuotaDefaultsKey = "quota.showsMenuBarItem"
+    private static let menuBarOnlyDefaultsKey = "orb.menuBarOnly"
 
     private var orbSizePreference = OrbSizePreference(
         rawValue: UserDefaults.standard.integer(forKey: OrbSizePreference.defaultsKey)
@@ -123,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.provider = savedProvider.flatMap(QuotaProvider.init(rawValue:)) ?? .codex
         orbView.refreshCadence = QuotaRefreshCadence.load()
         orbView.showsMenuBarQuota = UserDefaults.standard.bool(forKey: Self.showsMenuBarQuotaDefaultsKey)
+        orbView.menuBarOnly = orbView.showsMenuBarQuota && UserDefaults.standard.bool(forKey: Self.menuBarOnlyDefaultsKey)
         orbView.sizePreference = orbSizePreference
         let savedResetDisplay = UserDefaults.standard.string(forKey: OrbResetDisplay.defaultsKey)
         orbView.resetDisplay = savedResetDisplay.flatMap(OrbResetDisplay.init(rawValue:)) ?? .time
@@ -139,6 +141,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
         orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
         orbView.onToggleMenuBarQuota = { [weak self] in self?.toggleMenuBarQuota() }
+        orbView.onToggleOrbVisibility = { [weak self] in
+            guard let self, self.orbView.showsMenuBarQuota else { return }
+            self.setMenuBarOnly(!self.orbView.menuBarOnly)
+        }
         orbView.onPresentationChanged = { [weak self] in self?.updateStatusItem() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
@@ -146,7 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onRenameAccount = { [weak self] account in self?.renameAccount(account) }
         orbView.onDeleteAccount = { [weak self] account in self?.deleteAccount(account) }
         orbView.onConfigureOpenCodeGo = { [weak self] in self?.configureOpenCodeGo() }
-        orbView.quitMenuTitle = followCodex ? "本次隐藏悬浮球" : "退出额度悬浮球"
+        orbView.quitMenuTitle = followCodex ? "本次隐藏额度显示" : "退出额度悬浮球"
         updateAccountMenuState()
         window.contentView = orbView
     }
@@ -154,8 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func startOrb() {
         guard !orbIsActive else { return }
         orbIsActive = true
-        window.setFrameOrigin(restoredOrDefaultOrigin())
-        window.orderFrontRegardless()
+        reconcileWindowVisibility()
         reconcileStatusItem()
 
         switch orbView.provider {
@@ -179,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func scheduleCountdownTimer() {
         countdownTimer?.invalidate()
         countdownTimer = nil
-        guard orbIsActive, orbView.resetDisplay == .countdown else { return }
+        guard orbIsActive, !orbView.menuBarOnly, orbView.resetDisplay == .countdown else { return }
         let timer = Timer(timeInterval: 15, repeats: true) { [weak self] _ in
             guard let self, self.orbView.state.snapshot != nil else { return }
             self.orbView.needsDisplay = true
@@ -324,7 +329,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func toggleMenuBarQuota() {
         orbView.showsMenuBarQuota.toggle()
         UserDefaults.standard.set(orbView.showsMenuBarQuota, forKey: Self.showsMenuBarQuotaDefaultsKey)
+        if !orbView.showsMenuBarQuota { setMenuBarOnly(false) }
         reconcileStatusItem()
+    }
+
+    private func setMenuBarOnly(_ menuBarOnly: Bool) {
+        guard orbView.menuBarOnly != menuBarOnly else { return }
+        orbView.menuBarOnly = menuBarOnly
+        UserDefaults.standard.set(menuBarOnly, forKey: Self.menuBarOnlyDefaultsKey)
+        reconcileWindowVisibility()
+        scheduleCountdownTimer()
+    }
+
+    private func reconcileWindowVisibility() {
+        guard orbIsActive, !orbView.menuBarOnly else {
+            window.orderOut(nil)
+            return
+        }
+        window.setFrameOrigin(restoredOrDefaultOrigin())
+        window.orderFrontRegardless()
     }
 
     private func reconcileStatusItem() {
