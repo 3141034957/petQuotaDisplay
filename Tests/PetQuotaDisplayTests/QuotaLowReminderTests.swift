@@ -4,6 +4,15 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class QuotaLowReminderTests: XCTestCase {
+    func testNotificationHistoryRouteKeepsTheCodexAccountScoped() throws {
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let context = QuotaHistoryContext(provider: .codex, account: account)
+        let info = QuotaNotificationService.userInfo(for: context)
+        XCTAssertEqual(QuotaNotificationService.historyContext(from: info), context)
+        XCTAssertNil(QuotaNotificationService.historyContext(from: ["provider": "codex"]))
+        XCTAssertNil(QuotaNotificationService.historyContext(from: ["provider": "gemini", "account": account.rawValue]))
+    }
+
     func testNotificationAuthorizationErrorIsDistinguishedFromOtherErrors() {
         let code = UNError.Code.notificationsNotAllowed.rawValue
         XCTAssertTrue(QuotaNotificationService.isAuthorizationError(NSError(domain: UNErrorDomain, code: code)))
@@ -28,6 +37,8 @@ final class QuotaLowReminderTests: XCTestCase {
         XCTAssertEqual(notice.title, "Kimi Code 额度提醒")
         XCTAssertEqual(notice.body, "5 小时剩余 12%，本周剩余 8%")
         XCTAssertNil(notice.sound)
+        let model = QuotaNotificationService.content(provider: .codex, modelID: "extra", events: [])
+        XCTAssertEqual(model.title, "Codex · extra 额度提醒")
     }
 
     func testReminderOnlyFiresForANewLowWindowOrAfterRecovery() {

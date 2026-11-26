@@ -26,7 +26,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let historyArchiveWriter = DispatchQueue(label: "com.erenshwang.petquotadisplay.history", qos: .utility)
     private var historyArchiveGeneration = UUID()
     private var lowQuotaReminder = QuotaLowReminder()
-    private lazy var quotaNotifications = QuotaNotificationService()
+    private lazy var quotaNotifications: QuotaNotificationService = {
+        let service = QuotaNotificationService()
+        service.onShowHistory = { [weak self] context in self?.showHistoryFromNotification(context) }
+        return service
+    }()
     private var isRequestingNotifications = false
     private var countdownTimer: Timer?
     private var statusItem: NSStatusItem?
@@ -241,6 +245,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller.window?.title = parts.joined(separator: " · ")
         NSApp.activate(ignoringOtherApps: true)
         controller.showWindow(nil)
+    }
+
+    private func showHistoryFromNotification(_ context: QuotaHistoryContext) {
+        if let readings = orbView.historyForArchive[context], !readings.isEmpty {
+            showQuotaHistory(context: context, readings: readings)
+        } else {
+            let alert = NSAlert()
+            alert.messageText = "暂无此通知对应的采集记录"
+            alert.addButton(withTitle: "关闭")
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+        }
     }
 
     private func updateQuotaHistory(context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
@@ -576,7 +592,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !events.isEmpty else { return }
         if orbView.lowQuotaSoundEnabled { NSSound.beep() }
         if orbView.lowQuotaNotificationEnabled {
-            quotaNotifications.post(provider: scope.context.provider, events: events) { [weak self] error in
+            quotaNotifications.post(scope: scope, events: events) { [weak self] error in
                 guard let self, self.orbView.lowQuotaNotificationEnabled else { return }
                 if let error, QuotaNotificationService.isAuthorizationError(error) {
                     self.recordNotificationPermissionLoss()
