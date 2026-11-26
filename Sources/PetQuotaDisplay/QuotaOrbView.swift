@@ -69,7 +69,10 @@ final class QuotaOrbView: NSView {
     var onSelectResetDisplay: ((OrbResetDisplay) -> Void)?
     var showsMenuBarQuota = false
     var menuBarOnly = false
+    var staysOnTop = true
     var onToggleMenuBarQuota: (() -> Void)?
+    var onToggleWindowLevel: (() -> Void)?
+    var onRaiseOrb: (() -> Void)?
     var onToggleOrbVisibility: (() -> Void)?
     var onPresentationChanged: (() -> Void)?
     var onSelectProvider: ((QuotaProvider) -> Void)?
@@ -392,6 +395,10 @@ final class QuotaOrbView: NSView {
             let visibility = NSMenuItem(title: title, action: #selector(toggleOrbVisibility), keyEquivalent: "")
             visibility.target = self
             menu.addItem(visibility)
+            if !staysOnTop && !menuBarOnly {
+                let raise = menu.addItem(withTitle: "将悬浮球移到前台", action: #selector(raiseOrb), keyEquivalent: "")
+                raise.target = self
+            }
         }
         let quit = NSMenuItem(title: quitMenuTitle, action: #selector(quitFromMenu), keyEquivalent: "q")
         quit.target = self
@@ -403,6 +410,9 @@ final class QuotaOrbView: NSView {
         let submenu = NSMenu(title: item.title)
         submenu.addItem(orbSizeMenuItem())
         submenu.addItem(resetDisplayMenuItem())
+        let pin = submenu.addItem(withTitle: "保持悬浮球置顶", action: #selector(toggleWindowLevel), keyEquivalent: "")
+        pin.target = self
+        pin.state = staysOnTop ? .on : .off
         let reset = submenu.addItem(withTitle: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
         reset.target = self
         submenu.addItem(.separator())
@@ -544,6 +554,8 @@ final class QuotaOrbView: NSView {
     @objc private func resetPositionFromMenu() { onResetPosition?() }
     @objc private func toggleMenuBarQuota() { onToggleMenuBarQuota?() }
     @objc private func toggleOrbVisibility() { onToggleOrbVisibility?() }
+    @objc private func toggleWindowLevel() { onToggleWindowLevel?() }
+    @objc private func raiseOrb() { onRaiseOrb?() }
 
     @objc private func selectOrbSize(_ sender: NSMenuItem) {
         guard let size = OrbSizePreference(rawValue: sender.tag) else { return }

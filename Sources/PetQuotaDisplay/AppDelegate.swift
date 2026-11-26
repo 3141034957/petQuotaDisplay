@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let selectedProviderDefaultsKey = "quota.selectedProvider"
     private static let showsMenuBarQuotaDefaultsKey = "quota.showsMenuBarItem"
     private static let menuBarOnlyDefaultsKey = "orb.menuBarOnly"
+    private static let floatingOrbDefaultsKey = "orb.staysOnTop"
 
     private var orbSizePreference = OrbSizePreference(
         rawValue: UserDefaults.standard.integer(forKey: OrbSizePreference.defaultsKey)
@@ -115,7 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
-        window.level = .floating
+        let staysOnTop = forceOrbVisible || (UserDefaults.standard.object(forKey: Self.floatingOrbDefaultsKey) as? Bool ?? true)
+        window.level = staysOnTop ? .floating : .normal
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         window.isReleasedWhenClosed = false
         window.animationBehavior = .utilityWindow
@@ -129,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.menuBarOnly = !forceOrbVisible && orbView.showsMenuBarQuota
             && UserDefaults.standard.bool(forKey: Self.menuBarOnlyDefaultsKey)
         orbView.sizePreference = orbSizePreference
+        orbView.staysOnTop = staysOnTop
         let savedResetDisplay = UserDefaults.standard.string(forKey: OrbResetDisplay.defaultsKey)
         orbView.resetDisplay = savedResetDisplay.flatMap(OrbResetDisplay.init(rawValue:)) ?? .time
         orbView.onSelectProvider = { [weak self] provider in self?.switchProvider(to: provider) }
@@ -144,6 +147,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
         orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
         orbView.onToggleMenuBarQuota = { [weak self] in self?.toggleMenuBarQuota() }
+        orbView.onToggleWindowLevel = { [weak self] in self?.toggleWindowLevel() }
+        orbView.onRaiseOrb = { [weak self] in self?.reconcileWindowVisibility() }
         orbView.onToggleOrbVisibility = { [weak self] in
             guard let self, self.orbView.showsMenuBarQuota else { return }
             self.setMenuBarOnly(!self.orbView.menuBarOnly)
@@ -342,6 +347,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UserDefaults.standard.set(menuBarOnly, forKey: Self.menuBarOnlyDefaultsKey)
         reconcileWindowVisibility()
         scheduleCountdownTimer()
+    }
+
+    private func toggleWindowLevel() {
+        orbView.staysOnTop.toggle()
+        UserDefaults.standard.set(orbView.staysOnTop, forKey: Self.floatingOrbDefaultsKey)
+        window.level = orbView.staysOnTop ? .floating : .normal
+        reconcileWindowVisibility()
     }
 
     private func reconcileWindowVisibility() {
