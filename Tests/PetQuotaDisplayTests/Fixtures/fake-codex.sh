@@ -8,6 +8,10 @@ if [ -f "$counter_file" ]; then
 fi
 count=$((count + 1))
 printf '%s\n' "$count" > "$counter_file"
+if [ "$scenario" = ignore-termination ]; then
+    trap '' TERM
+    printf '%s\n' "$$" > "$counter_file.pid"
+fi
 
 while IFS= read -r line; do
     # JSONSerialization emits numeric request IDs without whitespace.
@@ -93,6 +97,7 @@ while IFS= read -r line; do
             if [ "$scenario" = quota-timeout ] && [ "$count" -eq 1 ]; then continue; fi
             if [ "$scenario" = unexpected-exit ] && [ "$count" -eq 1 ]; then exit 7; fi
             printf '{"id":%s,"result":{"rateLimits":{"planType":"plus","primary":{"windowDurationMins":10080,"usedPercent":35}}}}\n' "$id"
+            if [ "$scenario" = ignore-termination ]; then exec /bin/sleep 30; fi
             ;;
     esac
 done

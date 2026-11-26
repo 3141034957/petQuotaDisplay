@@ -464,9 +464,7 @@ final class CodexQuotaClient {
         }
         try? input?.close()
         input = nil
-        if process?.isRunning == true {
-            process?.terminate()
-        }
+        QuotaChildProcess.terminate(process)
         process = nil
         initialized = false
         verifiedAccount = nil

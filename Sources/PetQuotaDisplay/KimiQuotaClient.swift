@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import QuotaCore
 
@@ -46,12 +45,7 @@ final class KimiQuotaClient: PollingQuotaClient {
         let pending = server
         server = nil
         (pending?.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
-        if let pending, pending.isRunning {
-            pending.terminate()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                if pending.isRunning { kill(pending.processIdentifier, SIGKILL) }
-            }
-        }
+        QuotaChildProcess.terminate(pending)
     }
 
     private func startServer(_ executable: URL) {

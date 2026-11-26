@@ -147,6 +147,23 @@ final class CodexQuotaClientTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: fixture.counter).trimmingCharacters(in: .whitespacesAndNewlines), "1")
     }
 
+    func testStopTerminatesAnUnresponsiveChild() throws {
+        let fixture = try makeClient(scenario: "ignore-termination")
+        defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let running = expectation(description: "fixture connected")
+        fixture.client.onReport = { _ in running.fulfill() }
+        fixture.client.start()
+        wait(for: [running], timeout: 3)
+
+        let pidFile = fixture.counter.appendingPathExtension("pid")
+        let pidText = try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+        let pid = try XCTUnwrap(Int32(pidText))
+        XCTAssertGreaterThan(pid, 1)
+        fixture.client.stop()
+        let stopped = expectation(for: NSPredicate { _, _ in kill(pid, 0) == -1 && errno == ESRCH }, evaluatedWith: nil)
+        wait(for: [stopped], timeout: 4)
+    }
+
     private func assertRecovers(scenario: String, checkError: @escaping (Error) -> Void) throws {
         let fixture = try makeClient(scenario: scenario)
         defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }

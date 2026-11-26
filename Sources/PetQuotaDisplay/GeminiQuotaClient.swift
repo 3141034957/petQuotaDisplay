@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import QuotaCore
 
@@ -55,12 +54,7 @@ final class GeminiQuotaClient: PollingQuotaClient {
         timeoutWork = nil
         let pending = process
         process = nil
-        if let pending, pending.isRunning {
-            pending.terminate()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                if pending.isRunning { kill(pending.processIdentifier, SIGKILL) }
-            }
-        }
+        QuotaChildProcess.terminate(pending)
     }
 
     private func run(
