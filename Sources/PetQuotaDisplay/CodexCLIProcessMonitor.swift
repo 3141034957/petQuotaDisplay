@@ -56,21 +56,22 @@ final class CodexCLIProcessMonitor {
         }
         guard actualCount > 0 else { return nil }
 
+        let user = getuid()
         return pids.prefix(min(actualCount, pids.count)).compactMap { pid in
             guard pid > 0,
-                  let parentPID = parentPID(of: pid),
+                  let parentPID = parentPID(of: pid, ownedBy: user),
                   let path = executablePath(of: pid) else { return nil }
             return ProcessRecord(pid: pid, parentPID: parentPID, executablePath: path)
         }
     }
 
-    private static func parentPID(of pid: pid_t) -> pid_t? {
+    private static func parentPID(of pid: pid_t, ownedBy user: uid_t) -> pid_t? {
         var info = proc_bsdinfo()
         let expectedSize = Int32(MemoryLayout<proc_bsdinfo>.size)
         let actualSize = withUnsafeMutablePointer(to: &info) { pointer in
             proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, pointer, expectedSize)
         }
-        guard actualSize == expectedSize else { return nil }
+        guard actualSize == expectedSize, info.pbi_ruid == user else { return nil }
         return pid_t(info.pbi_ppid)
     }
 

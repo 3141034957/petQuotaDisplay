@@ -235,7 +235,7 @@ KIMI_CLI_PATH=/你的路径/kimi python3 main.py
 
 ## 登录时自动启动
 
-运行安装脚本后，macOS 登录时会启动一个无窗口监听器。它通过系统应用启动事件监听 `com.openai.codex`，并通过 macOS 原生进程接口检测独立 Codex CLI：桌面 Codex 或 Codex CLI 任一运行时显示额度；两者都退出后隐藏额度并停止读取。跟随模式菜单中的“本次隐藏额度显示”会在当前 Codex 会话内隐藏悬浮球和菜单栏额度，监听器会在 Codex 完整退出后的下一次启动时重新显示额度。监听器异常退出时 LaunchAgent 会自动恢复。
+运行安装脚本后，macOS 登录时会启动一个无窗口监听器。它通过系统应用启动事件监听 `com.openai.codex`，并检测当前 macOS 用户运行的独立 Codex CLI。桌面 Codex 或 Codex CLI 任一运行时显示额度，两者都退出后隐藏额度并停止读取。跟随模式菜单中的“本次隐藏额度显示”会在当前 Codex 会话内隐藏悬浮球和菜单栏额度，监听器会在 Codex 完整退出后的下一次启动时重新显示额度。监听器异常退出时 LaunchAgent 会自动恢复。
 
 ```bash
 zsh scripts/install_autostart.sh
