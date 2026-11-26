@@ -32,8 +32,24 @@ enum CodexAccountStatus: Equatable {
 }
 
 enum CodexAccountProfile {
+    struct ListedAccount: Encodable {
+        let id: String
+        let name: String?
+        let selected: Bool
+        let credentialsStored: Bool
+    }
+
     private static let additionalAccountsDefaultsKey = "quota.additionalAccounts"
     static let selectedAccountDefaultsKey = "quota.selectedAccount"
+
+    static func accountList(defaults: UserDefaults = QuotaPreferences.shared) -> [ListedAccount] {
+        let accounts = loadAccounts(defaults: defaults, persistNormalization: false)
+        let selected = selectedAccount(in: accounts, defaults: defaults)
+        return accounts.map { account in
+            ListedAccount(id: account.rawValue, name: name(for: account, defaults: defaults),
+                          selected: account == selected, credentialsStored: hasStoredCredentials(for: account))
+        }
+    }
 
     static func selectedAccount(in accounts: [CodexAccountSlot], defaults: UserDefaults = QuotaPreferences.shared) -> CodexAccountSlot? {
         let saved = defaults.string(forKey: selectedAccountDefaultsKey).flatMap(CodexAccountSlot.init(rawValue:))

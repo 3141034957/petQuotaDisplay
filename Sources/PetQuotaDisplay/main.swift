@@ -5,6 +5,7 @@ let usage = """
 用法：PetQuotaDisplay [显示模式] [--provider 来源] [--period 周期] [--refresh-interval 秒数]
       PetQuotaDisplay --diagnose [--json]
       PetQuotaDisplay --query [查询选项]
+      PetQuotaDisplay --list-codex-accounts
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端
@@ -20,6 +21,7 @@ let usage = """
   --require-fresh  结果已过期时，退出码为 3
   --model         查询指定标识的 Codex 模型额度
   --account       本次查询的 Codex 账号名称或标识
+  --list-codex-accounts  输出已配置的 Codex 账号标识及本地名称
   --json          将诊断输出为 JSON，供脚本读取
   -h, --help      显示帮助
 """
@@ -30,13 +32,18 @@ case ["--diagnose"]:
     print(QuotaDiagnostics.checkSources().summary)
     exit(0)
 case ["--diagnose", "--json"]:
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     do {
-        let json = try encoder.encode(QuotaDiagnostics.checkSources())
-        print(String(decoding: json, as: UTF8.self))
+        print(try QuotaOutput.json(QuotaDiagnostics.checkSources()))
     } catch {
         FileHandle.standardError.write(Data("无法生成诊断 JSON。\n".utf8))
+        exit(70)
+    }
+    exit(0)
+case ["--list-codex-accounts"]:
+    do {
+        print(try QuotaOutput.json(CodexAccountProfile.accountList()))
+    } catch {
+        FileHandle.standardError.write(Data("无法生成账号列表。\n".utf8))
         exit(70)
     }
     exit(0)

@@ -2,6 +2,24 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class CodexAccountProfileTests: XCTestCase {
+    func testAccountListingIsReadOnlyAndUsesLocalNames() throws {
+        let suite = "CodexAccountListTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = "quota.additionalAccounts"
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let raw = [account.rawValue, account.rawValue, "invalid"]
+        defaults.set(raw, forKey: key)
+        CodexAccountProfile.setName("Fixture", for: account, defaults: defaults)
+        defaults.set(account.rawValue, forKey: CodexAccountProfile.selectedAccountDefaultsKey)
+
+        let item = try XCTUnwrap(CodexAccountProfile.accountList(defaults: defaults).first { $0.id == account.rawValue })
+        XCTAssertEqual(item.name, "Fixture")
+        XCTAssertTrue(item.selected)
+        XCTAssertFalse(item.credentialsStored)
+        XCTAssertEqual(defaults.stringArray(forKey: key), raw)
+    }
+
     func testQueryResolvesAnAccountIDOrUniqueName() throws {
         let suite = "CodexAccountLookupTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
