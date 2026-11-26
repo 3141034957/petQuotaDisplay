@@ -6,7 +6,7 @@ let periodHelp = (QuotaPeriod.allCases.map(\.rawValue) + [QuotaWindowPreference.
 let formatHelp = QuotaExport.Format.allCases.map(\.rawValue).joined(separator: ", ")
 let usage = """
 用法：PetQuotaDisplay [显示模式] [--provider 来源] [--period 周期] [--refresh-interval 秒数]
-      PetQuotaDisplay --diagnose [--json]
+      PetQuotaDisplay --diagnose [--provider 来源] [--json]
       PetQuotaDisplay --query [查询选项]
       PetQuotaDisplay --list-codex-accounts
       PetQuotaDisplay --history [历史选项]
@@ -59,12 +59,17 @@ switch arguments {
 case ["--version"]:
     print(QuotaBuildInformation.summary)
     exit(0)
-case ["--diagnose"]:
-    print(QuotaDiagnostics.checkSources().summary)
-    exit(0)
-case ["--diagnose", "--json"]:
+case _ where arguments.first == "--diagnose":
+    let options: QuotaDiagnostics.Options
     do {
-        print(try QuotaOutput.json(QuotaDiagnostics.checkSources()))
+        options = try QuotaDiagnostics.Options(arguments: Array(arguments.dropFirst()))
+    } catch {
+        FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
+        exit(64)
+    }
+    let report = QuotaDiagnostics.checkSources(provider: options.provider)
+    do {
+        print(options.json ? try QuotaOutput.json(report) : report.summary)
     } catch {
         FileHandle.standardError.write(Data("无法生成诊断 JSON。\n".utf8))
         exit(70)

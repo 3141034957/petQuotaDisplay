@@ -1,6 +1,32 @@
 import Foundation
 
 enum QuotaDiagnostics {
+    struct Options {
+        private(set) var provider: QuotaProvider?
+        private(set) var json = false
+
+        init(arguments: [String]) throws {
+            var arguments = arguments[...]
+            while let option = arguments.popFirst() {
+                switch option {
+                case "--provider":
+                    guard provider == nil, let name = arguments.popFirst(), let source = QuotaProvider(rawValue: name) else {
+                        throw InvalidOptions()
+                    }
+                    provider = source
+                case "--json" where !json:
+                    json = true
+                default:
+                    throw InvalidOptions()
+                }
+            }
+        }
+
+        private struct InvalidOptions: LocalizedError {
+            var errorDescription: String? { "用法：PetQuotaDisplay --diagnose [--provider 来源] [--json]" }
+        }
+    }
+
     enum Status: String, Encodable {
         case available, needsSetup, stale, managedInApp
     }
@@ -63,18 +89,26 @@ enum QuotaDiagnostics {
         }
     }
 
-    static func checkSources() -> Report {
+    static func checkSources(provider: QuotaProvider? = nil) -> Report {
         let environment = ProcessInfo.processInfo.environment
-        let codex = CodexQuotaClient.resolveCodexLaunch(environment: environment) != nil
-        let gemini = QuotaCLI.find("agy", override: "ANTIGRAVITY_CLI_PATH", environment: environment) != nil
-        let kimi = QuotaCLI.find("kimi", override: "KIMI_CLI_PATH", environment: environment) != nil
-        let sources = [
-            cliStatus(.codex, found: codex, override: "CODEX_CLI_PATH"),
-            cliStatus(.gemini, found: gemini, override: "ANTIGRAVITY_CLI_PATH"),
-            claudeStatus(),
-            Source(.openCodeGo, status: .managedInApp, detail: "在悬浮球右键菜单检查密钥设置"),
-            cliStatus(.kimiCode, found: kimi, override: "KIMI_CLI_PATH"),
-        ]
+        let providers = provider.map { [$0] } ?? QuotaProvider.allCases
+        let sources = providers.map { source in
+            switch source {
+            case .codex:
+                let found = CodexQuotaClient.resolveCodexLaunch(environment: environment) != nil
+                return cliStatus(source, found: found, override: "CODEX_CLI_PATH")
+            case .gemini:
+                let found = QuotaCLI.find("agy", override: "ANTIGRAVITY_CLI_PATH", environment: environment) != nil
+                return cliStatus(source, found: found, override: "ANTIGRAVITY_CLI_PATH")
+            case .claudeCode:
+                return claudeStatus()
+            case .openCodeGo:
+                return Source(source, status: .managedInApp, detail: "在悬浮球右键菜单检查密钥设置")
+            case .kimiCode:
+                let found = QuotaCLI.find("kimi", override: "KIMI_CLI_PATH", environment: environment) != nil
+                return cliStatus(source, found: found, override: "KIMI_CLI_PATH")
+            }
+        }
         return Report(sources: sources, display: DisplayPreferences(defaults: QuotaPreferences.shared))
     }
 
