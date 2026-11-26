@@ -97,11 +97,13 @@ final class QuotaOrbView: NSView {
     private var windowPreferenceKey: String {
         QuotaWindowPreference.key(for: provider, account: selectedAccount)
     }
-    private var displayedWindow: QuotaPeriod {
-        let saved = defaults.string(forKey: windowPreferenceKey)
+    private var windowPreferenceValue: String? {
+        defaults.string(forKey: windowPreferenceKey)
             ?? defaults.string(forKey: QuotaWindowPreference.key(for: provider))
             ?? defaults.string(forKey: QuotaWindowPreference.legacyKey)
-        return saved.flatMap(QuotaPeriod.init(rawValue:)) ?? .weekly
+    }
+    private var displayedWindow: QuotaPeriod {
+        windowPreferenceValue.flatMap(QuotaPeriod.init(rawValue:)) ?? .weekly
     }
 
     override var isFlipped: Bool { true }
@@ -369,6 +371,12 @@ final class QuotaOrbView: NSView {
 
         let loadedSnapshot = state.snapshot.map(displaySnapshot)
         let effectiveWindow = loadedSnapshot.map(resolvedWindow) ?? displayedWindow
+        let isAutomatic = windowPreferenceValue == QuotaWindowPreference.lowestRemaining
+        let automatic = menu.addItem(
+            withTitle: "自动展示剩余最少的周期", action: #selector(selectAdaptiveWindow), keyEquivalent: ""
+        )
+        automatic.target = self
+        automatic.state = isAutomatic ? .on : .off
 
         for period in QuotaPeriod.allCases where period != .monthly || provider.supportsMonthlyQuota {
             let prefix = period == .fiveHour ? "展示 " : "展示"
@@ -377,7 +385,9 @@ final class QuotaOrbView: NSView {
             )
             item.target = self
             item.representedObject = period.rawValue
-            item.state = effectiveWindow == period ? .on : .off
+            if effectiveWindow == period {
+                item.state = isAutomatic ? .mixed : .on
+            }
             item.isEnabled = loadedSnapshot?[period] != nil
             menu.addItem(item)
         }
@@ -738,7 +748,15 @@ final class QuotaOrbView: NSView {
     @objc private func selectDisplayedWindow(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
               let selected = QuotaPeriod(rawValue: rawValue) else { return }
-        defaults.set(selected.rawValue, forKey: windowPreferenceKey)
+        saveWindowPreference(selected.rawValue)
+    }
+
+    @objc private func selectAdaptiveWindow() {
+        saveWindowPreference(QuotaWindowPreference.lowestRemaining)
+    }
+
+    private func saveWindowPreference(_ value: String) {
+        defaults.set(value, forKey: windowPreferenceKey)
         needsDisplay = true
         updateAccessibility()
     }
@@ -749,9 +767,16 @@ final class QuotaOrbView: NSView {
 
     /// Falls back to whichever window the current plan actually publishes.
     private func resolvedWindow(in snapshot: QuotaSnapshot) -> QuotaPeriod {
+        let fallbackOrder: [QuotaPeriod] = [.weekly, .fiveHour, .monthly]
+        if windowPreferenceValue == QuotaWindowPreference.lowestRemaining {
+            let candidates = fallbackOrder.compactMap { period in
+                snapshot[period].map { (period: period, remaining: $0.remainingPercent) }
+            }
+            return candidates.min { $0.remaining < $1.remaining }?.period ?? .weekly
+        }
         let preferred = displayedWindow
         if snapshot[preferred] != nil { return preferred }
-        return [QuotaPeriod.weekly, .fiveHour, .monthly].first { snapshot[$0] != nil } ?? preferred
+        return fallbackOrder.first { snapshot[$0] != nil } ?? preferred
     }
 
     private func displayedQuota(in snapshot: QuotaSnapshot) -> (title: String, quota: QuotaWindow)? {

@@ -154,6 +154,26 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(try menu(view).item(withTitle: "展示本周额度")?.state, .on)
     }
 
+    func testAdaptivePeriodTracksTheSmallestRemainingQuota() throws {
+        let suite = "QuotaOrbViewTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let view = QuotaOrbView(frame: .zero, defaults: defaults)
+        view.provider = .openCodeGo
+        let automatic = try XCTUnwrap(menu(view).item(withTitle: "自动展示剩余最少的周期"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(automatic.action), to: automatic.target, from: automatic))
+
+        let fiveHour = QuotaWindow(usedPercent: 50, resetsAt: nil)
+        let monthly = QuotaWindow(usedPercent: 60, resetsAt: nil)
+        view.state = .loaded(QuotaSnapshot(planType: nil, fiveHour: fiveHour, weekly: nil, monthly: monthly))
+        XCTAssertEqual(view.menuBarTitle, "40%")
+        XCTAssertEqual(try menu(view).item(withTitle: "展示本月额度")?.state, .mixed)
+
+        view.state = .loaded(QuotaSnapshot(planType: nil, fiveHour: fiveHour, weekly: QuotaWindow(usedPercent: 95, resetsAt: nil), monthly: monthly))
+        XCTAssertEqual(view.menuBarTitle, "5%")
+        XCTAssertEqual(try menu(view).item(withTitle: "自动展示剩余最少的周期")?.state, .on)
+    }
+
     func testCodexAccountsRememberSeparatePeriods() throws {
         let suite = "QuotaOrbViewTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
