@@ -101,11 +101,7 @@ staged_binary="$(mktemp "${install_dir}/.PetQuotaDisplay.XXXXXX")"
 staged_plist="$(mktemp "${launch_agents_dir}/.${label}.XXXXXX")"
 cp "${repository_dir}/autostart/${label}.plist" "${staged_plist}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${installed_binary}" "${staged_plist}"
-if [[ "${mode}" == --always-show ]]; then
-    /usr/libexec/PlistBuddy -c 'Delete :ProgramArguments:1' "${staged_plist}"
-else
-    /usr/libexec/PlistBuddy -c "Set :ProgramArguments:1 ${mode}" "${staged_plist}"
-fi
+/usr/libexec/PlistBuddy -c "Set :ProgramArguments:1 ${mode}" "${staged_plist}"
 /usr/bin/plutil -lint "${staged_plist}"
 cp "${binary_dir}/PetQuotaDisplay" "${staged_binary}"
 chmod 755 "${staged_binary}"

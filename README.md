@@ -213,6 +213,8 @@ zsh scripts/install_autostart.sh
 
 首次安装默认跟随 Codex。主要使用其他 agent 时，可以选择登录后直接显示悬浮球。安装后也可显式切回跟随模式。
 
+使用 `--always-show` 安装时，LaunchAgent 会显式强制显示悬浮球，包括此前启用过仅菜单栏显示的情况。
+
 ```bash
 zsh scripts/install_autostart.sh --always-show
 zsh scripts/install_autostart.sh --follow-codex
