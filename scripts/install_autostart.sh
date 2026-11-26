@@ -2,7 +2,7 @@
 set -euo pipefail
 
 usage() {
-    printf '%s\n' '用法：zsh scripts/install_autostart.sh [显示模式] [--dry-run]' \
+    printf '%s\n' '用法：zsh scripts/install_autostart.sh [显示模式] [--at-next-login] [--dry-run]' \
         '      zsh scripts/install_autostart.sh [显示模式] --print-plist' \
         '      zsh scripts/install_autostart.sh --status [--json]' \
         '显示模式：--follow-codex、--follow-codex-desktop、--follow-codex-cli、--always-show'
@@ -12,6 +12,7 @@ mode=""
 show_status=false
 status_json=false
 dry_run=false
+at_next_login=false
 print_plist=false
 for argument in "$@"; do
     case "${argument}" in
@@ -22,12 +23,13 @@ for argument in "$@"; do
         --status) show_status=true ;;
         --json) status_json=true ;;
         --dry-run) dry_run=true ;;
+        --at-next-login) at_next_login=true ;;
         --print-plist) print_plist=true ;;
         -h|--help) usage; exit 0 ;;
         *) usage >&2; exit 2 ;;
     esac
 done
-if [[ "${show_status}" == true && ( -n "${mode}" || "${dry_run}" == true || "${print_plist}" == true ) ]] ||
+if [[ "${show_status}" == true && ( -n "${mode}" || "${dry_run}" == true || "${print_plist}" == true || "${at_next_login}" == true ) ]] ||
    [[ "${dry_run}" == true && "${print_plist}" == true ]] ||
    [[ "${status_json}" == true && "${show_status}" == false ]]; then
     usage >&2
@@ -108,6 +110,9 @@ fi
 if [[ "${dry_run}" == true ]]; then
     printf '程序路径：%s\nLaunchAgent 路径：%s\n拟采用模式：%s\n' \
         "${installed_binary}" "${installed_plist}" "${mode}"
+    if [[ "${at_next_login}" == true ]]; then
+        printf '%s\n' '生效时间：下一次图形登录'
+    fi
     exit 0
 fi
 
@@ -135,6 +140,11 @@ if [[ "${print_plist}" == true ]]; then
     exit 0
 fi
 
+if [[ "${at_next_login}" == false ]] && ! launchctl print "${launch_domain}" >/dev/null 2>&1; then
+    printf '%s\n' '无法访问当前用户的 macOS 图形会话。可加 --at-next-login 为下次登录准备自启动配置。' >&2
+    exit 1
+fi
+
 cd "${repository_dir}"
 swift build -c release
 binary_dir="$(swift build -c release --show-bin-path)"
@@ -149,6 +159,12 @@ mv -f "${staged_binary}" "${installed_binary}"
 staged_binary=""
 mv -f "${staged_plist}" "${installed_plist}"
 staged_plist=""
+
+if [[ "${at_next_login}" == true ]]; then
+    printf '程序：%s\nLaunchAgent：%s\n模式：%s\n生效时间：下一次图形登录\n' \
+        "${installed_binary}" "${installed_plist}" "${mode}"
+    exit 0
+fi
 
 launchctl bootout "${launch_domain}/${label}" 2>/dev/null || true
 launchctl enable "${launch_domain}/${label}"

@@ -260,6 +260,8 @@ zsh scripts/install_autostart.sh --follow-codex
 
 运行 `zsh scripts/install_autostart.sh --dry-run` 可只预览将使用的路径和模式，也可同时传入一个模式参数。
 
+可加 `--at-next-login` 为下一次图形登录准备自启动配置。此选项适合通过终端远程操作，当前会话的 LaunchAgent 会继续按已有配置运行。
+
 运行 `zsh scripts/install_autostart.sh --always-show --print-plist` 可在终端检查实际生成的 LaunchAgent 配置。预览不会编译程序或安装自启动项。
 
 更新时直接重新运行安装脚本即可。脚本会编译 Release 版本、替换程序并重启 LaunchAgent，保留已选的自启动模式、账号和悬浮球设置。独立运行 `python3 main.py` 会打开另一个实例。
