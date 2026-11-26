@@ -42,7 +42,8 @@ public enum CodexProcessClassifier {
 
         while let process = current, visited.insert(process.pid).inserted {
             if process.pid == monitorPID { return true }
-            if process.executablePath.contains("/ChatGPT.app/") { return true }
+            let path = process.executablePath.lowercased()
+            if path.contains("/chatgpt.app/") || path.contains("/codex.app/") { return true }
             guard process.parentPID > 1 else { return false }
             current = recordsByPID[process.parentPID]
         }

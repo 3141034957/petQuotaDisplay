@@ -32,6 +32,14 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertFalse(CodexProcessClassifier.containsInteractiveCLI(in: records, monitorPID: 99))
     }
 
+    func testIgnoresAnExternalCodexExecutableLaunchedByTheDesktopApp() {
+        let records = [
+            ProcessRecord(pid: 35, parentPID: 1, executablePath: "/Applications/Codex.app/Contents/MacOS/Codex"),
+            ProcessRecord(pid: 36, parentPID: 35, executablePath: "/opt/homebrew/bin/codex"),
+        ]
+        XCTAssertFalse(CodexProcessClassifier.containsInteractiveCLI(in: records, monitorPID: 99))
+    }
+
     func testParsesFiveHourAndWeeklyWindows() throws {
         let result: [String: Any] = [
             "rateLimits": [
