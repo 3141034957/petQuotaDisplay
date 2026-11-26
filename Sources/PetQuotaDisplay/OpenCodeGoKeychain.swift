@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 import Security
 
 enum OpenCodeGoKeychain {
@@ -8,13 +9,23 @@ enum OpenCodeGoKeychain {
         kSecAttrAccount as String: "api-key",
     ]
 
-    static func read() throws -> String? {
+    enum ReadError: Error {
+        case interactionRequired
+    }
+
+    static func read(allowInteraction: Bool = true) throws -> String? {
         var query = item
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
+        if !allowInteraction {
+            let authentication = LAContext()
+            authentication.interactionNotAllowed = true
+            query[kSecUseAuthenticationContext as String] = authentication
+        }
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
+        if status == errSecInteractionNotAllowed { throw ReadError.interactionRequired }
         try check(status)
         guard let data = result as? Data, let key = String(data: data, encoding: .utf8) else {
             throw CocoaError(.fileReadCorruptFile)

@@ -3,6 +3,18 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class OpenCodeGoQuotaClientTests: XCTestCase {
+    func testLockedKeychainPromptsForAuthorizationInTheApp() {
+        let client = OpenCodeGoQuotaClient(readKey: { throw OpenCodeGoKeychain.ReadError.interactionRequired })
+        let reported = expectation(description: "keychain authorization required")
+        client.onResult = { result in
+            guard case .failure(let error) = result else { return XCTFail("Expected an authorization error") }
+            XCTAssertTrue(error.localizedDescription.contains("请打开悬浮球"))
+            reported.fulfill()
+        }
+        client.refresh()
+        wait(for: [reported], timeout: 1)
+    }
+
     func testMalformedPeriodDoesNotDiscardTheOtherOpenCodeGoWindows() throws {
         let data = Data(#"{"usage":{"rolling":{"percent":"bad"},"weekly":{"percent":40,"resetsAt":123},"monthly":{"percent":30}}}"#.utf8)
         let snapshot = try OpenCodeGoQuotaClient.parseReport(data)

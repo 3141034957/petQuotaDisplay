@@ -24,7 +24,8 @@ enum QuotaQuery {
         case .gemini:
             state = try run(GeminiQuotaClient(), timeout: timeout)
         case .openCodeGo:
-            state = try run(OpenCodeGoQuotaClient(), timeout: timeout)
+            let client = OpenCodeGoQuotaClient(readKey: { try OpenCodeGoKeychain.read(allowInteraction: false) })
+            state = try run(client, timeout: timeout)
         case .kimiCode:
             state = try run(KimiQuotaClient(), timeout: timeout)
         }

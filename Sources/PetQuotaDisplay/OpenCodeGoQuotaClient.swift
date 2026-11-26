@@ -14,7 +14,7 @@ final class OpenCodeGoQuotaClient: PollingQuotaClient {
     var onRefreshing: (() -> Void)?
     var onResult: ((Result<QuotaSnapshot, Error>) -> Void)?
 
-    init(session: URLSession? = nil, readKey: @escaping () throws -> String? = OpenCodeGoKeychain.read) {
+    init(session: URLSession? = nil, readKey: @escaping () throws -> String? = { try OpenCodeGoKeychain.read() }) {
         self.session = session ?? Self.usageSession
         self.readKey = readKey
     }
@@ -30,6 +30,9 @@ final class OpenCodeGoQuotaClient: PollingQuotaClient {
         let key: String?
         do {
             key = try readKey()
+        } catch OpenCodeGoKeychain.ReadError.interactionRequired {
+            onResult?(.failure(Failure.keychainInteractionRequired))
+            return
         } catch {
             onResult?(.failure(Failure.keychain))
             return
@@ -94,11 +97,13 @@ final class OpenCodeGoQuotaClient: PollingQuotaClient {
     }
 
     private enum Failure: LocalizedError {
-        case keychain, missingKey, invalidKey, noSubscription, rateLimited, timedOut, requestFailed, invalidReport, noQuota
+        case keychain, keychainInteractionRequired, missingKey, invalidKey, noSubscription, rateLimited, timedOut
+        case requestFailed, invalidReport, noQuota
 
         var errorDescription: String? {
             switch self {
             case .keychain: return "无法读取 OpenCode Go 的钥匙串密钥"
+            case .keychainInteractionRequired: return "请打开悬浮球，授权访问 OpenCode Go 的钥匙串密钥"
             case .missingKey: return "请在右键菜单设置 OpenCode Go API 密钥"
             case .invalidKey: return "OpenCode Go API 密钥无效，请在右键菜单重新设置"
             case .noSubscription: return "该密钥没有可用的 OpenCode Go 订阅权限"
