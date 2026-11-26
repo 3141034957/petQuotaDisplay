@@ -2,7 +2,7 @@ import AppKit
 
 let usage = """
 用法：PetQuotaDisplay [--always-show | --follow-codex | --diagnose]
-  --always-show   立即显示额度悬浮球（默认）
+  --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --diagnose      在终端检查各额度来源的本机配置
   -h, --help      显示帮助
@@ -26,6 +26,6 @@ default:
 }
 
 let application = NSApplication.shared
-let delegate = AppDelegate(followCodex: followCodex)
+let delegate = AppDelegate(followCodex: followCodex, forceOrbVisible: arguments == ["--always-show"])
 application.delegate = delegate
 application.run()

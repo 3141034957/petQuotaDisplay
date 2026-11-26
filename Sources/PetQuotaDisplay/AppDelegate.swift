@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     ) ?? .standard
     private var orbSize: NSSize { orbSizePreference.size }
     private let followCodex: Bool
+    private let forceOrbVisible: Bool
     private var client: CodexQuotaClient?
     private var pollingClient: PollingQuotaClient?
     private var window: NSWindow!
@@ -31,8 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var pendingLoginReplacesExisting = false
     private var suppressOrbUntilCodexStops = false
 
-    init(followCodex: Bool) {
+    init(followCodex: Bool, forceOrbVisible: Bool = false) {
         self.followCodex = followCodex
+        self.forceOrbVisible = forceOrbVisible
         let accounts = CodexAccountProfile.loadAccounts()
         self.accounts = accounts
         let savedAccount = UserDefaults.standard.string(forKey: Self.selectedAccountDefaultsKey)
@@ -124,7 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.provider = savedProvider.flatMap(QuotaProvider.init(rawValue:)) ?? .codex
         orbView.refreshCadence = QuotaRefreshCadence.load()
         orbView.showsMenuBarQuota = UserDefaults.standard.bool(forKey: Self.showsMenuBarQuotaDefaultsKey)
-        orbView.menuBarOnly = orbView.showsMenuBarQuota && UserDefaults.standard.bool(forKey: Self.menuBarOnlyDefaultsKey)
+        orbView.menuBarOnly = !forceOrbVisible && orbView.showsMenuBarQuota
+            && UserDefaults.standard.bool(forKey: Self.menuBarOnlyDefaultsKey)
         orbView.sizePreference = orbSizePreference
         let savedResetDisplay = UserDefaults.standard.string(forKey: OrbResetDisplay.defaultsKey)
         orbView.resetDisplay = savedResetDisplay.flatMap(OrbResetDisplay.init(rawValue:)) ?? .time
