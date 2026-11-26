@@ -65,6 +65,8 @@ final class QuotaOrbView: NSView {
     var onTogglePositionLock: (() -> Void)?
     var sizePreference: OrbSizePreference = .standard
     var onSelectSize: ((OrbSizePreference) -> Void)?
+    var opacityPreference: OrbOpacityPreference = .full
+    var onSelectOpacity: ((OrbOpacityPreference) -> Void)?
     var resetDisplay: OrbResetDisplay = .time {
         didSet { needsDisplay = true }
     }
@@ -559,6 +561,7 @@ final class QuotaOrbView: NSView {
         let item = NSMenuItem(title: "外观", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: item.title)
         submenu.addItem(orbSizeMenuItem())
+        submenu.addItem(orbOpacityMenuItem())
         submenu.addItem(resetDisplayMenuItem())
         let pin = submenu.addItem(withTitle: "保持悬浮球置顶", action: #selector(toggleWindowLevel), keyEquivalent: "")
         pin.target = self
@@ -693,6 +696,19 @@ final class QuotaOrbView: NSView {
         return item
     }
 
+    private func orbOpacityMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "悬浮球不透明度", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        for opacity in OrbOpacityPreference.allCases {
+            let choice = submenu.addItem(withTitle: opacity.title, action: #selector(selectOrbOpacity(_:)), keyEquivalent: "")
+            choice.target = self
+            choice.tag = opacity.rawValue
+            choice.state = opacity == opacityPreference ? .on : .off
+        }
+        item.submenu = submenu
+        return item
+    }
+
     private func resetDisplayMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "悬浮球时间显示", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: item.title)
@@ -818,6 +834,11 @@ final class QuotaOrbView: NSView {
         guard let rawValue = sender.representedObject as? String,
               let corner = OrbWindowPlacement.Corner(rawValue: rawValue) else { return }
         onSelectCorner?(corner)
+    }
+
+    @objc private func selectOrbOpacity(_ sender: NSMenuItem) {
+        guard let opacity = OrbOpacityPreference(rawValue: sender.tag) else { return }
+        onSelectOpacity?(opacity)
     }
 
     @objc private func selectResetDisplay(_ sender: NSMenuItem) {

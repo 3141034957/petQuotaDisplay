@@ -158,6 +158,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.menuBarOnly = !forceOrbVisible && orbView.showsMenuBarQuota
             && QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarOnlyKey)
         orbView.sizePreference = orbSizePreference
+        orbView.opacityPreference = OrbOpacityPreference.load()
+        window.alphaValue = orbView.opacityPreference.alpha
         orbView.staysOnTop = staysOnTop
         let savedResetDisplay = QuotaPreferences.shared.string(forKey: OrbResetDisplay.defaultsKey)
         orbView.resetDisplay = savedResetDisplay.flatMap(OrbResetDisplay.init(rawValue:)) ?? .time
@@ -174,6 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onSelectCorner = { [weak self] corner in self?.moveOrb(to: corner) }
         orbView.onTogglePositionLock = { [weak self] in self?.togglePositionLock() }
         orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
+        orbView.onSelectOpacity = { [weak self] opacity in self?.setOrbOpacity(opacity) }
         orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
         orbView.onToggleMenuBarQuota = { [weak self] in self?.toggleMenuBarQuota() }
         orbView.onToggleMenuBarSourceName = { [weak self] in self?.toggleMenuBarSourceName() }
@@ -552,6 +555,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func togglePositionLock() {
         orbView.isPositionLocked.toggle()
         QuotaPreferences.shared.set(orbView.isPositionLocked, forKey: QuotaPreferences.orbPositionLockedKey)
+    }
+
+    private func setOrbOpacity(_ opacity: OrbOpacityPreference) {
+        orbView.opacityPreference = opacity
+        window.alphaValue = opacity.alpha
+        QuotaPreferences.shared.set(opacity.rawValue, forKey: OrbOpacityPreference.defaultsKey)
     }
 
     private func setWarningThreshold(_ threshold: QuotaWarningThreshold) {
