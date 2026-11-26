@@ -298,3 +298,5 @@ swift build -c release
 发布时可用 `--version 1.2.3 --build-number 42` 设置本次应用的版本和构建号。打包结果的 JSON 会报告这两个值。
 
 用 `python3 main.py --version` 查看版本。通过 Git 工作区打包的 `.app` 会记录构建时的提交标识，包含未提交改动时会带 `+dirty`。
+
+脚本可用 `--version --json` 读取版本、可用的构建号与提交标识。

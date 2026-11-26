@@ -11,6 +11,7 @@ let usage = """
       PetQuotaDisplay --list-codex-accounts
       PetQuotaDisplay --history [历史选项]
       PetQuotaDisplay --inspect-history 文件 [--format text|json|csv]
+      PetQuotaDisplay --version [--json]
   --always-show   本次启动强制显示悬浮球
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端
@@ -65,6 +66,14 @@ switch arguments {
 case ["--version"]:
     print(QuotaBuildInformation.current.summary)
     exit(0)
+case ["--version", "--json"]:
+    do {
+        print(try QuotaOutput.json(QuotaBuildInformation.current))
+        exit(0)
+    } catch {
+        FileHandle.standardError.write(Data("无法生成版本 JSON。\n".utf8))
+        exit(70)
+    }
 case _ where arguments.first == "--diagnose":
     let options: QuotaDiagnostics.Options
     do {
