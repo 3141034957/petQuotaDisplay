@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 import QuotaCore
 
-final class GeminiQuotaClient {
+final class GeminiQuotaClient: PollingQuotaClient {
     private enum Failure: LocalizedError {
         case missingCLI, unsupportedVersion, requestFailed, timedOut, invalidReport, noQuota
 
@@ -27,7 +27,7 @@ final class GeminiQuotaClient {
     func refresh() {
         guard process == nil else { return }
         onRefreshing?()
-        guard let executable = Self.findExecutable() else {
+        guard let executable = QuotaCLI.find("agy", override: "ANTIGRAVITY_CLI_PATH") else {
             onResult?(.failure(Failure.missingCLI))
             return
         }
@@ -116,23 +116,6 @@ final class GeminiQuotaClient {
             output.append(chunk)
         }
         return output
-    }
-
-    private static func findExecutable() -> URL? {
-        let environment = ProcessInfo.processInfo.environment
-        let fileManager = FileManager.default
-        if let override = environment["ANTIGRAVITY_CLI_PATH"] {
-            guard !override.isEmpty, fileManager.isExecutableFile(atPath: override) else { return nil }
-            return URL(fileURLWithPath: override)
-        }
-        let path = (environment["PATH"] ?? "").split(separator: ":").map(String.init)
-        let directories = path + [
-            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin").path,
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-        ]
-        return directories.map { URL(fileURLWithPath: $0).appendingPathComponent("agy") }
-            .first { fileManager.isExecutableFile(atPath: $0.path) }
     }
 
     static func supportsUsage(_ data: Data) -> Bool {

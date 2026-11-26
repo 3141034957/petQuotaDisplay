@@ -2,28 +2,43 @@ import AppKit
 import QuotaCore
 
 enum QuotaProvider: String, CaseIterable {
-    case codex, gemini
+    case codex, gemini, claudeCode, openCodeGo, kimiCode
 
     var title: String {
         switch self {
         case .codex: return "Codex"
         case .gemini: return "Gemini"
+        case .claudeCode: return "Claude Code"
+        case .openCodeGo: return "OpenCode Go"
+        case .kimiCode: return "Kimi Code"
         }
     }
+
+    var supportsMonthlyQuota: Bool { self == .openCodeGo || self == .kimiCode }
 }
 
 final class QuotaOrbView: NSView {
     private static let designDiameter: CGFloat = 148
     private static let displayedWindowDefaultsKey = "quota.displayedWindow"
 
-    private enum DisplayedWindow: String {
+    private enum DisplayedWindow: String, CaseIterable {
         case fiveHour
         case weekly
+        case monthly
 
         var title: String {
             switch self {
             case .fiveHour: return "5 小时"
             case .weekly: return "本周"
+            case .monthly: return "本月"
+            }
+        }
+
+        func quota(in snapshot: QuotaSnapshot) -> QuotaWindow? {
+            switch self {
+            case .fiveHour: return snapshot.fiveHour
+            case .weekly: return snapshot.weekly
+            case .monthly: return snapshot.monthly
             }
         }
     }
@@ -47,6 +62,7 @@ final class QuotaOrbView: NSView {
     var onAddAccount: (() -> Void)?
     var onLoginAccount: ((CodexAccountSlot) -> Void)?
     var onDeleteAccount: ((CodexAccountSlot) -> Void)?
+    var onConfigureOpenCodeGo: (() -> Void)?
     var accounts: [CodexAccountSlot] = []
     var selectedAccount: CodexAccountSlot?
     var accountStatuses: [CodexAccountSlot: CodexAccountStatus] = [:]
@@ -55,17 +71,22 @@ final class QuotaOrbView: NSView {
     private var mouseDownLocation: NSPoint?
     private var windowOriginAtMouseDown: NSPoint?
     private var dragged = false
-    private var displayedWindow: DisplayedWindow = .weekly
+    private var windowPreferenceKey: String {
+        let key = Self.displayedWindowDefaultsKey
+        return provider.supportsMonthlyQuota ? "\(key).\(provider.rawValue)" : key
+    }
+    private var displayedWindow: DisplayedWindow {
+        let defaults = UserDefaults.standard
+        let saved = defaults.string(forKey: windowPreferenceKey)
+            ?? defaults.string(forKey: Self.displayedWindowDefaultsKey)
+        return saved.flatMap(DisplayedWindow.init(rawValue:)) ?? .weekly
+    }
 
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        if let saved = UserDefaults.standard.string(forKey: Self.displayedWindowDefaultsKey),
-           let displayedWindow = DisplayedWindow(rawValue: saved) {
-            self.displayedWindow = displayedWindow
-        }
         wantsLayer = true
         setAccessibilityElement(true)
         setAccessibilityRole(.button)
@@ -163,16 +184,19 @@ final class QuotaOrbView: NSView {
             drawCentered("•••", y: 53, font: .systemFont(ofSize: 30, weight: .bold), alpha: 1)
             drawCentered("连接 \(provider.title)", y: 99, font: .systemFont(ofSize: 11, weight: .medium), alpha: 0.78)
         case .failed:
-            let title = provider == .gemini ? "Gemini 暂不可用" : "额度暂不可用"
+            let title = provider == .codex ? "额度暂不可用" : "\(provider.title) 暂不可用"
             drawCentered(title, y: 34, font: .systemFont(ofSize: 12, weight: .medium), alpha: 0.82)
             drawCentered("—", y: 51, font: .systemFont(ofSize: 35, weight: .bold), alpha: 1)
             drawCentered("单击重试", y: 100, font: .systemFont(ofSize: 11, weight: .medium), alpha: 0.78)
         case .loaded(let snapshot), .refreshing(let snapshot), .stale(let snapshot, _):
             guard let displayed = displayedQuota(in: snapshot) else { return }
             let title: String
-            if provider == .gemini {
+            if provider == .claudeCode {
+                let status = state.errorMessage != nil ? "上次" : "缓存"
+                title = "Claude · \(status)\(displayed.title)"
+            } else if provider != .codex {
                 let status = state.errorMessage != nil ? "上次\(displayed.title)" : displayed.title
-                title = "Gemini · \(status)"
+                title = "\(provider.title) · \(status)"
             } else if state.errorMessage != nil {
                 title = "上次\(displayed.title)额度"
             } else if state.isRefreshing {
@@ -264,25 +288,29 @@ final class QuotaOrbView: NSView {
         menu.addItem(sourceItem)
         if provider == .codex {
             menu.addItem(accountMenuItem())
+        } else if provider == .openCodeGo {
+            let configure = NSMenuItem(
+                title: "设置 OpenCode Go API 密钥…", action: #selector(configureOpenCodeGo), keyEquivalent: ""
+            )
+            configure.target = self
+            menu.addItem(configure)
         }
         menu.addItem(.separator())
 
         let loadedSnapshot = state.snapshot
         let effectiveWindow = loadedSnapshot.map(resolvedWindow) ?? displayedWindow
 
-        let fiveHour = NSMenuItem(title: "展示 5 小时额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: "")
-        fiveHour.target = self
-        fiveHour.representedObject = DisplayedWindow.fiveHour.rawValue
-        fiveHour.state = effectiveWindow == .fiveHour ? .on : .off
-        fiveHour.isEnabled = loadedSnapshot?.fiveHour != nil
-        menu.addItem(fiveHour)
-
-        let weekly = NSMenuItem(title: "展示本周额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: "")
-        weekly.target = self
-        weekly.representedObject = DisplayedWindow.weekly.rawValue
-        weekly.state = effectiveWindow == .weekly ? .on : .off
-        weekly.isEnabled = loadedSnapshot?.weekly != nil
-        menu.addItem(weekly)
+        for period in DisplayedWindow.allCases where period != .monthly || provider.supportsMonthlyQuota {
+            let prefix = period == .fiveHour ? "展示 " : "展示"
+            let item = NSMenuItem(
+                title: "\(prefix)\(period.title)额度", action: #selector(selectDisplayedWindow(_:)), keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = period.rawValue
+            item.state = effectiveWindow == period ? .on : .off
+            item.isEnabled = loadedSnapshot.flatMap { period.quota(in: $0) } != nil
+            menu.addItem(item)
+        }
         menu.addItem(.separator())
 
         if let snapshot = loadedSnapshot, let displayed = displayedQuota(in: snapshot) {
@@ -295,7 +323,7 @@ final class QuotaOrbView: NSView {
             detail.isEnabled = false
             menu.addItem(detail)
             let updated = NSMenuItem(
-                title: "最后更新：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))",
+                title: "\(lastUpdatedLabel)：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))",
                 action: nil,
                 keyEquivalent: ""
             )
@@ -304,7 +332,7 @@ final class QuotaOrbView: NSView {
             menu.addItem(.separator())
         }
         if let message = state.errorMessage {
-            let title = loadedSnapshot == nil ? message : "刷新失败（显示上次数据）：\(message)"
+            let title = loadedSnapshot == nil ? message : "\(staleMenuLabel)：\(message)"
             let detail = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             detail.isEnabled = false
             menu.addItem(detail)
@@ -407,29 +435,29 @@ final class QuotaOrbView: NSView {
     @objc private func selectDisplayedWindow(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,
               let selected = DisplayedWindow(rawValue: rawValue) else { return }
-        displayedWindow = selected
-        UserDefaults.standard.set(selected.rawValue, forKey: Self.displayedWindowDefaultsKey)
+        UserDefaults.standard.set(selected.rawValue, forKey: windowPreferenceKey)
         needsDisplay = true
         updateAccessibility()
     }
 
+    @objc private func configureOpenCodeGo() {
+        onConfigureOpenCodeGo?()
+    }
+
     /// Falls back to whichever window the current plan actually publishes.
     private func resolvedWindow(in snapshot: QuotaSnapshot) -> DisplayedWindow {
-        switch displayedWindow {
-        case .fiveHour: return snapshot.fiveHour != nil ? .fiveHour : .weekly
-        case .weekly: return snapshot.weekly != nil ? .weekly : .fiveHour
-        }
+        let preferred = displayedWindow
+        if preferred.quota(in: snapshot) != nil { return preferred }
+        return [DisplayedWindow.weekly, .fiveHour, .monthly].first { $0.quota(in: snapshot) != nil } ?? preferred
     }
 
     private func displayedQuota(in snapshot: QuotaSnapshot) -> (title: String, quota: QuotaWindow)? {
-        switch resolvedWindow(in: snapshot) {
-        case .fiveHour:
-            if let fiveHour = snapshot.fiveHour { return (DisplayedWindow.fiveHour.title, fiveHour) }
-        case .weekly:
-            if let weekly = snapshot.weekly { return (DisplayedWindow.weekly.title, weekly) }
-        }
-        return nil
+        let period = resolvedWindow(in: snapshot)
+        return period.quota(in: snapshot).map { (period.title, $0) }
     }
+
+    private var lastUpdatedLabel: String { provider == .claudeCode ? "状态栏采集时间" : "最后更新" }
+    private var staleMenuLabel: String { provider == .claudeCode ? "显示上次缓存" : "刷新失败（显示上次数据）" }
 
     private func accountMenuTitle(for slot: CodexAccountSlot) -> String {
         let title = accountDisplayName(for: slot)
@@ -466,9 +494,10 @@ final class QuotaOrbView: NSView {
             } else {
                 description = "\(provider.title) 额度已同步"
             }
-            description += "；最后更新：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))"
+            description += "；\(lastUpdatedLabel)：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))"
             if let message = state.errorMessage {
-                description += "；刷新失败，显示上次数据：\(message)"
+                let status = provider == .claudeCode ? "显示上次缓存" : "刷新失败，显示上次数据"
+                description += "；\(status)：\(message)"
             } else if state.isRefreshing {
                 description += "；正在刷新，显示上次数据"
             }

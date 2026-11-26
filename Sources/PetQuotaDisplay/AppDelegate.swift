@@ -10,7 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let orbSize = NSSize(width: 111, height: 111)
     private let followCodex: Bool
     private var client: CodexQuotaClient?
-    private var geminiClient: GeminiQuotaClient?
+    private var pollingClient: PollingQuotaClient?
     private var window: NSWindow!
     private var orbView: QuotaOrbView!
     private var refreshTimer: Timer?
@@ -114,6 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
         orbView.onDeleteAccount = { [weak self] account in self?.deleteAccount(account) }
+        orbView.onConfigureOpenCodeGo = { [weak self] in self?.configureOpenCodeGo() }
         orbView.quitMenuTitle = followCodex ? "本次隐藏悬浮球" : "退出额度悬浮球"
         updateAccountMenuState()
         window.contentView = orbView
@@ -126,9 +127,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         switch orbView.provider {
         case .codex: startCodexClient()
-        case .gemini: startGeminiClient()
+        case .gemini: startPollingClient(GeminiQuotaClient())
+        case .claudeCode: refreshClaudeQuota()
+        case .openCodeGo: startPollingClient(OpenCodeGoQuotaClient())
+        case .kimiCode: startPollingClient(KimiQuotaClient())
         }
-        guard client != nil || geminiClient != nil else { return }
+        guard client != nil || pollingClient != nil || orbView.provider == .claudeCode else { return }
 
         let timer = Timer.scheduledTimer(withTimeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             self?.refreshDisplayedQuota()
@@ -192,26 +196,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func startGeminiClient() {
+    private func startPollingClient(_ client: PollingQuotaClient) {
         orbView.state = .loading
-        let client = GeminiQuotaClient()
-        client.onRefreshing = { [weak self] in self?.orbView.state.beginRefresh() }
-        client.onResult = { [weak self] result in
-            guard let self else { return }
+        client.onRefreshing = { [weak self, weak client] in
+            guard let self, let client, self.pollingClient === client else { return }
+            self.orbView.state.beginRefresh()
+        }
+        client.onResult = { [weak self, weak client] result in
+            guard let self, let client, self.pollingClient === client else { return }
             switch result {
             case .success(let snapshot): self.orbView.state = .loaded(snapshot)
             case .failure(let error): self.orbView.state.recordFailure(error.localizedDescription)
             }
         }
-        geminiClient = client
+        pollingClient = client
         client.refresh()
+    }
+
+    private func refreshClaudeQuota() {
+        do {
+            orbView.state = try ClaudeQuotaCache.read()
+        } catch {
+            orbView.state.recordFailure(error.localizedDescription)
+        }
     }
 
     private func refreshDisplayedQuota() {
         if let client {
             client.refresh()
-        } else if let geminiClient {
-            geminiClient.refresh()
+        } else if let pollingClient {
+            pollingClient.refresh()
+        } else if orbView.provider == .claudeCode {
+            refreshClaudeQuota()
         } else {
             startOrb()
         }
@@ -222,8 +238,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshTimer = nil
         client?.stop()
         client = nil
-        geminiClient?.stop()
-        geminiClient = nil
+        pollingClient?.stop()
+        pollingClient = nil
         if hideWindow {
             window.orderOut(nil)
         }
@@ -235,6 +251,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.provider = provider
         UserDefaults.standard.set(provider.rawValue, forKey: Self.selectedProviderDefaultsKey)
         startOrb()
+    }
+
+    private func configureOpenCodeGo() {
+        let alert = NSAlert()
+        alert.messageText = "设置 OpenCode Go API 密钥"
+        alert.informativeText = "使用 OpenCode Go 订阅的 API 密钥。密钥会保存在 macOS 钥匙串中。"
+        alert.addButton(withTitle: "保存")
+        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: "清除已保存密钥")
+        let input = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        input.placeholderString = "OpenCode Go API 密钥"
+        input.setAccessibilityLabel("OpenCode Go API 密钥")
+        alert.accessoryView = input
+        alert.window.initialFirstResponder = input
+        NSApp.activate(ignoringOtherApps: true)
+
+        let response = alert.runModal()
+        do {
+            switch response {
+            case .alertFirstButtonReturn:
+                let key = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !key.isEmpty, !key.contains(where: \.isWhitespace) else {
+                    showOpenCodeGoKeyError("请输入有效的 OpenCode Go API 密钥")
+                    return
+                }
+                try OpenCodeGoKeychain.save(key)
+            case .alertThirdButtonReturn:
+                try OpenCodeGoKeychain.remove()
+            default:
+                return
+            }
+        } catch {
+            showOpenCodeGoKeyError("无法更新 macOS 钥匙串中的 OpenCode Go 密钥")
+            return
+        }
+        // A changed key may refer to a different account.
+        guard orbView.provider == .openCodeGo, refreshTimer != nil else { return }
+        stopOrb(hideWindow: false)
+        startOrb()
+    }
+
+    private func showOpenCodeGoKeyError(_ message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = message
+        alert.runModal()
     }
 
     private func switchAccount(to account: CodexAccountSlot) {

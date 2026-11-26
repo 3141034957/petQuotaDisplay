@@ -19,17 +19,20 @@ public struct QuotaSnapshot: Equatable {
     /// `nil` on plans that no longer publish a 5-hour window, such as ChatGPT Pro.
     public let fiveHour: QuotaWindow?
     public let weekly: QuotaWindow?
+    public let monthly: QuotaWindow?
     public let fetchedAt: Date
 
     public init(
         planType: String?,
         fiveHour: QuotaWindow?,
         weekly: QuotaWindow?,
+        monthly: QuotaWindow? = nil,
         fetchedAt: Date = Date()
     ) {
         self.planType = planType
         self.fiveHour = fiveHour
         self.weekly = weekly
+        self.monthly = monthly
         self.fetchedAt = fetchedAt
     }
 }

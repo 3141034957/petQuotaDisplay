@@ -72,6 +72,29 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertTrue(view.toolTip?.contains("Gemini 本周额度剩余 80%") == true)
     }
 
+    func testOpenCodeMonthlyQuotaAndKeyMenu() throws {
+        let view = QuotaOrbView(frame: NSRect(x: 0, y: 0, width: 111, height: 111))
+        let providers = try XCTUnwrap(menu(view).item(withTitle: "切换额度来源")?.submenu)
+        XCTAssertNotNil(providers.item(withTitle: "Claude Code"))
+        XCTAssertNotNil(providers.item(withTitle: "OpenCode Go"))
+        XCTAssertNotNil(providers.item(withTitle: "Kimi Code"))
+
+        view.provider = .openCodeGo
+        view.state = .loaded(QuotaSnapshot(
+            planType: nil, fiveHour: nil, weekly: nil, monthly: QuotaWindow(usedPercent: 37, resetsAt: nil)
+        ))
+        let openCodeMenu = try menu(view)
+        let monthly = try XCTUnwrap(openCodeMenu.item(withTitle: "展示本月额度"))
+        XCTAssertTrue(monthly.isEnabled)
+        XCTAssertEqual(monthly.state, .on)
+        XCTAssertNotNil(openCodeMenu.item(withTitle: "设置 OpenCode Go API 密钥…"))
+        XCTAssertTrue(view.toolTip?.contains("OpenCode Go 本月额度剩余 63%") == true)
+
+        view.provider = .claudeCode
+        XCTAssertNil(view.state.snapshot)
+        XCTAssertNil(try menu(view).item(withTitle: "展示本月额度"))
+    }
+
     private func menu(_ view: QuotaOrbView) throws -> NSMenu {
         let menu = try XCTUnwrap(view.menu(for: NSEvent()))
         menu.update()
