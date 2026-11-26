@@ -56,6 +56,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .NSSystemTimeZoneDidChange,
             object: nil
         )
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(workspaceDidWake(_:)),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
 
         if followCodex {
             let notifications = NSWorkspace.shared.notificationCenter
@@ -502,6 +508,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard application(from: notification)?.bundleIdentifier == Self.codexBundleIdentifier else { return }
         codexGUIRunning = false
         reconcileOrbVisibility()
+    }
+
+    @objc private func workspaceDidWake(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.orbIsActive else { return }
+            self.orbView.refreshLocalTimeFormatting()
+            guard self.refreshTimer != nil else { return }
+            self.scheduleRefreshTimer()
+            self.refreshDisplayedQuota()
+        }
     }
 
     private func reconcileOrbVisibility() {
