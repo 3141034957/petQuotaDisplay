@@ -285,15 +285,41 @@ final class QuotaOrbViewTests: XCTestCase {
         let view = QuotaOrbView(frame: .zero)
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: QuotaWindow(usedPercent: 20, resetsAt: nil), weekly: nil)
         view.codexMeteredQuotas = [CodexMeteredQuota(id: "extra", name: "Extra", snapshot: snapshot)]
-        XCTAssertNil(try menu(view).item(withTitle: "其他 Codex 额度"))
+        XCTAssertNil(try menu(view).item(withTitle: "选择 Codex 额度"))
 
         view.state = .loaded(snapshot)
-        let extra = try XCTUnwrap(menu(view).item(withTitle: "其他 Codex 额度")?.submenu)
-        XCTAssertEqual(extra.items.map(\.title), ["Extra", "5 小时额度：剩余 80% · 重置时间未知"])
+        let extra = try XCTUnwrap(menu(view).item(withTitle: "选择 Codex 额度")?.submenu)
+        XCTAssertEqual(extra.items.filter { !$0.isSeparatorItem }.map(\.title), ["主要额度", "Extra", "5 小时额度：剩余 80% · 重置时间未知"])
 
         view.provider = .gemini
         view.state = .loaded(snapshot)
-        XCTAssertNil(try menu(view).item(withTitle: "其他 Codex 额度"))
+        XCTAssertNil(try menu(view).item(withTitle: "选择 Codex 额度"))
+    }
+
+    func testSelectedCodexBucketUpdatesDisplayAndFallsBackWhenUnavailable() throws {
+        let suite = "QuotaOrbViewTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let primary = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 20, resetsAt: nil))
+        let extra = QuotaSnapshot(planType: nil, fiveHour: QuotaWindow(usedPercent: 70, resetsAt: nil), weekly: nil)
+        let selection = CodexMeteredQuota(id: "extra", name: "Extra", snapshot: extra)
+        let view = QuotaOrbView(frame: .zero, defaults: defaults)
+        view.selectedAccount = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        view.codexMeteredQuotas = [selection]
+        view.state = .loaded(primary)
+
+        let bucket = try XCTUnwrap(menu(view).item(withTitle: "选择 Codex 额度")?.submenu?.item(withTitle: "Extra"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(bucket.action), to: bucket.target, from: bucket))
+        XCTAssertEqual(view.menuBarTitle, "30%")
+        XCTAssertTrue(view.quotaSummary?.contains("Codex · Extra") == true)
+        XCTAssertEqual(try menu(view).item(withTitle: "展示 5 小时额度")?.state, .on)
+
+        view.codexMeteredQuotas = []
+        view.state = .loaded(primary)
+        XCTAssertEqual(view.menuBarTitle, "80%")
+        view.codexMeteredQuotas = [selection]
+        view.state = .loaded(primary)
+        XCTAssertEqual(view.menuBarTitle, "30%")
     }
 
     private func menu(_ view: QuotaOrbView) throws -> NSMenu {

@@ -109,7 +109,7 @@ public enum QuotaParser {
             guard !id.isEmpty, id != "codex", id != primary.id,
                   let bucket = metered[id] as? [String: Any],
                   let snapshot = parseWindows(bucket, now: now) else { return nil }
-            let name = (bucket["limitName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = (bucket["limitName"] as? String)?.split(whereSeparator: \.isWhitespace).joined(separator: " ")
             return CodexMeteredQuota(id: id, name: name.flatMap { $0.isEmpty ? nil : $0 } ?? id, snapshot: snapshot)
         }
         return CodexQuotaReport(primary: primary.snapshot, additional: additional)

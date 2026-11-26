@@ -72,6 +72,11 @@ enum CodexAccountProfile {
         defaults.set(remaining.map(\.rawValue), forKey: additionalAccountsDefaultsKey)
         defaults.removeObject(forKey: nameKey(for: slot))
         defaults.removeObject(forKey: QuotaWindowPreference.key(for: .codex, account: slot))
+        defaults.removeObject(forKey: limitPreferenceKey(for: slot))
+    }
+
+    static func limitPreferenceKey(for slot: CodexAccountSlot) -> String {
+        "quota.codexLimit.\(slot.rawValue)"
     }
 
     static func name(for slot: CodexAccountSlot, defaults: UserDefaults = .standard) -> String? {

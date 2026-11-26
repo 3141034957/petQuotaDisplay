@@ -234,7 +234,10 @@ final class QuotaOrbView: NSView {
         case .loaded(let snapshot), .refreshing(let snapshot), .stale(let snapshot, _):
             guard let displayed = displayedQuota(in: snapshot) else { return }
             let title: String
-            if provider == .claudeCode {
+            if let model = displayedCodexBucket {
+                let period = state.errorMessage == nil ? displayed.title : "上次\(displayed.title)"
+                title = "\(model.name) · \(period)"
+            } else if provider == .claudeCode {
                 let status = state.errorMessage != nil ? "上次" : "缓存"
                 title = "Claude · \(status)\(displayed.title)"
             } else if provider != .codex {
@@ -272,15 +275,20 @@ final class QuotaOrbView: NSView {
     }
 
     private func drawCentered(_ text: String, y: CGFloat, font: NSFont, alpha: CGFloat) {
+        let lineWidth = Self.designDiameter - 30
+        let textWidth = text.size(withAttributes: [.font: font]).width
+        let fittedSize = textWidth > lineWidth ? max(font.pointSize * 0.8, font.pointSize * lineWidth / textWidth) : font.pointSize
+        let fittedFont = fittedSize == font.pointSize ? font : NSFont(descriptor: font.fontDescriptor, size: fittedSize) ?? font
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
+        paragraph.lineBreakMode = .byTruncatingTail
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
+            .font: fittedFont,
             .foregroundColor: NSColor.white.withAlphaComponent(alpha),
             .paragraphStyle: paragraph,
         ]
         text.draw(
-            in: NSRect(x: 15, y: y, width: Self.designDiameter - 30, height: font.pointSize + 6),
+            in: NSRect(x: 15, y: y + (font.pointSize - fittedFont.pointSize) / 2, width: lineWidth, height: font.pointSize + 6),
             withAttributes: attributes
         )
     }
@@ -335,7 +343,7 @@ final class QuotaOrbView: NSView {
 
     func populateMenu(_ menu: NSMenu) {
         menu.removeAllItems()
-        menu.title = "\(provider.title) 额度"
+        menu.title = "\(displaySourceTitle) 额度"
         menu.autoenablesItems = false
         let refresh = NSMenuItem(title: "立即刷新", action: #selector(refreshFromMenu), keyEquivalent: "r")
         refresh.target = self
@@ -371,7 +379,7 @@ final class QuotaOrbView: NSView {
         }
         menu.addItem(.separator())
 
-        let loadedSnapshot = state.snapshot
+        let loadedSnapshot = state.snapshot.map(displaySnapshot)
         let effectiveWindow = loadedSnapshot.map(resolvedWindow) ?? displayedWindow
 
         for period in DisplayedWindow.allCases where period != .monthly || provider.supportsMonthlyQuota {
@@ -591,13 +599,18 @@ final class QuotaOrbView: NSView {
     }
 
     private func meteredQuotasMenuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "其他 Codex 额度", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: "选择 Codex 额度", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: item.title)
         submenu.autoenablesItems = false
+        let primary = submenu.addItem(withTitle: "主要额度", action: #selector(selectCodexBucket(_:)), keyEquivalent: "")
+        primary.target = self
+        primary.state = displayedCodexBucket == nil ? .on : .off
+        submenu.addItem(.separator())
         for bucket in codexMeteredQuotas {
-            let heading = NSMenuItem(title: bucket.name, action: nil, keyEquivalent: "")
-            heading.isEnabled = false
-            submenu.addItem(heading)
+            let heading = submenu.addItem(withTitle: bucket.name, action: #selector(selectCodexBucket(_:)), keyEquivalent: "")
+            heading.target = self
+            heading.representedObject = bucket.id
+            heading.state = displayedCodexBucket?.id == bucket.id ? .on : .off
             for line in quotaDetails(in: bucket.snapshot) {
                 let detail = NSMenuItem(title: line, action: nil, keyEquivalent: "")
                 detail.isEnabled = false
@@ -662,8 +675,8 @@ final class QuotaOrbView: NSView {
     }
 
     var quotaSummary: String? {
-        guard let snapshot = state.snapshot else { return nil }
-        var lines = ["\(provider.title) 额度"] + quotaDetails(in: snapshot) + [updatedDetail(for: snapshot)]
+        guard let snapshot = state.snapshot.map(displaySnapshot) else { return nil }
+        var lines = ["\(displaySourceTitle) 额度"] + quotaDetails(in: snapshot) + [updatedDetail(for: snapshot)]
         if state.errorMessage != nil {
             lines.append(staleMenuLabel)
         } else if state.isRefreshing {
@@ -735,8 +748,35 @@ final class QuotaOrbView: NSView {
     }
 
     private func displayedQuota(in snapshot: QuotaSnapshot) -> (title: String, quota: QuotaWindow)? {
+        let snapshot = displaySnapshot(snapshot)
         let period = resolvedWindow(in: snapshot)
         return period.quota(in: snapshot).map { (period.title, $0) }
+    }
+
+    private var displayedCodexBucket: CodexMeteredQuota? {
+        guard provider == .codex, state.snapshot != nil, let selectedAccount,
+              let id = defaults.string(forKey: CodexAccountProfile.limitPreferenceKey(for: selectedAccount)) else { return nil }
+        return codexMeteredQuotas.first { $0.id == id }
+    }
+
+    private var displaySourceTitle: String {
+        displayedCodexBucket.map { "Codex · \($0.name)" } ?? provider.title
+    }
+
+    private func displaySnapshot(_ primary: QuotaSnapshot) -> QuotaSnapshot {
+        displayedCodexBucket?.snapshot ?? primary
+    }
+
+    @objc private func selectCodexBucket(_ sender: NSMenuItem) {
+        guard provider == .codex, let selectedAccount else { return }
+        let key = CodexAccountProfile.limitPreferenceKey(for: selectedAccount)
+        if let id = sender.representedObject as? String {
+            defaults.set(id, forKey: key)
+        } else {
+            defaults.removeObject(forKey: key)
+        }
+        needsDisplay = true
+        updateAccessibility()
     }
 
     var menuBarTitle: String {
@@ -785,7 +825,7 @@ final class QuotaOrbView: NSView {
         case .loaded(let snapshot), .refreshing(let snapshot), .stale(let snapshot, _):
             if let displayed = displayedQuota(in: snapshot) {
                 let reset = displayed.quota.resetsAt.map(Self.longDateFormatter.string) ?? "未知时间"
-                description = "\(provider.title) \(displayed.title)额度剩余 \(displayed.quota.remainingPercent)%，\(reset) 重置"
+                description = "\(displaySourceTitle) \(displayed.title)额度剩余 \(displayed.quota.remainingPercent)%，\(reset) 重置"
             } else {
                 description = "\(provider.title) 额度已同步"
             }
