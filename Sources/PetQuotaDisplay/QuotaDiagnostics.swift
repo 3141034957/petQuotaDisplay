@@ -21,9 +21,34 @@ enum QuotaDiagnostics {
 
     struct Report: Encodable {
         let sources: [Source]
+        let display: DisplayPreferences
 
         var summary: String {
-            (["额度来源本机检查"] + sources.map { "\($0.title)：\($0.detail)" }).joined(separator: "\n")
+            let sourceLines = sources.map { "\($0.title)：\($0.detail)" }
+            return (["额度来源本机检查"] + sourceLines + ["", display.summary]).joined(separator: "\n")
+        }
+    }
+
+    struct DisplayPreferences: Encodable {
+        let provider: String
+        let refreshIntervalSeconds: Int
+        let orbDiameter: Int
+        let showsMenuBar: Bool
+        let showsOrb: Bool
+
+        init(defaults: UserDefaults) {
+            provider = QuotaPreferences.selectedProvider(defaults: defaults).rawValue
+            refreshIntervalSeconds = QuotaRefreshCadence.load(defaults: defaults).rawValue
+            orbDiameter = OrbSizePreference.load(defaults: defaults).rawValue
+            showsMenuBar = defaults.bool(forKey: QuotaPreferences.menuBarEnabledKey)
+            showsOrb = !showsMenuBar || !defaults.bool(forKey: QuotaPreferences.menuBarOnlyKey)
+        }
+
+        var summary: String {
+            let source = QuotaProvider(rawValue: provider)?.title ?? provider
+            let interval = refreshIntervalSeconds == 0 ? "关闭" : "\(refreshIntervalSeconds) 秒"
+            let mode = showsOrb ? (showsMenuBar ? "悬浮球和菜单栏" : "悬浮球") : "仅菜单栏"
+            return "保存的显示设置：\(source) · 定时刷新 \(interval) · \(mode)"
         }
     }
 
@@ -32,13 +57,14 @@ enum QuotaDiagnostics {
         let codex = CodexQuotaClient.resolveCodexLaunch(environment: environment) != nil
         let gemini = QuotaCLI.find("agy", override: "ANTIGRAVITY_CLI_PATH", environment: environment) != nil
         let kimi = QuotaCLI.find("kimi", override: "KIMI_CLI_PATH", environment: environment) != nil
-        return Report(sources: [
+        let sources = [
             cliStatus(.codex, found: codex, override: "CODEX_CLI_PATH"),
             cliStatus(.gemini, found: gemini, override: "ANTIGRAVITY_CLI_PATH"),
             claudeStatus(),
             Source(.openCodeGo, status: .managedInApp, detail: "在悬浮球右键菜单检查密钥设置"),
             cliStatus(.kimiCode, found: kimi, override: "KIMI_CLI_PATH"),
-        ])
+        ]
+        return Report(sources: sources, display: DisplayPreferences(defaults: QuotaPreferences.shared))
     }
 
     private static func cliStatus(_ provider: QuotaProvider, found: Bool, override variable: String) -> Source {

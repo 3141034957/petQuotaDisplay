@@ -7,6 +7,10 @@ enum OrbSizePreference: Int, CaseIterable {
 
     static let defaultsKey = "orb.diameter"
 
+    static func load(defaults: UserDefaults = QuotaPreferences.shared) -> Self {
+        Self(rawValue: defaults.integer(forKey: defaultsKey)) ?? .standard
+    }
+
     var size: CGSize { CGSize(width: rawValue, height: rawValue) }
 
     var title: String {
