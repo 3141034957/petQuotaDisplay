@@ -145,6 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.startupPeriodOverride = displayOptions.period
         orbView.refreshCadence = displayOptions.refreshCadence ?? QuotaRefreshCadence.load()
         orbView.showsMenuBarQuota = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarEnabledKey)
+        orbView.hidesAccountEmail = QuotaPreferences.shared.bool(forKey: QuotaPreferences.hidesAccountEmailKey)
         orbView.showsMenuBarSourceName = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarSourceNameKey)
         orbView.warningThreshold = QuotaWarningThreshold.load()
         orbView.lowQuotaSoundEnabled = QuotaPreferences.shared.bool(forKey: QuotaPreferences.lowQuotaSoundKey)
@@ -173,6 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
         orbView.onToggleMenuBarQuota = { [weak self] in self?.toggleMenuBarQuota() }
         orbView.onToggleMenuBarSourceName = { [weak self] in self?.toggleMenuBarSourceName() }
+        orbView.onToggleAccountEmail = { [weak self] in self?.toggleAccountEmail() }
         orbView.onSelectWarningThreshold = { [weak self] threshold in self?.setWarningThreshold(threshold) }
         orbView.onToggleLowQuotaSound = { [weak self] in self?.toggleLowQuotaSound() }
         orbView.onToggleLowQuotaNotifications = { [weak self] in self?.toggleLowQuotaNotifications() }
@@ -243,10 +245,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             controller = NSWindowController(window: historyWindow)
             historyWindowController = controller
         }
-        let parts = [context.provider.title, context.account.map(accountName(for:)), "额度趋势"].compactMap { $0 }
-        controller.window?.title = parts.joined(separator: " · ")
+        updateHistoryWindowTitle()
         NSApp.activate(ignoringOtherApps: true)
         controller.showWindow(nil)
+    }
+
+    private func updateHistoryWindowTitle() {
+        guard let context = historyWindowModel?.context else { return }
+        let parts = [context.provider.title, context.account.map(accountName(for:)), "额度趋势"].compactMap { $0 }
+        historyWindowController?.window?.title = parts.joined(separator: " · ")
     }
 
     private func showHistoryFromNotification(_ context: QuotaHistoryContext) {
@@ -533,6 +540,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         QuotaPreferences.shared.set(orbView.showsMenuBarSourceName, forKey: QuotaPreferences.menuBarSourceNameKey)
     }
 
+    private func toggleAccountEmail() {
+        orbView.hidesAccountEmail.toggle()
+        QuotaPreferences.shared.set(orbView.hidesAccountEmail, forKey: QuotaPreferences.hidesAccountEmailKey)
+        updateHistoryWindowTitle()
+    }
+
     private func setWarningThreshold(_ threshold: QuotaWarningThreshold) {
         if orbView.warningThreshold != threshold { lowQuotaReminder = QuotaLowReminder() }
         orbView.warningThreshold = threshold
@@ -779,6 +792,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard alert.runModal() == .alertFirstButtonReturn, accounts.contains(account) else { return }
         CodexAccountProfile.setName(input.stringValue, for: account)
         updateAccountMenuState()
+        updateHistoryWindowTitle()
     }
 
     private func deleteAccount(_ account: CodexAccountSlot) {
@@ -842,7 +856,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func accountName(for account: CodexAccountSlot) -> String {
         if let name = CodexAccountProfile.name(for: account) { return name }
-        if case .signedIn(let summary) = accountStatuses[account], let email = summary.email {
+        if !orbView.hidesAccountEmail, case .signedIn(let summary) = accountStatuses[account], let email = summary.email {
             return email
         }
         let index = accounts.firstIndex(of: account).map { $0 + 1 } ?? 1

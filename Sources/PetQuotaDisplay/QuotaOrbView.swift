@@ -65,6 +65,8 @@ final class QuotaOrbView: NSView {
     }
     var onSelectResetDisplay: ((OrbResetDisplay) -> Void)?
     var showsMenuBarQuota = false
+    var hidesAccountEmail = false
+    var onToggleAccountEmail: (() -> Void)?
     var showsMenuBarSourceName = false {
         didSet { onPresentationChanged?() }
     }
@@ -564,6 +566,9 @@ final class QuotaOrbView: NSView {
         let sourceName = submenu.addItem(withTitle: "在菜单栏显示来源名称", action: #selector(toggleMenuBarSourceName), keyEquivalent: "")
         sourceName.target = self
         sourceName.state = showsMenuBarSourceName ? .on : .off
+        let privacy = submenu.addItem(withTitle: "隐藏 Codex 账号邮箱", action: #selector(toggleAccountEmail), keyEquivalent: "")
+        privacy.target = self
+        privacy.state = hidesAccountEmail ? .on : .off
         submenu.addItem(warningThresholdMenuItem())
         let periods = submenu.addItem(withTitle: "低额度提醒周期", action: nil, keyEquivalent: "")
         let choices = NSMenu(title: periods.title)
@@ -770,6 +775,7 @@ final class QuotaOrbView: NSView {
     @objc private func resetPositionFromMenu() { onResetPosition?() }
     @objc private func toggleMenuBarQuota() { onToggleMenuBarQuota?() }
     @objc private func toggleMenuBarSourceName() { onToggleMenuBarSourceName?() }
+    @objc private func toggleAccountEmail() { onToggleAccountEmail?() }
     @objc private func toggleOrbVisibility() { onToggleOrbVisibility?() }
     @objc private func toggleWindowLevel() { onToggleWindowLevel?() }
     @objc private func raiseOrb() { onRaiseOrb?() }
@@ -1013,7 +1019,7 @@ final class QuotaOrbView: NSView {
         case .signedOut:
             return "\(title) · 未登录"
         case .signedIn(let account):
-            let identity = account.email ?? "ChatGPT"
+            let identity = hidesAccountEmail ? "已登录" : account.email ?? "ChatGPT"
             let plan = account.planType.map { " · \($0.uppercased())" } ?? ""
             return "\(title) · \(identity)\(plan)"
         }

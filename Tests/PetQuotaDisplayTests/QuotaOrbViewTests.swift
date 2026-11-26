@@ -5,6 +5,21 @@ import XCTest
 
 @MainActor
 final class QuotaOrbViewTests: XCTestCase {
+    func testAccountEmailCanBeHiddenFromSelectionAndDeletionMenus() throws {
+        let view = QuotaOrbView(frame: .zero)
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        view.accounts = [account]
+        view.accountNames = [account: "Work"]
+        view.accountStatuses = [account: .signedIn(CodexAccountSummary(email: "fixture@example.invalid", planType: "plus"))]
+        let original = try XCTUnwrap(menu(view).item(withTitle: "切换额度账号")?.submenu)
+        XCTAssertTrue(original.items.contains { $0.title.contains("fixture@example.invalid") })
+        view.hidesAccountEmail = true
+        let masked = try XCTUnwrap(menu(view).item(withTitle: "切换额度账号")?.submenu)
+        let deletion = try XCTUnwrap(masked.item(withTitle: "删除额度账号")?.submenu)
+        XCTAssertFalse((masked.items + deletion.items).contains { $0.title.contains("fixture@example.invalid") })
+        XCTAssertTrue(masked.items.contains { $0.title.contains("Work · 已登录") })
+    }
+
     func testReminderPauseExpiresAtItsEndTimeAndExposesAResumeAction() throws {
         let view = QuotaOrbView(frame: .zero)
         view.lowQuotaSoundEnabled = true

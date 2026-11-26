@@ -9,6 +9,7 @@ enum QuotaPreferences {
     static let lowQuotaNotificationKey = "quota.lowQuotaNotification"
     static let lowQuotaPeriodsKey = "quota.lowQuotaPeriods"
     static let lowQuotaPauseUntilKey = "quota.lowQuotaPauseUntil"
+    static let hidesAccountEmailKey = "quota.hidesAccountEmail"
     static let menuBarOnlyKey = "orb.menuBarOnly"
 
     static let shared: UserDefaults = {
