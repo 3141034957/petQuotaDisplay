@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var historyWindowController: NSWindowController?
     private var historyWindowModel: QuotaHistoryWindowModel?
     private let historyArchive = QuotaHistoryArchive.local
+    private let historyArchiveWriter = DispatchQueue(label: "com.erenshwang.petquotadisplay.history", qos: .utility)
+    private var historyArchiveGeneration = UUID()
     private var countdownTimer: Timer?
     private var statusItem: NSStatusItem?
     private var orbIsActive = false
@@ -106,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         cliMonitor?.stop()
         cliMonitor = nil
         stopOrb(hideWindow: false)
+        historyArchiveWriter.sync {}
         QuotaChildProcess.waitForTerminations()
         removeStatusItem()
     }
@@ -242,7 +245,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func toggleHistoryArchive() {
         performHistoryArchiveOperation {
             let enabled = !orbView.retainsHistoryAcrossLaunches
-            try historyArchive.setEnabled(enabled, initial: orbView.historyForArchive)
+            let initial = orbView.historyForArchive
+            try historyArchiveWriter.sync { try historyArchive.setEnabled(enabled, initial: initial) }
             orbView.retainsHistoryAcrossLaunches = enabled
         }
     }
@@ -250,21 +254,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func historyDidChange(_ context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
         updateQuotaHistory(context: context, readings: readings)
         guard orbView.retainsHistoryAcrossLaunches else { return }
-        performHistoryArchiveOperation { try historyArchive.update(context, latest: readings.last) }
+        let archive = historyArchive
+        let latest = readings.last
+        let generation = historyArchiveGeneration
+        historyArchiveWriter.async { [weak self] in
+            let result = Result { try archive.update(context, latest: latest) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.historyArchiveGeneration == generation else { return }
+                self.applyHistoryArchiveResult(result)
+            }
+        }
     }
 
     private func clearHistory() {
         closeQuotaHistory()
         guard orbView.retainsHistoryAcrossLaunches else { return }
-        performHistoryArchiveOperation { try historyArchive.clear() }
+        performHistoryArchiveOperation { try historyArchiveWriter.sync { try historyArchive.clear() } }
     }
 
     private func performHistoryArchiveOperation(_ operation: () throws -> Void) {
-        do {
-            try operation()
-            orbView.historyArchiveError = nil
-        } catch {
-            orbView.historyArchiveError = "本机历史记录暂不可用：\(error.localizedDescription)"
+        historyArchiveGeneration = UUID()
+        applyHistoryArchiveResult(Result { try operation() })
+    }
+
+    private func applyHistoryArchiveResult(_ result: Result<Void, Error>) {
+        switch result {
+        case .success: orbView.historyArchiveError = nil
+        case .failure(let error): orbView.historyArchiveError = "本机历史记录暂不可用：\(error.localizedDescription)"
         }
     }
 
