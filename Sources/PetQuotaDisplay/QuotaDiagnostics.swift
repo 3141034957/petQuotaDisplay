@@ -96,26 +96,31 @@ enum QuotaDiagnostics {
             switch source {
             case .codex:
                 let found = CodexQuotaClient.resolveCodexLaunch(environment: environment) != nil
-                return cliStatus(source, found: found, override: "CODEX_CLI_PATH")
+                return cliStatus(source, found: found, override: "CODEX_CLI_PATH", environment: environment)
             case .gemini:
                 let found = QuotaCLI.find("agy", override: "ANTIGRAVITY_CLI_PATH", environment: environment) != nil
-                return cliStatus(source, found: found, override: "ANTIGRAVITY_CLI_PATH")
+                return cliStatus(source, found: found, override: "ANTIGRAVITY_CLI_PATH", environment: environment)
             case .claudeCode:
                 return claudeStatus()
             case .openCodeGo:
                 return Source(source, status: .managedInApp, detail: "在悬浮球右键菜单检查密钥设置")
             case .kimiCode:
                 let found = QuotaCLI.find("kimi", override: "KIMI_CLI_PATH", environment: environment) != nil
-                return cliStatus(source, found: found, override: "KIMI_CLI_PATH")
+                return cliStatus(source, found: found, override: "KIMI_CLI_PATH", environment: environment)
             }
         }
         return Report(sources: sources, display: DisplayPreferences(defaults: QuotaPreferences.shared))
     }
 
-    private static func cliStatus(_ provider: QuotaProvider, found: Bool, override variable: String) -> Source {
-        found
-            ? Source(provider, status: .available, detail: "找到命令，登录和版本将在刷新时检查")
-            : Source(provider, status: .needsSetup, detail: "未找到命令，请检查安装或 \(variable)")
+    private static func cliStatus(_ provider: QuotaProvider, found: Bool, override variable: String,
+                                  environment: [String: String]) -> Source {
+        if found {
+            return Source(provider, status: .available, detail: "找到命令，登录和版本将在刷新时检查")
+        }
+        let detail = environment[variable] != nil
+            ? "\(variable) 需要指向可执行文件的绝对路径"
+            : "未找到命令，请检查安装或 \(variable)"
+        return Source(provider, status: .needsSetup, detail: detail)
     }
 
     private static func claudeStatus() -> Source {
