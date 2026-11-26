@@ -358,6 +358,13 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(selectedProvider, .gemini)
         XCTAssertEqual(readings.count, 10)
         XCTAssertEqual(readings.last?.weekly?.remainingPercent, 90)
+        let json = try XCTUnwrap(view.quotaHistoryJSON(for: .gemini))
+        let report = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        XCTAssertEqual(report["schemaVersion"] as? Int, 1)
+        XCTAssertEqual(report["provider"] as? String, "gemini")
+        let exported = try XCTUnwrap(report["readings"] as? [[String: Any]])
+        XCTAssertEqual(exported.count, 10)
+        XCTAssertNil(report["account"])
     }
 
     func testHistoryChangeEventsRetainTheAccountScopeAndIgnoreDuplicateReads() throws {

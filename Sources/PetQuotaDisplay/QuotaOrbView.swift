@@ -477,6 +477,9 @@ final class QuotaOrbView: NSView {
             let clearSource = details.addItem(withTitle: "清除此来源的记录", action: #selector(clearSourceQuotaHistory(_:)), keyEquivalent: "")
             clearSource.target = self
             clearSource.representedObject = source.rawValue
+            let copySource = details.addItem(withTitle: "复制此来源的全部记录 JSON", action: #selector(copySourceQuotaHistory(_:)), keyEquivalent: "")
+            copySource.target = self
+            copySource.representedObject = source.rawValue
             entry.submenu = details
         }
         item.submenu = submenu
@@ -697,6 +700,16 @@ final class QuotaOrbView: NSView {
               let source = QuotaProvider(rawValue: rawValue) else { return }
         let context = quotaContext(for: source)
         forgetQuota(for: context.provider, account: context.account)
+    }
+
+    @objc private func copySourceQuotaHistory(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String, let source = QuotaProvider(rawValue: rawValue) else { return }
+        QuotaClipboard.copy(quotaHistoryJSON(for: source))
+    }
+
+    func quotaHistoryJSON(for source: QuotaProvider) -> String? {
+        guard let history = recentQuotas[quotaContext(for: source)] else { return nil }
+        return try? QuotaOutput.json(QuotaHistoryExport(provider: source, snapshots: history.readings))
     }
 
     @objc private func showQuotaHistory(_ sender: NSMenuItem) {
