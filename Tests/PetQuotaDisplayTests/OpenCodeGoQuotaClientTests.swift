@@ -3,6 +3,15 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class OpenCodeGoQuotaClientTests: XCTestCase {
+    func testMalformedPeriodDoesNotDiscardTheOtherOpenCodeGoWindows() throws {
+        let data = Data(#"{"usage":{"rolling":{"percent":"bad"},"weekly":{"percent":40,"resetsAt":123},"monthly":{"percent":30}}}"#.utf8)
+        let snapshot = try OpenCodeGoQuotaClient.parseReport(data)
+        XCTAssertNil(snapshot.fiveHour)
+        XCTAssertEqual(snapshot.weekly?.remainingPercent, 60)
+        XCTAssertNil(snapshot.weekly?.resetsAt)
+        XCTAssertEqual(snapshot.monthly?.remainingPercent, 70)
+    }
+
     func testMapsOfficialUsageResponseToAllThreeWindows() throws {
         let now = Date(timeIntervalSince1970: 100)
         let snapshot = try OpenCodeGoQuotaClient.parseReport(UsageStub.report, now: now)

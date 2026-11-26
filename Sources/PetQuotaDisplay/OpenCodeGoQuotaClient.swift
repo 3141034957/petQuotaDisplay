@@ -109,11 +109,28 @@ final class OpenCodeGoQuotaClient: PollingQuotaClient {
             let rolling: Bucket?
             let weekly: Bucket?
             let monthly: Bucket?
+
+            private enum CodingKeys: String, CodingKey { case rolling, weekly, monthly }
+
+            init(from decoder: Decoder) throws {
+                let values = try decoder.container(keyedBy: CodingKeys.self)
+                rolling = try? values.decode(Bucket.self, forKey: .rolling)
+                weekly = try? values.decode(Bucket.self, forKey: .weekly)
+                monthly = try? values.decode(Bucket.self, forKey: .monthly)
+            }
         }
 
         struct Bucket: Decodable {
             let percent: Int
             let resetsAt: String?
+
+            private enum CodingKeys: String, CodingKey { case percent, resetsAt }
+
+            init(from decoder: Decoder) throws {
+                let values = try decoder.container(keyedBy: CodingKeys.self)
+                percent = try values.decode(Int.self, forKey: .percent)
+                resetsAt = try? values.decode(String.self, forKey: .resetsAt)
+            }
         }
     }
 }
