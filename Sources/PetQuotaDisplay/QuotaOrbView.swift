@@ -34,12 +34,12 @@ final class QuotaOrbView: NSView {
         let provider: QuotaProvider
         let account: CodexAccountSlot?
     }
-    private var recentQuotas: [QuotaContext: QuotaSnapshot] = [:]
+    private var recentQuotas: [QuotaContext: QuotaReadingHistory] = [:]
 
     var state: QuotaDisplayState = .loading {
         didSet {
             if case .loaded(let snapshot) = state, provider != .codex || selectedAccount != nil {
-                recentQuotas[quotaContext(for: provider)] = snapshot
+                recentQuotas[quotaContext(for: provider), default: QuotaReadingHistory()].record(snapshot)
             }
             needsDisplay = true
             updateAccessibility()
@@ -442,17 +442,17 @@ final class QuotaOrbView: NSView {
         copy.isEnabled = recentQuotaSummary != nil
         submenu.addItem(.separator())
         for source in QuotaProvider.allCases {
-            guard let snapshot = recentQuotas[quotaContext(for: source)] else {
+            let lines = recentQuotaDetails(for: source)
+            guard !lines.isEmpty else {
                 let empty = submenu.addItem(withTitle: "\(source.title) · 尚无结果", action: nil, keyEquivalent: "")
                 empty.isEnabled = false
                 continue
             }
             let entry = submenu.addItem(withTitle: source.title, action: nil, keyEquivalent: "")
             let details = NSMenu(title: source.title)
-            for line in quotaDetails(in: snapshot) {
+            for line in lines {
                 details.addItem(withTitle: line, action: nil, keyEquivalent: "")
             }
-            details.addItem(withTitle: recentQuotaTime(for: snapshot), action: nil, keyEquivalent: "")
             entry.submenu = details
         }
         item.submenu = submenu
@@ -650,16 +650,28 @@ final class QuotaOrbView: NSView {
 
     var recentQuotaSummary: String? {
         let groups = QuotaProvider.allCases.compactMap { source -> String? in
-            guard let snapshot = recentQuotas[quotaContext(for: source)] else { return nil }
-            let lines = [source.title] + quotaDetails(in: snapshot) + [recentQuotaTime(for: snapshot)]
-            return lines.joined(separator: "\n")
+            let lines = recentQuotaDetails(for: source)
+            return lines.isEmpty ? nil : ([source.title] + lines).joined(separator: "\n")
         }
         guard !groups.isEmpty else { return nil }
         return (["最近读取的额度"] + groups).joined(separator: "\n\n")
     }
 
-    private func recentQuotaTime(for snapshot: QuotaSnapshot) -> String {
-        "上次采集：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))"
+    private func recentQuotaDetails(for source: QuotaProvider) -> [String] {
+        guard let history = recentQuotas[quotaContext(for: source)], let snapshot = history.latest else { return [] }
+        var lines = quotaDetails(in: snapshot)
+        for period in QuotaPeriod.allCases {
+            switch history.change(in: period) {
+            case .remainingPercentagePoints(let delta):
+                let direction = delta < 0 ? "减少" : "增加"
+                lines.append("\(period.title)剩余额度较上次\(direction) \(abs(delta)) 个百分点")
+            case .resetTimeChanged:
+                lines.append("\(period.title)额度的重置时间有变化")
+            case nil: break
+            }
+        }
+        lines.append("上次采集：\(Self.longDateFormatter.string(from: snapshot.fetchedAt))")
+        return lines
     }
 
     var quotaSummary: String? {
