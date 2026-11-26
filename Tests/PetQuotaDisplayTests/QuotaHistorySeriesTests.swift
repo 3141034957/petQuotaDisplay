@@ -16,6 +16,18 @@ final class QuotaHistorySeriesTests: XCTestCase {
         XCTAssertEqual(QuotaHistorySeries(readings: readings, period: .weekly, range: .hour).points.count, 4)
     }
 
+    func testLongerRangesUseTheLastCaptureRatherThanTheCurrentTime() {
+        let latest = 8.0 * 24 * 3_600
+        let times = [0, latest - 7 * 24 * 3_600, latest - 24 * 3_600, latest - 6 * 3_600, latest]
+        let readings = times.map { time in
+            QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 30, resetsAt: nil),
+                          fetchedAt: Date(timeIntervalSince1970: time))
+        }
+        XCTAssertEqual(QuotaHistorySeries(readings: readings, period: .weekly, range: .sixHours).points.count, 2)
+        XCTAssertEqual(QuotaHistorySeries(readings: readings, period: .weekly, range: .day).points.count, 3)
+        XCTAssertEqual(QuotaHistorySeries(readings: readings, period: .weekly, range: .week).points.count, 4)
+    }
+
     func testTrendBreaksAtMissingWindowsAndChangedResetTimes() {
         let firstReset = Date(timeIntervalSince1970: 100)
         let secondReset = Date(timeIntervalSince1970: 200)

@@ -17,12 +17,15 @@ struct QuotaHistoryContext: Hashable {
 
 struct QuotaHistorySeries {
     enum TimeRange: CaseIterable {
-        case quarterHour, hour, all
+        case quarterHour, hour, sixHours, day, week, all
 
         var title: String {
             switch self {
             case .quarterHour: return "最近 15 分钟"
             case .hour: return "最近 1 小时"
+            case .sixHours: return "最近 6 小时"
+            case .day: return "最近 24 小时"
+            case .week: return "最近 7 天"
             case .all: return "全部记录"
             }
         }
@@ -31,6 +34,9 @@ struct QuotaHistorySeries {
             switch self {
             case .quarterHour: return 15 * 60
             case .hour: return 60 * 60
+            case .sixHours: return 6 * 3_600
+            case .day: return 24 * 3_600
+            case .week: return 7 * 24 * 3_600
             case .all: return nil
             }
         }
