@@ -16,8 +16,13 @@ struct QuotaHistoryContext: Hashable {
 }
 
 struct QuotaHistorySeries {
-    enum TimeRange: CaseIterable {
-        case quarterHour, hour, sixHours, day, week, all
+    enum TimeRange: String, CaseIterable {
+        case quarterHour = "15m"
+        case hour = "1h"
+        case sixHours = "6h"
+        case day = "24h"
+        case week = "7d"
+        case all
 
         var title: String {
             switch self {
@@ -39,6 +44,10 @@ struct QuotaHistorySeries {
             case .week: return 7 * 24 * 3_600
             case .all: return nil
             }
+        }
+
+        func cutoff(relativeTo latest: Date?) -> Date? {
+            duration.flatMap { interval in latest?.addingTimeInterval(-interval) }
         }
     }
 
@@ -68,7 +77,7 @@ struct QuotaHistorySeries {
         var segment = 0
         var lastKnownReset: Date?
         var containsGap = false
-        let cutoff = range.duration.flatMap { duration in readings.last?.fetchedAt.addingTimeInterval(-duration) }
+        let cutoff = range.cutoff(relativeTo: readings.last?.fetchedAt)
         for reading in readings where cutoff.map({ reading.fetchedAt >= $0 }) ?? true {
             guard let window = reading[period] else {
                 containsGap = !points.isEmpty

@@ -22,6 +22,7 @@ struct QuotaQueryOptions {
         case listModels = "--list-models"
         case includeModels = "--include-models"
         case summary = "--summary"
+        case last = "--last"
         case since = "--since"
         case until = "--until"
         case limit = "--limit"
@@ -46,6 +47,7 @@ struct QuotaQueryOptions {
     private(set) var listModels = false
     private(set) var includesModels = false
     private(set) var summariesOnly = false
+    private(set) var recentRange: QuotaHistorySeries.TimeRange?
     private(set) var since: Date?
     private(set) var until: Date?
     private(set) var limit: Int?
@@ -55,7 +57,7 @@ struct QuotaQueryOptions {
         var seen = Set<Option>()
         let historyOptions: Set<Option> = [
             .provider, .providers, .all, .account, .model, .listModels, .includeModels, .summary,
-            .period, .since, .until, .format, .limit,
+            .period, .since, .until, .last, .format, .limit,
         ]
         while let argument = arguments.popFirst() {
             guard let option = Option(rawValue: argument) else { throw Failure.unknownOption(purpose) }
@@ -66,6 +68,7 @@ struct QuotaQueryOptions {
             if purpose == .live, option == .limit { throw Failure.limitOnlyForHistory }
             if purpose == .live, option == .includeModels { throw Failure.includeModelsRequiresHistoryBatch }
             if purpose == .live, option == .summary { throw Failure.summaryOnlyForHistory }
+            if purpose == .live, option == .last { throw Failure.rangeOnlyForHistory }
             guard seen.insert(option).inserted else { throw Failure.duplicateOption(option) }
             if option.requiresValue {
                 guard let next = arguments.first, Option(rawValue: next) == nil, next != "--help", next != "-h" else {
@@ -119,6 +122,11 @@ struct QuotaQueryOptions {
                 includesModels = true
             case .summary:
                 summariesOnly = true
+            case .last:
+                guard let value, let range = QuotaHistorySeries.TimeRange(rawValue: value), range.duration != nil else {
+                    throw Failure.invalidValue(option)
+                }
+                recentRange = range
             case .since:
                 guard let value, let date = QuotaHTTP.resetDate(value) else { throw Failure.invalidValue(option) }
                 since = date
@@ -153,7 +161,7 @@ struct QuotaQueryOptions {
         case unknownOption(Purpose), duplicateOption(Option), missingValue(Option), invalidValue(Option)
         case incompatibleModelList(Purpose), unsupportedHistoryOption(Option)
         case incompatibleBatch, missingBatchCodex
-        case includeModelsRequiresHistoryBatch, summaryOnlyForHistory
+        case includeModelsRequiresHistoryBatch, summaryOnlyForHistory, rangeOnlyForHistory
         case dateOnlyForHistory, invalidDateRange, limitOnlyForHistory
 
         var errorDescription: String? {
@@ -167,6 +175,7 @@ struct QuotaQueryOptions {
             case .includeModelsRequiresHistoryBatch:
                 return "--include-models 需要使用包含 Codex 的批量历史查询。"
             case .summaryOnlyForHistory: return "--summary 仅适用于历史查询。"
+            case .rangeOnlyForHistory: return "--last 仅适用于历史查询。"
             case .incompatibleModelList(let purpose):
                 let timeout = purpose == .live ? "、超时" : ""
                 return "模型列表仅支持 Codex 来源、账号\(timeout)和输出格式选项。"

@@ -51,6 +51,18 @@ final class QuotaHistoryArchiveTests: XCTestCase {
         XCTAssertEqual(report.readings.map(\.fetchedAt), [matching.fetchedAt])
     }
 
+    func testHistoryRelativeRangeEndsAtTheLastCaptureBeforeTheUpperBound() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = QuotaHistoryArchive(directory: root)
+        let context = QuotaHistoryContext(provider: .gemini, account: nil)
+        try archive.setEnabled(true, initial: [context: [snapshot(at: 100), snapshot(at: 1_000), snapshot(at: 2_000)]])
+        let export = try archive.export(for: context, until: Date(timeIntervalSince1970: 1_500), range: .quarterHour)
+        XCTAssertEqual(export.readings.map { $0.fetchedAt.timeIntervalSince1970 }, [100, 1_000])
+        let latest = try archive.export(for: context, range: .quarterHour)
+        XCTAssertEqual(latest.readings.map { $0.fetchedAt.timeIntervalSince1970 }, [2_000])
+    }
+
     func testHistoryStatisticsExcludeMissingPeriodsAndUseFilteredReadings() throws {
         let start = snapshot(at: 10)
         let recent = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 50, resetsAt: nil),

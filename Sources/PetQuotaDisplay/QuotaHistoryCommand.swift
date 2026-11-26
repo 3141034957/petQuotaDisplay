@@ -7,7 +7,8 @@ enum QuotaHistoryCommand {
             let account = providers.contains(.codex) ? try codexAccount(matching: options.account) : nil
             let contexts = providers.map { QuotaHistoryContext(provider: $0, account: $0 == .codex ? account : nil) }
             let report = try archive.exportBatch(for: contexts, selecting: options.period, since: options.since,
-                                                 until: options.until, limit: options.limit, includesModels: options.includesModels)
+                                                 until: options.until, range: options.recentRange, limit: options.limit,
+                                                 includesModels: options.includesModels)
             if options.summariesOnly { return try QuotaHistoryStatistics(report.sources).render(as: options.format) }
             return try report.render(as: options.format)
         }
@@ -29,7 +30,7 @@ enum QuotaHistoryCommand {
         let modelID = options.modelID == "codex" ? nil : options.modelID
         let context = QuotaHistoryContext(provider: provider, account: account, modelID: modelID)
         let export = try archive.export(for: context, selecting: options.period, since: options.since,
-                                        until: options.until, limit: options.limit)
+                                        until: options.until, range: options.recentRange, limit: options.limit)
         if options.summariesOnly { return try QuotaHistoryStatistics([export]).render(as: options.format) }
         return try export.render(as: options.format)
     }

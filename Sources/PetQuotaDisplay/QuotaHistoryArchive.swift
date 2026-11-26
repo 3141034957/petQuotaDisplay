@@ -77,12 +77,14 @@ struct QuotaHistoryArchive {
     }
 
     func export(for context: QuotaHistoryContext, selecting period: String? = nil,
-                since: Date? = nil, until: Date? = nil, limit: Int? = nil) throws -> QuotaHistoryExport {
-        try export(for: context, in: loadEnabled(), selecting: period, since: since, until: until, limit: limit)
+                since: Date? = nil, until: Date? = nil, range: QuotaHistorySeries.TimeRange? = nil,
+                limit: Int? = nil) throws -> QuotaHistoryExport {
+        try export(for: context, in: loadEnabled(), selecting: period, since: since, until: until, range: range, limit: limit)
     }
 
     func exportBatch(for contexts: [QuotaHistoryContext], selecting period: String?,
-                     since: Date?, until: Date?, limit: Int?, includesModels: Bool = false) throws -> QuotaHistoryBatchExport {
+                     since: Date?, until: Date?, range: QuotaHistorySeries.TimeRange? = nil,
+                     limit: Int?, includesModels: Bool = false) throws -> QuotaHistoryBatchExport {
         let state = try loadEnabled()
         let scopes = contexts.flatMap { context -> [QuotaHistoryContext] in
             guard includesModels, context.provider == .codex, context.account != nil else { return [context] }
@@ -91,15 +93,18 @@ struct QuotaHistoryArchive {
             return [context] + models
         }
         let sources = scopes.map {
-            export(for: $0, in: state, selecting: period, since: since, until: until, limit: limit)
+            export(for: $0, in: state, selecting: period, since: since, until: until, range: range, limit: limit)
         }
         return QuotaHistoryBatchExport(sources: sources)
     }
 
     private func export(for context: QuotaHistoryContext, in state: State, selecting period: String?,
-                        since: Date?, until: Date?, limit: Int?) -> QuotaHistoryExport {
-        let filtered = (state.histories[context] ?? []).filter { sample in
-            (since.map { sample.fetchedAt >= $0 } ?? true) && (until.map { sample.fetchedAt <= $0 } ?? true)
+                        since: Date?, until: Date?, range: QuotaHistorySeries.TimeRange?, limit: Int?) -> QuotaHistoryExport {
+        let history = state.histories[context] ?? []
+        let available = until.map { end in history.filter { $0.fetchedAt <= end } } ?? history
+        let cutoff = range?.cutoff(relativeTo: available.last?.fetchedAt)
+        let filtered = available.filter { sample in
+            (since.map { sample.fetchedAt >= $0 } ?? true) && (cutoff.map { sample.fetchedAt >= $0 } ?? true)
         }
         return QuotaHistoryExport(provider: context.provider, snapshots: filtered, modelID: context.modelID,
                                   selecting: period, limit: limit)

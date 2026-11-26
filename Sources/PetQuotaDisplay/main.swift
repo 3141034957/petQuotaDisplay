@@ -53,6 +53,7 @@ let historyUsage = """
   --summary       输出各周期的最小、最大和最新余量
   --since         起始采集时间（含边界，带时区的 ISO 8601）
   --until         结束采集时间（含边界，带时区的 ISO 8601）
+  --last          相对范围：\(QuotaHistorySeries.TimeRange.allCases.filter { $0.duration != nil }.map(\.rawValue).joined(separator: ", "))
   --limit         最多显示最近多少条采集记录
   --format        输出格式：\(formatHelp)，默认 json
   -h, --help      显示历史查询帮助
