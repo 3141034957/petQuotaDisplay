@@ -3,7 +3,8 @@ set -euo pipefail
 
 usage() {
     printf '%s\n' '用法：zsh scripts/package_app.sh [--universal] [--zip] [--checksum] [--json] [输出目录]' \
-        '--checksum 会生成 ZIP 和对应的 SHA-256 校验文件'
+        '      --version 1.2.3 --build-number 42 可为本次应用打包指定版本和构建号' \
+        '      --checksum 会生成 ZIP 和对应的 SHA-256 校验文件'
 }
 
 output=""
@@ -11,22 +12,41 @@ zip_app=false
 universal=false
 checksum=false
 json_output=false
-for argument in "$@"; do
-    case "${argument}" in
+version=""
+build_number=""
+while (( $# )); do
+    case "$1" in
         -h|--help) usage; exit 0 ;;
         --zip) zip_app=true ;;
         --universal) universal=true ;;
         --checksum) checksum=true; zip_app=true ;;
         --json) json_output=true ;;
+        --version)
+            if [[ -n "${version}" || ! "${2-}" =~ '^[0-9]+(\.[0-9]+){1,2}$' ]]; then
+                usage >&2
+                exit 2
+            fi
+            version="$2"
+            shift
+            ;;
+        --build-number)
+            if [[ -n "${build_number}" || ! "${2-}" =~ '^[1-9][0-9]*$' ]]; then
+                usage >&2
+                exit 2
+            fi
+            build_number="$2"
+            shift
+            ;;
         -*) usage >&2; exit 2 ;;
         *)
             if [[ -n "${output}" ]]; then
                 usage >&2
                 exit 2
             fi
-            output="${argument}"
+            output="$1"
             ;;
     esac
+    shift
 done
 
 script_dir="${0:A:h}"
@@ -58,7 +78,14 @@ trap cleanup EXIT
 
 app="${distribution}/PetQuotaDisplay.app"
 mkdir -p "${app}/Contents/MacOS"
-cp "${repository_dir}/packaging/Info.plist" "${app}/Contents/Info.plist"
+metadata="${app}/Contents/Info.plist"
+cp "${repository_dir}/packaging/Info.plist" "${metadata}"
+if [[ -n "${version}" ]]; then
+    /usr/bin/plutil -replace CFBundleShortVersionString -string "${version}" "${metadata}"
+fi
+if [[ -n "${build_number}" ]]; then
+    /usr/bin/plutil -replace CFBundleVersion -string "${build_number}" "${metadata}"
+fi
 binary="${app}/Contents/MacOS/PetQuotaDisplay"
 if [[ "${universal}" == true ]]; then
     /usr/bin/lipo -create "${arm_binary_dir}/PetQuotaDisplay" "${intel_binary_dir}/PetQuotaDisplay" -output "${binary}"
@@ -71,9 +98,9 @@ if build_revision="$(git rev-parse --short=12 HEAD 2>/dev/null)"; then
     if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
         build_revision+="+dirty"
     fi
-    /usr/libexec/PlistBuddy -c "Add :PetQuotaDisplayRevision string ${build_revision}" "${app}/Contents/Info.plist"
+    /usr/bin/plutil -insert PetQuotaDisplayRevision -string "${build_revision}" "${metadata}"
 fi
-/usr/bin/plutil -lint "${app}/Contents/Info.plist" >&2
+/usr/bin/plutil -lint "${metadata}" >&2
 /usr/bin/codesign --force --sign - --timestamp=none "${app}"
 /usr/bin/codesign --verify --strict "${app}"
 
@@ -94,6 +121,10 @@ if [[ "${json_output}" == true ]]; then
     report="$(mktemp "${TMPDIR:-/tmp}/PetQuotaDisplay.package.XXXXXX")"
     /usr/bin/plutil -create xml1 "${report}"
     /usr/bin/plutil -insert appPath -string "${app}" "${report}"
+    version="$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "${metadata}")"
+    build_number="$(/usr/bin/plutil -extract CFBundleVersion raw -o - "${metadata}")"
+    /usr/bin/plutil -insert version -string "${version}" "${report}"
+    /usr/bin/plutil -insert buildNumber -string "${build_number}" "${report}"
     if [[ "${zip_app}" == true ]]; then
         /usr/bin/plutil -insert zipPath -string "${archive}" "${report}"
     fi
