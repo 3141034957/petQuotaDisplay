@@ -65,6 +65,7 @@ final class CodexQuotaClient {
     private var isStopping = false
     private var loginWhenInitialized = false
     private var replaceLoginWhenInitialized = false
+    private var activeLoginID: String?
 
     init(
         codexHome: URL? = nil,
@@ -95,7 +96,9 @@ final class CodexQuotaClient {
 
     func loginWithChatGPT(replacingExisting: Bool) {
         queue.async { [weak self] in
-            guard let self else { return }
+            guard let self, !self.loginWhenInitialized, self.activeLoginID == nil,
+                  !self.pendingRequests.values.contains(.loginStart),
+                  !self.pendingRequests.values.contains(.logoutThenLogin) else { return }
             self.loginWhenInitialized = true
             self.replaceLoginWhenInitialized = replacingExisting
             if self.process?.isRunning != true {
@@ -286,10 +289,12 @@ final class CodexQuotaClient {
                 emit(error: error)
             }
         case .loginStart:
-            guard let authURL = Self.browserLoginURL(result["authUrl"]) else {
+            guard let authURL = Self.browserLoginURL(result["authUrl"]),
+                  let loginID = result["loginId"] as? String, !loginID.isEmpty else {
                 emit(error: ClientError.malformedResponse)
                 return
             }
+            activeLoginID = loginID
             DispatchQueue.main.async { [weak self] in self?.onLoginURL?(authURL) }
         case .logoutThenLogin:
             startLoginLocked()
@@ -336,8 +341,10 @@ final class CodexQuotaClient {
     }
 
     private func handleLoginCompletedLocked(_ params: [String: Any]?) {
-        guard let params else { return }
-        if params["success"] as? Bool == true {
+        guard let params, let activeLoginID, params["loginId"] as? String == activeLoginID,
+              let success = params["success"] as? Bool else { return }
+        self.activeLoginID = nil
+        if success {
             requestAccountLocked()
         } else {
             emit(error: ClientError.loginFailed(params["error"] as? String ?? ""))
@@ -435,6 +442,7 @@ final class CodexQuotaClient {
         process = nil
         initialized = false
         verifiedAccount = nil
+        activeLoginID = nil
         outputBuffer.removeAll(keepingCapacity: false)
         cancelPendingRequestsLocked()
     }

@@ -37,6 +37,12 @@ while IFS= read -r line; do
             if [ "$scenario" = always-timeout ]; then continue; fi
             printf '{"id":%s,"result":{}}\n' "$id"
             ;;
+        *'"account/login/start"'*|*'"account\/login\/start"'*)
+            if [ "$scenario" != login-completion ]; then exit 8; fi
+            printf '{"id":%s,"result":{"type":"chatgpt","loginId":"active-login","authUrl":"https://auth.example.com/login"}}\n' "$id"
+            printf '{"method":"account/login/completed","params":{"loginId":"old-login","success":false,"error":"fixture old login"}}\n'
+            printf '{"method":"account/login/completed","params":{"loginId":"active-login","success":true}}\n'
+            ;;
         *refreshToken*)
             if [ "$scenario" = account-timeout ] && [ "$count" -eq 1 ]; then continue; fi
             if [ "$scenario" = sign-out-during-read ] && [ -n "${quota_id:-}" ]; then

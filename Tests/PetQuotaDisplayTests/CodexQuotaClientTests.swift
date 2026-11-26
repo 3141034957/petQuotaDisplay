@@ -10,6 +10,21 @@ final class CodexQuotaClientTests: XCTestCase {
         }
     }
 
+    func testLoginIgnoresACompletionFromAnOlderSession() throws {
+        let fixture = try makeClient(scenario: "login-completion")
+        defer { fixture.client.stop(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let browser = expectation(description: "browser URL issued")
+        let quota = expectation(description: "active login returned quota")
+        fixture.client.onLoginURL = { url in
+            XCTAssertEqual(url.host, "auth.example.com")
+            browser.fulfill()
+        }
+        fixture.client.onReport = { _ in quota.fulfill() }
+        fixture.client.onError = { XCTFail($0.localizedDescription) }
+        fixture.client.loginWithChatGPT(replacingExisting: false)
+        wait(for: [browser, quota], timeout: 5, enforceOrder: true)
+    }
+
     func testInitializationTimeoutRestartsAndRecovers() throws {
         try assertRecovers(scenario: "initialize-timeout") { error in
             guard case CodexQuotaClient.ClientError.initializationTimedOut = error else {
