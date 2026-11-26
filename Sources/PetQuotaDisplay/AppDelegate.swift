@@ -630,7 +630,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.lowQuotaNotificationMessage = "macOS 通知权限已关闭"
     }
 
-    private func handleLowQuota(_ scope: QuotaReminderScope, snapshot: QuotaSnapshot) {
+    private func handleLowQuota(_ scope: QuotaHistoryContext, snapshot: QuotaSnapshot) {
         guard orbView.lowQuotaSoundEnabled || orbView.lowQuotaNotificationEnabled, !orbView.isReminderPaused() else { return }
         let events = lowQuotaReminder.events(for: scope, snapshot: snapshot, threshold: orbView.warningThreshold,
                                              periods: orbView.reminderPeriods)

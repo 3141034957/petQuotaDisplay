@@ -34,12 +34,10 @@ final class QuotaNotificationService: NSObject, UNUserNotificationCenterDelegate
         }
     }
 
-    func post(scope: QuotaReminderScope, events: [QuotaLowReminder.Event], completion: @escaping (Error?) -> Void) {
-        let content = Self.content(provider: scope.context.provider, modelID: scope.modelID, events: events)
-        if scope.modelID == nil {
-            content.categoryIdentifier = Self.historyCategory
-            content.userInfo = Self.userInfo(for: scope.context)
-        }
+    func post(scope: QuotaHistoryContext, events: [QuotaLowReminder.Event], completion: @escaping (Error?) -> Void) {
+        let content = Self.content(provider: scope.provider, modelID: scope.modelID, events: events)
+        content.categoryIdentifier = Self.historyCategory
+        content.userInfo = Self.userInfo(for: scope)
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         center.add(request) { error in
             DispatchQueue.main.async { completion(error) }
@@ -49,14 +47,20 @@ final class QuotaNotificationService: NSObject, UNUserNotificationCenterDelegate
     static func userInfo(for context: QuotaHistoryContext) -> [String: String] {
         var info = ["provider": context.provider.rawValue]
         if let account = context.account { info["account"] = account.rawValue }
+        if let modelID = context.modelID { info["modelID"] = modelID }
         return info
     }
 
     static func historyContext(from info: [AnyHashable: Any]) -> QuotaHistoryContext? {
         guard let raw = info["provider"] as? String, let provider = QuotaProvider(rawValue: raw) else { return nil }
-        let account = (info["account"] as? String).flatMap(CodexAccountSlot.init(rawValue:))
-        guard (provider == .codex) == (account != nil) else { return nil }
-        return QuotaHistoryContext(provider: provider, account: account)
+        if provider == .codex {
+            let modelID = info["modelID"] as? String
+            guard let rawAccount = info["account"] as? String, let account = CodexAccountSlot(rawValue: rawAccount),
+                  info["modelID"] == nil || modelID?.isEmpty == false else { return nil }
+            return QuotaHistoryContext(provider: provider, account: account, modelID: modelID)
+        }
+        guard info["account"] == nil, info["modelID"] == nil else { return nil }
+        return QuotaHistoryContext(provider: provider, account: nil)
     }
 
     static func isAuthorizationError(_ error: Error) -> Bool {

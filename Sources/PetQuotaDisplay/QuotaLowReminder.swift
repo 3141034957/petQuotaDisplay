@@ -1,11 +1,6 @@
 import Foundation
 import QuotaCore
 
-struct QuotaReminderScope: Hashable {
-    let context: QuotaHistoryContext
-    let modelID: String?
-}
-
 struct QuotaLowReminder {
     struct Event: Equatable {
         let period: QuotaPeriod
@@ -19,9 +14,9 @@ struct QuotaLowReminder {
         let fetchedAt: Date
     }
 
-    private var previous: [QuotaReminderScope: [QuotaPeriod: Reading]] = [:]
+    private var previous: [QuotaHistoryContext: [QuotaPeriod: Reading]] = [:]
 
-    mutating func events(for scope: QuotaReminderScope, snapshot: QuotaSnapshot,
+    mutating func events(for scope: QuotaHistoryContext, snapshot: QuotaSnapshot,
                          threshold: QuotaWarningThreshold, periods: Set<QuotaPeriod> = Set(QuotaPeriod.allCases),
                          now: Date = Date()) -> [Event] {
         var events: [Event] = []
@@ -41,7 +36,7 @@ struct QuotaLowReminder {
     }
 
     mutating func remove(_ context: QuotaHistoryContext) {
-        previous = previous.filter { $0.key.context != context }
+        previous.removeValue(forKey: context)
     }
 
     mutating func reset(_ period: QuotaPeriod) {

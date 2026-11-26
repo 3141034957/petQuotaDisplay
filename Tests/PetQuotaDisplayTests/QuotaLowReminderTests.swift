@@ -9,8 +9,11 @@ final class QuotaLowReminderTests: XCTestCase {
         let context = QuotaHistoryContext(provider: .codex, account: account)
         let info = QuotaNotificationService.userInfo(for: context)
         XCTAssertEqual(QuotaNotificationService.historyContext(from: info), context)
+        let model = QuotaHistoryContext(provider: .codex, account: account, modelID: "extra")
+        XCTAssertEqual(QuotaNotificationService.historyContext(from: QuotaNotificationService.userInfo(for: model)), model)
         XCTAssertNil(QuotaNotificationService.historyContext(from: ["provider": "codex"]))
         XCTAssertNil(QuotaNotificationService.historyContext(from: ["provider": "gemini", "account": account.rawValue]))
+        XCTAssertNil(QuotaNotificationService.historyContext(from: ["provider": "gemini", "modelID": "extra"]))
     }
 
     func testNotificationAuthorizationErrorIsDistinguishedFromOtherErrors() {
@@ -21,7 +24,7 @@ final class QuotaLowReminderTests: XCTestCase {
 
     func testReminderFiltersPeriodsBeforeRecordingEpisodes() {
         var tracker = QuotaLowReminder()
-        let scope = QuotaReminderScope(context: .init(provider: .gemini, account: nil), modelID: nil)
+        let scope = QuotaHistoryContext(provider: .gemini, account: nil)
         let window = QuotaWindow(usedPercent: 95, resetsAt: nil)
         let snapshot = QuotaSnapshot(planType: nil, fiveHour: window, weekly: window)
         XCTAssertEqual(tracker.events(for: scope, snapshot: snapshot, threshold: .twentyPercent,
@@ -43,7 +46,7 @@ final class QuotaLowReminderTests: XCTestCase {
 
     func testReminderOnlyFiresForANewLowWindowOrAfterRecovery() {
         var tracker = QuotaLowReminder()
-        let scope = QuotaReminderScope(context: .init(provider: .gemini, account: nil), modelID: nil)
+        let scope = QuotaHistoryContext(provider: .gemini, account: nil)
         func events(at sequence: Int, remaining: Int, reset: Int) -> [QuotaLowReminder.Event] {
             let now = Date(timeIntervalSince1970: Double(sequence))
             let window = QuotaWindow(usedPercent: 100 - remaining, resetsAt: Date(timeIntervalSince1970: Double(reset)))

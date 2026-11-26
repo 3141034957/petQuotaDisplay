@@ -16,7 +16,7 @@ final class QuotaOrbView: NSView {
                         recordHistory(bucket.snapshot, for: quotaContext(for: .codex, modelID: bucket.id))
                     }
                 }
-                let scope = QuotaReminderScope(context: context, modelID: displayedCodexBucket?.id)
+                let scope = quotaContext(for: provider, modelID: displayedCodexBucket?.id)
                 onFreshQuota?(scope, displaySnapshot(snapshot))
             }
             needsDisplay = true
@@ -33,7 +33,7 @@ final class QuotaOrbView: NSView {
     var onQuotaHistoryChanged: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
     var onToggleHistoryArchive: (() -> Void)?
-    var onFreshQuota: ((QuotaReminderScope, QuotaSnapshot) -> Void)?
+    var onFreshQuota: ((QuotaHistoryContext, QuotaSnapshot) -> Void)?
     var onResetHistoryArchive: (() -> Void)?
     var retainsHistoryAcrossLaunches = false
     var historyArchiveError: String?
