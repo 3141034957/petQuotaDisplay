@@ -53,4 +53,19 @@ final class ClaudeQuotaCacheTests: XCTestCase {
         let afterSevenDays = try ClaudeQuotaCache.parse(data, now: Date(timeIntervalSince1970: 100 + 7 * 24 * 3_600))
         guard case .stale = afterSevenDays else { return XCTFail("Expected stale snapshot") }
     }
+
+    func testMalformedBucketAndUnknownResetLeaveTheValidWindowAvailable() throws {
+        let data = Data("""
+        {
+          "capturedAt": 100,
+          "fiveHour": {"usedPercentage": "missing"},
+          "sevenDay": {"usedPercentage": 30, "resetsAt": "unknown"}
+        }
+        """.utf8)
+        let state = try ClaudeQuotaCache.parse(data, now: Date(timeIntervalSince1970: 150))
+        XCTAssertNil(state.snapshot?.fiveHour)
+        XCTAssertEqual(state.snapshot?.weekly?.remainingPercent, 70)
+        XCTAssertNil(state.snapshot?.weekly?.resetsAt)
+        XCTAssertNil(state.errorMessage)
+    }
 }

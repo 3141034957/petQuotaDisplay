@@ -60,13 +60,33 @@ enum ClaudeQuotaCache {
         let fiveHour: Bucket?
         let sevenDay: Bucket?
 
+        private enum CodingKeys: String, CodingKey { case capturedAt, fiveHour, sevenDay }
+
+        init(from decoder: Decoder) throws {
+            let fields = try decoder.container(keyedBy: CodingKeys.self)
+            capturedAt = try fields.decode(TimeInterval.self, forKey: .capturedAt)
+            fiveHour = try? fields.decode(Bucket.self, forKey: .fiveHour)
+            sevenDay = try? fields.decode(Bucket.self, forKey: .sevenDay)
+        }
+
         struct Bucket: Decodable {
             let usedPercentage: Double
             let resetsAt: TimeInterval?
 
+            private enum CodingKeys: String, CodingKey { case usedPercentage, resetsAt }
+
+            init(from decoder: Decoder) throws {
+                let fields = try decoder.container(keyedBy: CodingKeys.self)
+                usedPercentage = try fields.decode(Double.self, forKey: .usedPercentage)
+                resetsAt = try? fields.decode(TimeInterval.self, forKey: .resetsAt)
+            }
+
             var quota: QuotaWindow? {
                 guard (0...100).contains(usedPercentage) else { return nil }
-                let reset = resetsAt.flatMap { $0 > 0 && $0.isFinite ? Date(timeIntervalSince1970: $0) : nil }
+                let reset = resetsAt.flatMap { time -> Date? in
+                    guard time > 0, time <= 253_402_300_799 else { return nil }
+                    return Date(timeIntervalSince1970: time)
+                }
                 return QuotaWindow(
                     usedPercent: Int(usedPercentage.rounded()),
                     resetsAt: reset
