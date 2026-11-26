@@ -209,11 +209,29 @@ final class KimiQuotaClient: PollingQuotaClient {
             let limit7d: Bucket?
             let monthCode: Bucket?
             let monthTotal: Bucket?
+
+            private enum CodingKeys: String, CodingKey { case limit5h, limit7d, monthCode, monthTotal }
+
+            init(from decoder: Decoder) throws {
+                let values = try decoder.container(keyedBy: CodingKeys.self)
+                limit5h = try? values.decode(Bucket.self, forKey: .limit5h)
+                limit7d = try? values.decode(Bucket.self, forKey: .limit7d)
+                monthCode = try? values.decode(Bucket.self, forKey: .monthCode)
+                monthTotal = try? values.decode(Bucket.self, forKey: .monthTotal)
+            }
         }
 
         struct Bucket: Decodable {
             let usedRatio: Double
             let resetAt: String?
+
+            private enum CodingKeys: String, CodingKey { case usedRatio, resetAt }
+
+            init(from decoder: Decoder) throws {
+                let values = try decoder.container(keyedBy: CodingKeys.self)
+                usedRatio = try values.decode(Double.self, forKey: .usedRatio)
+                resetAt = try? values.decode(String.self, forKey: .resetAt)
+            }
 
             var window: QuotaWindow? {
                 guard (0...1).contains(usedRatio) else { return nil }

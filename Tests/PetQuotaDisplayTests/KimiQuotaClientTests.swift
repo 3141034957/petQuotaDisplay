@@ -26,6 +26,22 @@ final class KimiQuotaClientTests: XCTestCase {
         XCTAssertThrowsError(try KimiQuotaClient.parseReport(report))
     }
 
+    func testInvalidKimiCodingPeriodFallsBackToValidMonthlyTotal() throws {
+        let report = Data("""
+        {"code":0,"data":{"kind":"ok","quota":{"usages":{
+          "limit5h":{"usedRatio":0.24,"resetAt":123},
+          "limit7d":{"usedRatio":"bad"},
+          "monthCode":"unavailable",
+          "monthTotal":{"usedRatio":0.8}
+        }}}}
+        """.utf8)
+        let snapshot = try KimiQuotaClient.parseReport(report)
+        XCTAssertEqual(snapshot.fiveHour?.remainingPercent, 76)
+        XCTAssertNil(snapshot.fiveHour?.resetsAt)
+        XCTAssertNil(snapshot.weekly)
+        XCTAssertEqual(snapshot.monthly?.remainingPercent, 20)
+    }
+
     func testOnlyAcceptsLoopbackOriginForBearerToken() throws {
         let origin = try KimiQuotaClient.parseConnection(Data(#"{"origin":"http://127.0.0.1:58627","token":"local-token"}"#.utf8))
         XCTAssertEqual(origin.usageURL.absoluteString, "http://127.0.0.1:58627/api/v1/oauth/usage")
