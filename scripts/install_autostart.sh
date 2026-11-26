@@ -39,16 +39,27 @@ swift build -c release
 binary_dir="$(swift build -c release --show-bin-path)"
 
 mkdir -p "${install_dir}" "${launch_agents_dir}"
+staged_binary=""
+staged_plist=""
+cleanup_staging() {
+    [[ -z "${staged_binary}" ]] || rm -f "${staged_binary}"
+    [[ -z "${staged_plist}" ]] || rm -f "${staged_plist}"
+}
+trap cleanup_staging EXIT
+staged_binary="$(mktemp "${install_dir}/.PetQuotaDisplay.XXXXXX")"
 staged_plist="$(mktemp "${launch_agents_dir}/.${label}.XXXXXX")"
-trap 'rm -f "${staged_plist}"' EXIT
 cp "${repository_dir}/autostart/${label}.plist" "${staged_plist}"
 /usr/libexec/PlistBuddy -c "Set :ProgramArguments:0 ${installed_binary}" "${staged_plist}"
 if [[ "${mode}" == --always-show ]]; then
     /usr/libexec/PlistBuddy -c 'Delete :ProgramArguments:1' "${staged_plist}"
 fi
 /usr/bin/plutil -lint "${staged_plist}"
-cp "${binary_dir}/PetQuotaDisplay" "${installed_binary}"
+cp "${binary_dir}/PetQuotaDisplay" "${staged_binary}"
+chmod 755 "${staged_binary}"
+mv -f "${staged_binary}" "${installed_binary}"
+staged_binary=""
 mv -f "${staged_plist}" "${installed_plist}"
+staged_plist=""
 
 launchctl bootout "${launch_domain}/${label}" 2>/dev/null || true
 launchctl enable "${launch_domain}/${label}"
