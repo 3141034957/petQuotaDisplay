@@ -257,4 +257,6 @@ swift build -c release
 
 使用 `zsh scripts/package_app.sh --universal --zip` 可将 Apple 芯片和 Intel Mac 所需的两种架构打包到同一个应用中。
 
+加上 `--checksum` 会同时生成 ZIP 和 `PetQuotaDisplay.zip.sha256`。收到这两个文件后，可在同一目录运行 `shasum -a 256 -c PetQuotaDisplay.zip.sha256` 核对压缩包。
+
 用 `python3 main.py --version` 查看版本。通过 Git 工作区打包的 `.app` 会记录构建时的提交标识，包含未提交改动时会带 `+dirty`。

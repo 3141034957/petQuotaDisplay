@@ -2,17 +2,20 @@
 set -euo pipefail
 
 usage() {
-    printf '%s\n' '用法：zsh scripts/package_app.sh [--universal] [--zip] [输出目录]'
+    printf '%s\n' '用法：zsh scripts/package_app.sh [--universal] [--zip] [--checksum] [输出目录]' \
+        '--checksum 会生成 ZIP 和对应的 SHA-256 校验文件'
 }
 
 output=""
 zip_app=false
 universal=false
+checksum=false
 for argument in "$@"; do
     case "${argument}" in
         -h|--help) usage; exit 0 ;;
         --zip) zip_app=true ;;
         --universal) universal=true ;;
+        --checksum) checksum=true; zip_app=true ;;
         -*) usage >&2; exit 2 ;;
         *)
             if [[ -n "${output}" ]]; then
@@ -75,9 +78,19 @@ if [[ "${zip_app}" == true ]]; then
     /usr/bin/ditto -c -k --sequesterRsrc --keepParent "${app}" "${archive}"
     /usr/bin/unzip -tq "${archive}"
 fi
+if [[ "${checksum}" == true ]]; then
+    (
+        cd "${distribution}"
+        /usr/bin/shasum -a 256 PetQuotaDisplay.zip > PetQuotaDisplay.zip.sha256
+        /usr/bin/shasum -a 256 -c PetQuotaDisplay.zip.sha256
+    )
+fi
 
 completed=true
 printf 'App：%s\n' "${app}"
 if [[ "${zip_app}" == true ]]; then
     printf 'ZIP：%s\n' "${archive}"
+fi
+if [[ "${checksum}" == true ]]; then
+    printf 'SHA-256：%s\n' "${archive}.sha256"
 fi
