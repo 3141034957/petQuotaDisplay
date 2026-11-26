@@ -91,7 +91,7 @@ struct QuotaHistoryExport: Encodable {
         }
     }
 
-    static func csv(_ rows: [[String]], modelID: String?) -> String {
+    private static func csv(_ rows: [[String]], modelID: String?) -> String {
         if let modelID {
             return QuotaOutput.csv([csvColumns + ["modelID"]] + rows.map { $0 + [modelID] })
         }

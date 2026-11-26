@@ -28,7 +28,7 @@ final class QuotaHistorySeriesTests: XCTestCase {
         XCTAssertEqual(QuotaHistorySeries(readings: readings, period: .weekly, range: .week).points.count, 4)
     }
 
-    func testTrendBreaksAtMissingWindowsAndChangedResetTimes() {
+    func testTrendBreaksAtMissingWindowsAndChangedResetTimes() throws {
         let firstReset = Date(timeIntervalSince1970: 100)
         let secondReset = Date(timeIntervalSince1970: 200)
         let windows: [QuotaWindow?] = [
@@ -49,7 +49,12 @@ final class QuotaHistorySeriesTests: XCTestCase {
         let nearest = chart.nearestPoint(to: Date(timeIntervalSince1970: 2.25))
         XCTAssertEqual(nearest?.remainingPercent, 95)
         XCTAssertEqual(nearest?.resetsAt, secondReset)
-        XCTAssertEqual(chart.csv(provider: .gemini, period: .weekly).split(separator: "\n").count, 5)
-        XCTAssertTrue(chart.csv(provider: .gemini, period: .weekly).contains("gemini,weekly,1970-01-01T00:00:01Z,50,"))
+        let export = chart.export(provider: .gemini)
+        let csv = try export.render(as: .csv)
+        XCTAssertEqual(csv.split(separator: "\n").count, 5)
+        XCTAssertTrue(csv.contains("gemini,weekly,1970-01-01T00:00:01Z,50,"))
+        let json = try export.render(as: .json)
+        XCTAssertFalse(json.contains("1970-01-01T00:00:03Z"))
+        XCTAssertEqual(export.readings.map(\.fetchedAt), chart.points.map(\.time))
     }
 }

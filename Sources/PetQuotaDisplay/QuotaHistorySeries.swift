@@ -61,16 +61,13 @@ struct QuotaHistorySeries {
         var id: Date { time }
     }
 
-    func csv(provider: QuotaProvider, period: QuotaPeriod, modelID: String? = nil) -> String {
-        let formatter = ISO8601DateFormatter()
-        let rows = points.map { point in
-            [provider.rawValue, period.rawValue, formatter.string(from: point.time),
-             String(point.remainingPercent), point.resetsAt.map(formatter.string(from:)) ?? ""]
-        }
-        return QuotaHistoryExport.csv(rows, modelID: modelID)
+    func export(provider: QuotaProvider, modelID: String? = nil) -> QuotaHistoryExport {
+        QuotaHistoryExport(provider: provider, snapshots: readings, modelID: modelID, selecting: period.rawValue)
     }
 
     let points: [Point]
+    private let readings: [QuotaSnapshot]
+    private let period: QuotaPeriod
 
     init(readings: [QuotaSnapshot], period: QuotaPeriod, range: TimeRange = .all) {
         var points: [Point] = []
@@ -78,7 +75,9 @@ struct QuotaHistorySeries {
         var lastKnownReset: Date?
         var containsGap = false
         let cutoff = range.cutoff(relativeTo: readings.last?.fetchedAt)
-        for reading in readings where cutoff.map({ reading.fetchedAt >= $0 }) ?? true {
+        self.readings = cutoff.map { start in readings.filter { $0.fetchedAt >= start } } ?? readings
+        self.period = period
+        for reading in self.readings {
             guard let window = reading[period] else {
                 containsGap = !points.isEmpty
                 continue

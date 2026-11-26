@@ -3,8 +3,8 @@ import QuotaCore
 import SwiftUI
 import UniformTypeIdentifiers
 
-private struct QuotaHistoryCSV: FileDocument {
-    static let readableContentTypes: [UTType] = [.commaSeparatedText]
+private struct QuotaHistoryFile: FileDocument {
+    static let readableContentTypes: [UTType] = [.commaSeparatedText, .json]
     let contents: Data
 
     init(_ text: String) { contents = Data(text.utf8) }
@@ -37,7 +37,8 @@ struct QuotaHistoryView: View {
     @State private var hoveredTime: Date?
     @State private var pinnedTime: Date?
     @State private var timeRange: QuotaHistorySeries.TimeRange = .all
-    @State private var exportDocument: QuotaHistoryCSV?
+    @State private var exportDocument: QuotaHistoryFile?
+    @State private var exportContentType: UTType = .commaSeparatedText
     @State private var isExporting = false
     @State private var exportError: String?
     @State private var showsExportError = false
@@ -52,8 +53,8 @@ struct QuotaHistoryView: View {
 
     private var readings: [QuotaSnapshot] { model.readings }
 
-    private func csv(for series: QuotaHistorySeries) -> String {
-        series.csv(provider: model.context.provider, period: selectedPeriod, modelID: model.context.modelID)
+    private func contents(for series: QuotaHistorySeries, format: QuotaExport.Format) throws -> String {
+        try series.export(provider: model.context.provider, modelID: model.context.modelID).render(as: format)
     }
 
     private var periods: [QuotaPeriod] {
@@ -81,12 +82,14 @@ struct QuotaHistoryView: View {
                 .fixedSize()
                 .onChange(of: timeRange) { _ in clearSelection() }
                 Menu("导出") {
-                    Button("复制 CSV") {
-                        QuotaClipboard.copy(csv(for: series))
-                    }
-                    Button("保存 CSV…") {
-                        exportDocument = QuotaHistoryCSV(csv(for: series))
-                        isExporting = true
+                    ForEach([QuotaExport.Format.csv, .json], id: \.self) { format in
+                        let title = format.rawValue.uppercased()
+                        Button("复制 \(title)") {
+                            QuotaClipboard.copy(try? contents(for: series, format: format))
+                        }
+                        Button("保存 \(title)…") {
+                            prepareExport(for: series, format: format)
+                        }
                     }
                 }
                 .disabled(series.points.isEmpty)
@@ -175,7 +178,7 @@ struct QuotaHistoryView: View {
         .onChange(of: periods) { choices in
             if !choices.contains(selectedPeriod), let first = choices.first { selectedPeriod = first }
         }
-        .fileExporter(isPresented: $isExporting, document: exportDocument, contentType: .commaSeparatedText,
+        .fileExporter(isPresented: $isExporting, document: exportDocument, contentType: exportContentType,
                       defaultFilename: "\(model.context.provider.rawValue)-\(selectedPeriod.rawValue)-quota") { result in
             if case .failure(let error) = result {
                 exportError = error.localizedDescription
@@ -193,6 +196,17 @@ struct QuotaHistoryView: View {
     private func clearSelection() {
         hoveredTime = nil
         pinnedTime = nil
+    }
+
+    private func prepareExport(for series: QuotaHistorySeries, format: QuotaExport.Format) {
+        do {
+            exportDocument = QuotaHistoryFile(try contents(for: series, format: format))
+            exportContentType = format == .json ? .json : .commaSeparatedText
+            isExporting = true
+        } catch {
+            exportError = error.localizedDescription
+            showsExportError = true
+        }
     }
 
     @ViewBuilder
