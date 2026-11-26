@@ -89,6 +89,11 @@ final class QuotaOrbView: NSView {
     var onSelectSize: ((OrbSizePreference) -> Void)?
     var opacityPreference: OrbOpacityPreference = .full
     var onSelectOpacity: ((OrbOpacityPreference) -> Void)?
+    var increasesContrast = false {
+        didSet {
+            if increasesContrast != oldValue { needsDisplay = true }
+        }
+    }
     var quotaMetric: OrbQuotaMetric = .remaining {
         didSet {
             needsDisplay = true
@@ -194,14 +199,19 @@ final class QuotaOrbView: NSView {
         path.fill()
         NSGraphicsContext.restoreGraphicsState()
 
-        let accent = accentColor
+        let accent: NSColor
+        if increasesContrast {
+            accent = accentColor.blended(withFraction: 0.45, of: .black) ?? accentColor
+        } else {
+            accent = accentColor
+        }
         let gradient = NSGradient(colors: [
             accent.blended(withFraction: 0.12, of: .white) ?? accent,
             accent.blended(withFraction: 0.28, of: .black) ?? accent,
         ])
         gradient?.draw(in: path, angle: -55)
 
-        NSColor.white.withAlphaComponent(0.15).setStroke()
+        NSColor.white.withAlphaComponent(increasesContrast ? 0.5 : 0.15).setStroke()
         path.lineWidth = 1
         path.stroke()
 
@@ -230,7 +240,7 @@ final class QuotaOrbView: NSView {
         let ringRect = circle.insetBy(dx: 6, dy: 6)
         let background = NSBezierPath(ovalIn: ringRect)
         background.lineWidth = 5
-        NSColor.white.withAlphaComponent(0.18).setStroke()
+        NSColor.white.withAlphaComponent(increasesContrast ? 0.35 : 0.18).setStroke()
         background.stroke()
 
         guard let snapshot = state.snapshot, let displayed = displayedQuota(in: snapshot),
@@ -337,7 +347,7 @@ final class QuotaOrbView: NSView {
         paragraph.lineBreakMode = .byTruncatingTail
         let attributes: [NSAttributedString.Key: Any] = [
             .font: fittedFont,
-            .foregroundColor: NSColor.white.withAlphaComponent(alpha),
+            .foregroundColor: NSColor.white.withAlphaComponent(increasesContrast ? 1 : alpha),
             .paragraphStyle: paragraph,
         ]
         text.draw(

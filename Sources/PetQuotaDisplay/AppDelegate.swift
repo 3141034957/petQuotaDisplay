@@ -166,7 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             && QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarOnlyKey)
         orbView.sizePreference = orbSizePreference
         orbView.opacityPreference = OrbOpacityPreference.load()
-        applyOrbOpacity()
+        applyOrbDisplayOptions()
         orbView.quotaMetric = QuotaPreferences.shared.string(forKey: OrbQuotaMetric.defaultsKey)
             .flatMap(OrbQuotaMetric.init(rawValue:)) ?? .remaining
         orbView.staysOnTop = staysOnTop
@@ -628,18 +628,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     private func setOrbOpacity(_ opacity: OrbOpacityPreference) {
         orbView.opacityPreference = opacity
-        applyOrbOpacity()
+        applyOrbDisplayOptions()
         QuotaPreferences.shared.set(opacity.rawValue, forKey: OrbOpacityPreference.defaultsKey)
     }
 
-    private func applyOrbOpacity() {
+    private func applyOrbDisplayOptions() {
+        let workspace = NSWorkspace.shared
         window.alphaValue = orbView.opacityPreference.alpha(
-            reduceTransparency: NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+            reduceTransparency: workspace.accessibilityDisplayShouldReduceTransparency
         )
+        orbView.increasesContrast = workspace.accessibilityDisplayShouldIncreaseContrast
     }
 
     @objc private func accessibilityDisplayOptionsDidChange(_ notification: Notification) {
-        DispatchQueue.main.async { [weak self] in self?.applyOrbOpacity() }
+        DispatchQueue.main.async { [weak self] in self?.applyOrbDisplayOptions() }
     }
 
     private func setWarningThreshold(_ threshold: QuotaWarningThreshold) {
