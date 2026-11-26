@@ -485,8 +485,12 @@ final class QuotaOrbViewTests: XCTestCase {
         }
         XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(trend.action), to: trend.target, from: trend))
         XCTAssertEqual(opened, QuotaHistoryContext(provider: .codex, account: account, modelID: "extra"))
+        let export = try XCTUnwrap(view.allQuotaHistoryJSON)
+        XCTAssertTrue(export.contains("extra"))
+        XCTAssertFalse(export.contains(account.rawValue))
         view.selectedAccount = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
         XCTAssertNil(view.quotaHistoryJSON(for: .codex, modelID: "extra"))
+        XCTAssertNil(view.allQuotaHistoryJSON)
         view.selectedAccount = account
         let clear = try XCTUnwrap(models.item(withTitle: "extra")?.submenu?.item(withTitle: "清除此模型的记录"))
         XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(clear.action), to: clear.target, from: clear))

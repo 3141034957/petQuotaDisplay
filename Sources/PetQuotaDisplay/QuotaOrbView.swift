@@ -534,6 +534,10 @@ final class QuotaOrbView: NSView {
         let copy = submenu.addItem(withTitle: "复制最近额度总览", action: #selector(copyRecentQuotaSummary), keyEquivalent: "")
         copy.target = self
         copy.isEnabled = recentQuotaSummary != nil
+        let export = submenu.addItem(withTitle: "复制全部来源的采集记录 JSON",
+                                     action: #selector(copyAllQuotaHistory), keyEquivalent: "")
+        export.target = self
+        export.isEnabled = !visibleHistoryContexts.isEmpty
         let clear = submenu.addItem(withTitle: "清空最近额度记录", action: #selector(clearRecentQuotas), keyEquivalent: "")
         clear.target = self
         clear.isEnabled = !recentQuotas.isEmpty
@@ -581,16 +585,12 @@ final class QuotaOrbView: NSView {
     }
 
     private func modelHistoryMenuItem(for context: QuotaHistoryContext) -> NSMenuItem? {
-        guard context.account != nil else { return nil }
-        let modelIDs = recentQuotas.keys.compactMap { key in
-            key.provider == .codex && key.account == context.account ? key.modelID : nil
-        }.sorted()
-        guard !modelIDs.isEmpty else { return nil }
+        let contexts = modelHistoryContexts(for: context)
+        guard !contexts.isEmpty else { return nil }
         let models = NSMenuItem(title: "独立模型", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: models.title)
-        for modelID in modelIDs {
-            let context = quotaContext(for: .codex, modelID: modelID)
-            guard let history = recentQuotas[context] else { continue }
+        for context in contexts {
+            guard let modelID = context.modelID, let history = recentQuotas[context] else { continue }
             let model = submenu.addItem(withTitle: modelID, action: nil, keyEquivalent: "")
             let details = NSMenu(title: modelID)
             details.addItem(readingListMenuItem(history.readings))
@@ -603,6 +603,20 @@ final class QuotaOrbView: NSView {
         }
         models.submenu = submenu
         return models
+    }
+
+    private func modelHistoryContexts(for primary: QuotaHistoryContext) -> [QuotaHistoryContext] {
+        guard primary.provider == .codex, primary.account != nil else { return [] }
+        return recentQuotas.keys.filter { $0.primary == primary && $0.modelID != nil }
+            .sorted { ($0.modelID ?? "") < ($1.modelID ?? "") }
+    }
+
+    private var visibleHistoryContexts: [QuotaHistoryContext] {
+        QuotaProvider.allCases.flatMap { source in
+            let primary = quotaContext(for: source)
+            let models = modelHistoryContexts(for: primary)
+            return recentQuotas[primary] == nil ? models : [primary] + models
+        }
     }
 
     private func addHistoryTrend(to menu: NSMenu, context: QuotaHistoryContext, title: String = "查看额度趋势…") {
@@ -951,6 +965,18 @@ final class QuotaOrbView: NSView {
 
     @objc private func copyRecentQuotaSummary() {
         QuotaClipboard.copy(recentQuotaSummary)
+    }
+
+    @objc private func copyAllQuotaHistory() { QuotaClipboard.copy(allQuotaHistoryJSON) }
+
+    var allQuotaHistoryJSON: String? {
+        let exports = visibleHistoryContexts.compactMap { context in
+            recentQuotas[context].map { history in
+                QuotaHistoryExport(provider: context.provider, snapshots: history.readings, modelID: context.modelID)
+            }
+        }
+        guard !exports.isEmpty else { return nil }
+        return try? QuotaOutput.json(QuotaHistoryBatchExport(sources: exports))
     }
 
     @objc private func clearRecentQuotas() {
