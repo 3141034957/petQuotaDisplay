@@ -60,9 +60,9 @@ struct QuotaHistoryView: View {
 
     var body: some View {
         let series = QuotaHistorySeries(readings: readings, period: selectedPeriod, range: timeRange)
-        let pinnedPoint = series.points.first { $0.time == pinnedTime } ?? series.points.last
+        let pinnedPoint = series.points.first { $0.time == pinnedTime }
         let hover = hoveredTime.flatMap(series.nearestPoint(to:))
-        let highlightedPoint = hover ?? (pinnedTime == nil ? nil : pinnedPoint)
+        let highlightedPoint = hover ?? pinnedPoint
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Picker("额度周期", selection: $selectedPeriod) {
@@ -134,6 +134,12 @@ struct QuotaHistoryView: View {
                                 hoveredTime = nil
                             }
                         }
+                        .gesture(SpatialTapGesture().onEnded { tap in
+                            guard plot.contains(tap.location),
+                                  let time = proxy.value(atX: tap.location.x - plot.minX, as: Date.self),
+                                  let point = series.nearestPoint(to: time) else { return }
+                            pinnedTime = pinnedTime == point.time ? nil : point.time
+                        })
                         .accessibilityHidden(true)
                 }
             }
@@ -146,7 +152,7 @@ struct QuotaHistoryView: View {
                 }
             }
 
-            if let point = highlightedPoint ?? pinnedPoint {
+            if let point = highlightedPoint ?? series.points.last {
                 details(for: point, in: series)
             }
             if series.points.contains(where: \.resetChanged) {
@@ -157,6 +163,7 @@ struct QuotaHistoryView: View {
         }
         .padding(20)
         .frame(minWidth: 400, minHeight: 320)
+        .onExitCommand { clearSelection() }
         .onChange(of: periods) { choices in
             if !choices.contains(selectedPeriod), let first = choices.first { selectedPeriod = first }
         }
