@@ -29,6 +29,9 @@ final class QuotaOrbView: NSView {
     var onShowQuotaHistory: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
     var onQuotaHistoryChanged: ((QuotaHistoryContext, [QuotaSnapshot]) -> Void)?
     var onQuotaHistoryCleared: (() -> Void)?
+    var onToggleHistoryArchive: (() -> Void)?
+    var retainsHistoryAcrossLaunches = false
+    var historyArchiveError: String?
     var refreshCadence: QuotaRefreshCadence = .thirtySeconds
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
     var onQuit: (() -> Void)?
@@ -444,6 +447,16 @@ final class QuotaOrbView: NSView {
         state = previous.map(QuotaDisplayState.refreshing) ?? .loading
     }
 
+    var historyForArchive: [QuotaHistoryContext: [QuotaSnapshot]] { recentQuotas.mapValues(\.readings) }
+
+    func restoreHistory(_ snapshots: [QuotaHistoryContext: [QuotaSnapshot]]) {
+        for (context, readings) in snapshots {
+            for snapshot in readings {
+                recentQuotas[context, default: QuotaReadingHistory()].record(snapshot)
+            }
+        }
+    }
+
     private func recentQuotasMenuItem() -> NSMenuItem {
         let item = NSMenuItem(title: "最近读取的额度", action: nil, keyEquivalent: "")
         let submenu = NSMenu(title: item.title)
@@ -454,6 +467,13 @@ final class QuotaOrbView: NSView {
         let clear = submenu.addItem(withTitle: "清空最近额度记录", action: #selector(clearRecentQuotas), keyEquivalent: "")
         clear.target = self
         clear.isEnabled = !recentQuotas.isEmpty
+        let archive = submenu.addItem(withTitle: "跨启动保留采集记录", action: #selector(toggleHistoryArchive), keyEquivalent: "")
+        archive.target = self
+        archive.state = retainsHistoryAcrossLaunches ? .on : .off
+        if let historyArchiveError {
+            let message = submenu.addItem(withTitle: historyArchiveError, action: nil, keyEquivalent: "")
+            message.isEnabled = false
+        }
         submenu.addItem(.separator())
         for source in QuotaProvider.allCases {
             let lines = recentQuotaDetails(for: source)
@@ -694,6 +714,8 @@ final class QuotaOrbView: NSView {
         recentQuotas.removeAll()
         onQuotaHistoryCleared?()
     }
+
+    @objc private func toggleHistoryArchive() { onToggleHistoryArchive?() }
 
     @objc private func clearSourceQuotaHistory(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String,

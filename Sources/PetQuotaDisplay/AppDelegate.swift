@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var refreshTimer: Timer?
     private var historyWindowController: NSWindowController?
     private var historyWindowModel: QuotaHistoryWindowModel?
+    private let historyArchive = QuotaHistoryArchive.local
     private var countdownTimer: Timer?
     private var statusItem: NSStatusItem?
     private var orbIsActive = false
@@ -47,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             accountStatuses[account] = .stored
         }
         createWindow()
+        restoreHistoryArchive()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screenParametersDidChange(_:)),
@@ -157,8 +159,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         orbView.onPresentationChanged = { [weak self] in self?.updateStatusItem() }
         orbView.onShowQuotaHistory = { [weak self] context, readings in self?.showQuotaHistory(context: context, readings: readings) }
-        orbView.onQuotaHistoryChanged = { [weak self] context, readings in self?.updateQuotaHistory(context: context, readings: readings) }
-        orbView.onQuotaHistoryCleared = { [weak self] in self?.closeQuotaHistory() }
+        orbView.onQuotaHistoryChanged = { [weak self] context, readings in self?.historyDidChange(context, readings: readings) }
+        orbView.onQuotaHistoryCleared = { [weak self] in self?.clearHistory() }
+        orbView.onToggleHistoryArchive = { [weak self] in self?.toggleHistoryArchive() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
@@ -223,6 +226,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             closeQuotaHistory()
         } else {
             historyWindowModel.readings = readings
+        }
+    }
+
+    private func restoreHistoryArchive() {
+        performHistoryArchiveOperation {
+            let state = try historyArchive.load()
+            orbView.retainsHistoryAcrossLaunches = state.isEnabled
+            orbView.restoreHistory(state.histories.filter { context, _ in
+                context.provider != .codex || context.account.map(accounts.contains) == true
+            })
+        }
+    }
+
+    private func toggleHistoryArchive() {
+        performHistoryArchiveOperation {
+            let enabled = !orbView.retainsHistoryAcrossLaunches
+            try historyArchive.setEnabled(enabled, initial: orbView.historyForArchive)
+            orbView.retainsHistoryAcrossLaunches = enabled
+        }
+    }
+
+    private func historyDidChange(_ context: QuotaHistoryContext, readings: [QuotaSnapshot]) {
+        updateQuotaHistory(context: context, readings: readings)
+        guard orbView.retainsHistoryAcrossLaunches else { return }
+        performHistoryArchiveOperation { try historyArchive.update(context, latest: readings.last) }
+    }
+
+    private func clearHistory() {
+        closeQuotaHistory()
+        guard orbView.retainsHistoryAcrossLaunches else { return }
+        performHistoryArchiveOperation { try historyArchive.clear() }
+    }
+
+    private func performHistoryArchiveOperation(_ operation: () throws -> Void) {
+        do {
+            try operation()
+            orbView.historyArchiveError = nil
+        } catch {
+            orbView.historyArchiveError = "本机历史记录暂不可用：\(error.localizedDescription)"
         }
     }
 
