@@ -67,6 +67,16 @@ final class CodexQuotaClientTests: XCTestCase {
         }
     }
 
+    func testClosedInputPipeReportsFailureAndRestarts() throws {
+        try assertRecovers(scenario: "close-stdin") { error in
+            let failure = error as NSError
+            let underlying = failure.userInfo[NSUnderlyingErrorKey] as? NSError
+            XCTAssertTrue([failure, underlying].compactMap { $0 }.contains {
+                $0.domain == NSPOSIXErrorDomain && $0.code == Int(EPIPE)
+            }, "Unexpected error: \(error)")
+        }
+    }
+
     func testAccountTimeoutRestartsAndRecovers() throws {
         try assertRecovers(scenario: "account-timeout") { error in
             guard case CodexQuotaClient.ClientError.requestTimedOut = error else {

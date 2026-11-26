@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import QuotaCore
 
@@ -195,6 +196,9 @@ final class CodexQuotaClient {
 
         self.process = process
         do {
+            guard fcntl(stdin.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
             try process.run()
             sendRequestLocked(
                 method: "initialize",

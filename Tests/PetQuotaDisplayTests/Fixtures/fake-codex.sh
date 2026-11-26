@@ -32,6 +32,11 @@ while IFS= read -r line; do
                         printf '{"id":%s,"result":null}\n' "$id"
                         continue
                         ;;
+                    close-stdin)
+                        exec 0<&-
+                        printf '{"id":%s,"result":{}}\n' "$id"
+                        exec /bin/sleep 2
+                        ;;
                 esac
             fi
             if [ "$scenario" = always-timeout ]; then continue; fi
