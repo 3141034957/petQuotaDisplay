@@ -70,14 +70,16 @@ mkdir -p "${output}"
 distribution="$(mktemp -d "${output}/PetQuotaDisplay.XXXXXX")"
 completed=false
 report=""
+icon_work=""
 cleanup() {
     [[ -z "${report}" ]] || rm -f "${report}"
+    [[ -z "${icon_work}" ]] || rm -rf "${icon_work}"
     [[ "${completed}" == true ]] || rm -rf "${distribution}"
 }
 trap cleanup EXIT
 
 app="${distribution}/PetQuotaDisplay.app"
-mkdir -p "${app}/Contents/MacOS"
+mkdir -p "${app}/Contents/MacOS" "${app}/Contents/Resources"
 metadata="${app}/Contents/Info.plist"
 cp "${repository_dir}/packaging/Info.plist" "${metadata}"
 if [[ -n "${version}" ]]; then
@@ -94,6 +96,21 @@ if [[ "${universal}" == true ]]; then
 else
     cp "${binary_dir}/PetQuotaDisplay" "${binary}"
 fi
+
+icon_work="$(mktemp -d "${TMPDIR:-/tmp}/PetQuotaDisplay.icon.XXXXXX")"
+iconset="${icon_work}/PetQuotaDisplay.iconset"
+mkdir -p "${iconset}"
+icon_base="${iconset}/icon_512x512@2x.png"
+swift "${repository_dir}/packaging/make_app_icon.swift" "${icon_base}"
+for size in 16 32 128 256 512; do
+    /usr/bin/sips -z "${size}" "${size}" "${icon_base}" --out "${iconset}/icon_${size}x${size}.png" >/dev/null
+    if (( size < 512 )); then
+        /usr/bin/sips -z "$((size * 2))" "$((size * 2))" "${icon_base}" \
+            --out "${iconset}/icon_${size}x${size}@2x.png" >/dev/null
+    fi
+done
+/usr/bin/iconutil -c icns "${iconset}" -o "${app}/Contents/Resources/PetQuotaDisplay.icns"
+
 if build_revision="$(git rev-parse --short=12 HEAD 2>/dev/null)"; then
     if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
         build_revision+="+dirty"

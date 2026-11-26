@@ -8,6 +8,8 @@
     <string>PetQuotaDisplay</string>
     <key>CFBundleIdentifier</key>
     <string>com.erenshwang.petquotadisplay</string>
+    <key>CFBundleIconFile</key>
+    <string>PetQuotaDisplay.icns</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
