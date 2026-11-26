@@ -379,6 +379,10 @@ final class QuotaOrbView: NSView {
         let json = menu.addItem(withTitle: "复制额度 JSON", action: #selector(copyQuotaJSON), keyEquivalent: "")
         json.target = self
         json.isEnabled = state.snapshot != nil
+        let displayedContext = quotaContext(for: provider, modelID: displayedCodexBucket?.id)
+        if recentQuotas[displayedContext] != nil {
+            addHistoryTrend(to: menu, context: displayedContext, title: "查看当前额度趋势…")
+        }
 
         let sourceItem = NSMenuItem(title: "切换额度来源", action: nil, keyEquivalent: "")
         let sourceMenu = NSMenu(title: sourceItem.title)
@@ -587,8 +591,8 @@ final class QuotaOrbView: NSView {
         return models
     }
 
-    private func addHistoryTrend(to menu: NSMenu, context: QuotaHistoryContext) {
-        let trend = menu.addItem(withTitle: "查看额度趋势…", action: #selector(showQuotaHistory(_:)), keyEquivalent: "")
+    private func addHistoryTrend(to menu: NSMenu, context: QuotaHistoryContext, title: String = "查看额度趋势…") {
+        let trend = menu.addItem(withTitle: title, action: #selector(showQuotaHistory(_:)), keyEquivalent: "")
         trend.target = self
         trend.representedObject = context
     }

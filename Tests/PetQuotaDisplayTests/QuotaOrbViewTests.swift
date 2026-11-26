@@ -491,6 +491,26 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertTrue(view.historyForArchive.isEmpty)
     }
 
+    func testCurrentTrendShortcutOpensTheDisplayedModel() throws {
+        let suite = "QuotaOrbViewTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let view = QuotaOrbView(frame: .zero, defaults: defaults)
+        let account = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        view.selectedAccount = account
+        let primary = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 20, resetsAt: nil))
+        let extra = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 90, resetsAt: nil))
+        view.codexMeteredQuotas = [CodexMeteredQuota(id: "extra", name: "Extra", snapshot: extra)]
+        view.state = .loaded(primary)
+        let selection = try XCTUnwrap(menu(view).item(withTitle: "选择 Codex 额度")?.submenu?.item(withTitle: "Extra"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(selection.action), to: selection.target, from: selection))
+        var opened: QuotaHistoryContext?
+        view.onShowQuotaHistory = { context, _ in opened = context }
+        let shortcut = try XCTUnwrap(menu(view).item(withTitle: "查看当前额度趋势…"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(shortcut.action), to: shortcut.target, from: shortcut))
+        XCTAssertEqual(opened?.modelID, "extra")
+    }
+
     func testCopySummaryIsAvailableForSnapshotsAndIdentifiesStaleData() throws {
         let view = QuotaOrbView(frame: .zero)
         XCTAssertNil(view.quotaSummary)
