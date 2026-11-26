@@ -253,11 +253,13 @@ final class QuotaOrbView: NSView {
         let current = NSEvent.mouseLocation
         let dx = current.x - start.x
         let dy = current.y - start.y
-        dragged = dragged || hypot(dx, dy) > 3
+        guard dragged || hypot(dx, dy) > 3 else { return }
+        dragged = true
         window.setFrameOrigin(NSPoint(x: origin.x + dx, y: origin.y + dy))
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard mouseDownLocation != nil else { return }
         if dragged {
             onPositionChanged?()
         } else {
