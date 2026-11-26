@@ -20,5 +20,8 @@ final class QuotaHistorySeriesTests: XCTestCase {
         let chart = QuotaHistorySeries(readings: readings, period: .weekly)
         XCTAssertEqual(chart.points.map(\.segment), [0, 0, 1, 2])
         XCTAssertEqual(chart.points.map(\.remainingPercent), [60, 50, 95, 75])
+        let nearest = chart.nearestPoint(to: Date(timeIntervalSince1970: 2.25))
+        XCTAssertEqual(nearest?.remainingPercent, 95)
+        XCTAssertEqual(nearest?.resetsAt, secondReset)
     }
 }
