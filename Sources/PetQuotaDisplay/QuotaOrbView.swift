@@ -45,6 +45,7 @@ final class QuotaOrbView: NSView {
     var onSaveQuotaHistory: ((String, QuotaExport.Format) -> Void)?
     var onImportQuotaHistory: (() -> Void)?
     var onToggleHistoryArchive: (() -> Void)?
+    var onRevealHistoryArchive: (() -> Void)?
     var onSelectHistoryRetention: ((QuotaHistoryRetention) -> Void)?
     var historyRetention: QuotaHistoryRetention = .standard {
         didSet {
@@ -621,6 +622,10 @@ final class QuotaOrbView: NSView {
             option.state = retention == historyRetention ? .on : .off
         }
         retentionItem.submenu = retentionMenu
+        if retainsHistoryAcrossLaunches || historyArchiveError != nil {
+            let reveal = submenu.addItem(withTitle: "在访达打开存档目录", action: #selector(revealHistoryArchive), keyEquivalent: "")
+            reveal.target = self
+        }
         if let historyArchiveError {
             let message = submenu.addItem(withTitle: historyArchiveError, action: nil, keyEquivalent: "")
             message.isEnabled = false
@@ -1147,6 +1152,7 @@ final class QuotaOrbView: NSView {
     }
 
     @objc private func toggleHistoryArchive() { onToggleHistoryArchive?() }
+    @objc private func revealHistoryArchive() { onRevealHistoryArchive?() }
     @objc private func resetHistoryArchive() { onResetHistoryArchive?() }
     @objc private func selectHistoryRetention(_ sender: NSMenuItem) {
         guard let retention = QuotaHistoryRetention(rawValue: sender.tag) else { return }

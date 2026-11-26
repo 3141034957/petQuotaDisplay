@@ -223,6 +223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.onSaveQuotaHistory = { [weak self] contents, format in self?.saveHistory(contents, format: format) }
         orbView.onImportQuotaHistory = { [weak self] in self?.importHistory() }
         orbView.onToggleHistoryArchive = { [weak self] in self?.toggleHistoryArchive() }
+        orbView.onRevealHistoryArchive = { [weak self] in self?.revealHistoryArchive() }
         orbView.onSelectHistoryRetention = { [weak self] retention in self?.setHistoryRetention(retention) }
         orbView.onResetHistoryArchive = { [weak self] in self?.resetHistoryArchive() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
@@ -344,6 +345,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
     }
 
+    private func revealHistoryArchive() {
+        let folder = historyArchive.directory
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue,
+              NSWorkspace.shared.open(folder) else {
+            showHistoryMessage("无法打开本机存档目录", detail: "请检查本机存档是否已经生成。")
+            return
+        }
+    }
+
     private func setHistoryRetention(_ retention: QuotaHistoryRetention) {
         guard orbView.historyRetention != retention else { return }
         if orbView.historyForArchive.values.contains(where: { $0.count > retention.rawValue }) {
@@ -447,7 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
                     do {
                         try self.applyImportedHistory(result.get())
                     } catch {
-                        self.showHistoryImportMessage("无法导入采集记录", detail: error.localizedDescription)
+                        self.showHistoryMessage("无法导入采集记录", detail: error.localizedDescription)
                     }
                 }
             }
@@ -462,7 +473,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             let detail = history.hasCodexReadings && account == nil
                 ? "请先选择或添加接收记录的 Codex 额度账号。"
                 : "该文件中没有可合并的采集记录。"
-            showHistoryImportMessage("暂无可导入的采集记录", detail: detail + skipped)
+            showHistoryMessage("暂无可导入的采集记录", detail: detail + skipped)
             return
         }
         if imported.keys.contains(where: { $0.provider == .codex }) || (account == nil && history.hasCodexReadings) {
@@ -486,14 +497,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
         orbView.mergeImportedHistory(imported)
         updateQuotaHistory(after: imported)
-        showHistoryImportMessage("采集记录已合并", detail: "可从“最近读取的额度”查看导入的来源和趋势。" + skipped)
+        showHistoryMessage("采集记录已合并", detail: "可从“最近读取的额度”查看导入的来源和趋势。" + skipped)
     }
 
-    private func showHistoryImportMessage(_ title: String, detail: String) {
+    private func showHistoryMessage(_ title: String, detail: String) {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = detail
         alert.addButton(withTitle: "关闭")
+        NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }
 
