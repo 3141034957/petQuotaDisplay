@@ -255,4 +255,6 @@ swift build -c release
 
 需要压缩包时，可运行 `zsh scripts/package_app.sh --zip`，同一目录会同时生成 `PetQuotaDisplay.zip`。
 
+使用 `zsh scripts/package_app.sh --universal --zip` 可将 Apple 芯片和 Intel Mac 所需的两种架构打包到同一个应用中。
+
 用 `python3 main.py --version` 查看版本。通过 Git 工作区打包的 `.app` 会记录构建时的提交标识，包含未提交改动时会带 `+dirty`。
