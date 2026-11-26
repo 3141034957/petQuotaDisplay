@@ -34,6 +34,13 @@ final class QuotaOrbView: NSView {
     var retainsHistoryAcrossLaunches = false
     var historyArchiveError: String?
     var refreshCadence: QuotaRefreshCadence = .thirtySeconds
+    var warningThreshold: QuotaWarningThreshold = .twentyPercent {
+        didSet {
+            needsDisplay = true
+            updateAccessibility()
+        }
+    }
+    var onSelectWarningThreshold: ((QuotaWarningThreshold) -> Void)?
     var onSelectRefreshCadence: ((QuotaRefreshCadence) -> Void)?
     var onQuit: (() -> Void)?
     var onPositionChanged: (() -> Void)?
@@ -157,7 +164,7 @@ final class QuotaOrbView: NSView {
             return NSColor(calibratedRed: 0.32, green: 0.37, blue: 0.48, alpha: 1)
         }
         let remaining = displayedQuota(in: snapshot)?.quota.remainingPercent ?? 0
-        if remaining <= 20 {
+        if warningThreshold.includes(remainingPercent: remaining) {
             return NSColor(calibratedRed: 0.88, green: 0.25, blue: 0.28, alpha: 1)
         }
         if remaining <= 50 {
@@ -544,8 +551,27 @@ final class QuotaOrbView: NSView {
         let sourceName = submenu.addItem(withTitle: "在菜单栏显示来源名称", action: #selector(toggleMenuBarSourceName), keyEquivalent: "")
         sourceName.target = self
         sourceName.state = showsMenuBarSourceName ? .on : .off
+        submenu.addItem(warningThresholdMenuItem())
         item.submenu = submenu
         return item
+    }
+
+    private func warningThresholdMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "低额度警戒线", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        for threshold in QuotaWarningThreshold.allCases {
+            let choice = submenu.addItem(withTitle: threshold.title, action: #selector(selectWarningThreshold(_:)), keyEquivalent: "")
+            choice.target = self
+            choice.tag = threshold.rawValue
+            choice.state = threshold == warningThreshold ? .on : .off
+        }
+        item.submenu = submenu
+        return item
+    }
+
+    @objc private func selectWarningThreshold(_ item: NSMenuItem) {
+        guard let threshold = QuotaWarningThreshold(rawValue: item.tag) else { return }
+        onSelectWarningThreshold?(threshold)
     }
 
     private func refreshCadenceMenuItem() -> NSMenuItem {

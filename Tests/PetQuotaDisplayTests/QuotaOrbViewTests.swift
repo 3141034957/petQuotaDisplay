@@ -5,6 +5,20 @@ import XCTest
 
 @MainActor
 final class QuotaOrbViewTests: XCTestCase {
+    func testWarningThresholdMenuUsesAnInclusiveLimit() throws {
+        let view = QuotaOrbView(frame: .zero)
+        let appearance = try XCTUnwrap(menu(view).item(withTitle: "外观")?.submenu)
+        let levels = try XCTUnwrap(appearance.item(withTitle: "低额度警戒线")?.submenu)
+        XCTAssertEqual(levels.item(withTitle: "20%")?.state, .on)
+        var chosen: QuotaWarningThreshold?
+        view.onSelectWarningThreshold = { chosen = $0 }
+        let option = try XCTUnwrap(levels.item(withTitle: "30%"))
+        XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(option.action), to: option.target, from: option))
+        XCTAssertEqual(chosen, .thirtyPercent)
+        XCTAssertTrue(chosen?.includes(remainingPercent: 30) == true)
+        XCTAssertFalse(chosen?.includes(remainingPercent: 31) == true)
+    }
+
     func testMenuBarCanIncludeTheProviderWithoutDroppingItsStatus() {
         let view = QuotaOrbView(frame: .zero)
         view.provider = .openCodeGo

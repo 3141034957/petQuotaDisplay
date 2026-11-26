@@ -136,6 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.refreshCadence = displayOptions.refreshCadence ?? QuotaRefreshCadence.load()
         orbView.showsMenuBarQuota = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarEnabledKey)
         orbView.showsMenuBarSourceName = QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarSourceNameKey)
+        orbView.warningThreshold = QuotaWarningThreshold.load()
         orbView.menuBarOnly = !forceOrbVisible && orbView.showsMenuBarQuota
             && QuotaPreferences.shared.bool(forKey: QuotaPreferences.menuBarOnlyKey)
         orbView.sizePreference = orbSizePreference
@@ -156,6 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
         orbView.onToggleMenuBarQuota = { [weak self] in self?.toggleMenuBarQuota() }
         orbView.onToggleMenuBarSourceName = { [weak self] in self?.toggleMenuBarSourceName() }
+        orbView.onSelectWarningThreshold = { [weak self] threshold in self?.setWarningThreshold(threshold) }
         orbView.onToggleWindowLevel = { [weak self] in self?.toggleWindowLevel() }
         orbView.onRaiseOrb = { [weak self] in self?.reconcileWindowVisibility() }
         orbView.onToggleOrbVisibility = { [weak self] in
@@ -495,6 +497,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func toggleMenuBarSourceName() {
         orbView.showsMenuBarSourceName.toggle()
         QuotaPreferences.shared.set(orbView.showsMenuBarSourceName, forKey: QuotaPreferences.menuBarSourceNameKey)
+    }
+
+    private func setWarningThreshold(_ threshold: QuotaWarningThreshold) {
+        orbView.warningThreshold = threshold
+        QuotaPreferences.shared.set(threshold.rawValue, forKey: QuotaWarningThreshold.defaultsKey)
     }
 
     private func toggleWindowLevel() {
