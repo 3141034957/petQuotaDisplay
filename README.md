@@ -224,6 +224,8 @@ zsh scripts/install_autostart.sh --follow-codex
 
 运行 `zsh scripts/install_autostart.sh --status` 可查看安装状态、模式，以及 LaunchAgent 是否已加载。
 
+在 `--status` 后加 `--json` 可读取结构化状态。输出包括二进制是否可执行、配置文件状态、已配置的模式和当前会话是否已加载。
+
 运行 `zsh scripts/install_autostart.sh --dry-run` 可只预览将使用的路径和模式，也可同时传入一个模式参数。
 
 运行 `zsh scripts/install_autostart.sh --always-show --print-plist` 可在终端检查实际生成的 LaunchAgent 配置。预览不会编译程序或安装自启动项。

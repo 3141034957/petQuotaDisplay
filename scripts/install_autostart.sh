@@ -4,12 +4,13 @@ set -euo pipefail
 usage() {
     printf '%s\n' '用法：zsh scripts/install_autostart.sh [显示模式] [--dry-run]' \
         '      zsh scripts/install_autostart.sh [显示模式] --print-plist' \
-        '      zsh scripts/install_autostart.sh --status' \
+        '      zsh scripts/install_autostart.sh --status [--json]' \
         '显示模式：--follow-codex、--follow-codex-desktop、--follow-codex-cli、--always-show'
 }
 
 mode=""
 show_status=false
+status_json=false
 dry_run=false
 print_plist=false
 for argument in "$@"; do
@@ -19,6 +20,7 @@ for argument in "$@"; do
             mode="${argument}"
             ;;
         --status) show_status=true ;;
+        --json) status_json=true ;;
         --dry-run) dry_run=true ;;
         --print-plist) print_plist=true ;;
         -h|--help) usage; exit 0 ;;
@@ -26,7 +28,8 @@ for argument in "$@"; do
     esac
 done
 if [[ "${show_status}" == true && ( -n "${mode}" || "${dry_run}" == true || "${print_plist}" == true ) ]] ||
-   [[ "${dry_run}" == true && "${print_plist}" == true ]]; then
+   [[ "${dry_run}" == true && "${print_plist}" == true ]] ||
+   [[ "${status_json}" == true && "${show_status}" == false ]]; then
     usage >&2
     exit 2
 fi
@@ -48,28 +51,47 @@ read_installed_mode() {
 }
 
 if [[ "${show_status}" == true ]]; then
+    executable=false
+    binary_description='未安装或不可执行'
     if [[ -x "${installed_binary}" ]]; then
-        printf '%s\n' '程序：已安装'
-    else
-        printf '%s\n' '程序：未安装或不可执行'
+        executable=true
+        binary_description='已安装'
     fi
+    configured_mode=null
     if [[ ! -f "${installed_plist}" ]]; then
-        printf '%s\n' '自启动配置：未安装'
+        configuration=missing
+        configuration_description='未安装'
     elif ! launch_argument="$(read_installed_mode)"; then
-        printf '%s\n' '自启动配置：无法读取'
+        configuration=invalid
+        configuration_description='无法读取'
     else
+        configuration=configured
         case "${launch_argument}" in
-            --follow-codex) printf '%s\n' '自启动配置：跟随 Codex' ;;
-            --follow-codex-desktop) printf '%s\n' '自启动配置：跟随 Codex 桌面端' ;;
-            --follow-codex-cli) printf '%s\n' '自启动配置：跟随独立 Codex CLI' ;;
-            --always-show) printf '%s\n' '自启动配置：登录后显示额度' ;;
-            *) printf '%s\n' '自启动配置：启动模式无法识别' ;;
+            --follow-codex) configuration_description='跟随 Codex' ;;
+            --follow-codex-desktop) configuration_description='跟随 Codex 桌面端' ;;
+            --follow-codex-cli) configuration_description='跟随独立 Codex CLI' ;;
+            --always-show) configuration_description='登录后显示额度' ;;
+            *)
+                configuration=unknownMode
+                configuration_description='启动模式无法识别'
+                ;;
         esac
+        if [[ "${configuration}" == configured ]]; then
+            configured_mode="\"${launch_argument}\""
+        fi
     fi
+    loaded=false
+    launch_description='当前会话中未检测到'
     if launchctl print "${launch_domain}/${label}" >/dev/null 2>&1; then
-        printf '%s\n' 'LaunchAgent：已加载'
+        loaded=true
+        launch_description='已加载'
+    fi
+    if [[ "${status_json}" == true ]]; then
+        printf '{"executable":%s,"configuration":"%s","mode":%s,"loaded":%s}\n' \
+            "${executable}" "${configuration}" "${configured_mode}" "${loaded}"
     else
-        printf '%s\n' 'LaunchAgent：当前会话中未检测到'
+        printf '程序：%s\n自启动配置：%s\nLaunchAgent：%s\n' \
+            "${binary_description}" "${configuration_description}" "${launch_description}"
     fi
     exit 0
 fi
