@@ -386,25 +386,31 @@ final class QuotaOrbView: NSView {
             menu.addItem(.separator())
         }
 
-        menu.addItem(orbSizeMenuItem())
-        menu.addItem(resetDisplayMenuItem())
-        let menuBarToggle = NSMenuItem(title: "在菜单栏显示额度", action: #selector(toggleMenuBarQuota), keyEquivalent: "")
-        menuBarToggle.target = self
-        menuBarToggle.state = showsMenuBarQuota ? .on : .off
-        menu.addItem(menuBarToggle)
+        menu.addItem(appearanceMenuItem())
         if showsMenuBarQuota {
             let title = menuBarOnly ? "显示悬浮球" : "仅在菜单栏显示"
             let visibility = NSMenuItem(title: title, action: #selector(toggleOrbVisibility), keyEquivalent: "")
             visibility.target = self
             menu.addItem(visibility)
         }
-        let reset = NSMenuItem(title: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
-        reset.target = self
-        menu.addItem(reset)
-
         let quit = NSMenuItem(title: quitMenuTitle, action: #selector(quitFromMenu), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
+    }
+
+    private func appearanceMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "外观", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        submenu.addItem(orbSizeMenuItem())
+        submenu.addItem(resetDisplayMenuItem())
+        let reset = submenu.addItem(withTitle: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
+        reset.target = self
+        submenu.addItem(.separator())
+        let menuBarToggle = submenu.addItem(withTitle: "在菜单栏显示额度", action: #selector(toggleMenuBarQuota), keyEquivalent: "")
+        menuBarToggle.target = self
+        menuBarToggle.state = showsMenuBarQuota ? .on : .off
+        item.submenu = submenu
+        return item
     }
 
     private func refreshCadenceMenuItem() -> NSMenuItem {

@@ -32,14 +32,16 @@ final class QuotaOrbViewTests: XCTestCase {
     func testOrbMenuOffersThreeSizesAndSendsSelectedValue() throws {
         let view = QuotaOrbView(frame: .zero)
         view.onSelectSize = { [weak view] in view?.sizePreference = $0 }
-        let sizes = try XCTUnwrap(menu(view).item(withTitle: "悬浮球大小")?.submenu)
+        let appearance = try XCTUnwrap(menu(view).item(withTitle: "外观")?.submenu)
+        let sizes = try XCTUnwrap(appearance.item(withTitle: "悬浮球大小")?.submenu)
         XCTAssertEqual(sizes.items.map(\.title), ["小", "标准", "大"])
         XCTAssertEqual(sizes.item(withTitle: "标准")?.state, .on)
 
         let large = try XCTUnwrap(sizes.item(withTitle: "大"))
         XCTAssertTrue(NSApplication.shared.sendAction(try XCTUnwrap(large.action), to: large.target, from: large))
         XCTAssertEqual(view.sizePreference, .large)
-        XCTAssertEqual(try menu(view).item(withTitle: "悬浮球大小")?.submenu?.item(withTitle: "大")?.state, .on)
+        let updated = try XCTUnwrap(menu(view).item(withTitle: "外观")?.submenu)
+        XCTAssertEqual(updated.item(withTitle: "悬浮球大小")?.submenu?.item(withTitle: "大")?.state, .on)
     }
 
     func testMenuBarTitleReflectsSelectedQuotaAndRefreshStatus() {
