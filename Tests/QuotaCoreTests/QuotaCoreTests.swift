@@ -174,4 +174,23 @@ final class QuotaCoreTests: XCTestCase {
         XCTAssertEqual(snapshot.weekly?.remainingPercent, 80)
         XCTAssertNil(snapshot.fiveHour)
     }
+
+    func testReportExposesAdditionalBucketsWithoutRepeatingThePrimary() throws {
+        let window = ["usedPercent": 25, "windowDurationMins": 300]
+        let payload: [String: Any] = [
+            "rateLimits": ["limitId": "default-model", "primary": window],
+            "rateLimitsByLimitId": [
+                "codex": ["primary": window],
+                "default-model": ["primary": window],
+                "other-model": ["limitName": "  Other Model  ", "primary": window],
+                "broken": "unsupported",
+            ],
+        ]
+        let now = Date(timeIntervalSince1970: 42)
+        let report = try QuotaParser.parseReport(result: payload, now: now)
+        XCTAssertEqual(report.primary.fiveHour?.remainingPercent, 75)
+        XCTAssertEqual(report.additional.map(\.id), ["other-model"])
+        XCTAssertEqual(report.additional.first?.name, "Other Model")
+        XCTAssertEqual(report.additional.first?.snapshot.fetchedAt, now)
+    }
 }

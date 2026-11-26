@@ -65,6 +65,7 @@ final class QuotaOrbView: NSView {
     var onDeleteAccount: ((CodexAccountSlot) -> Void)?
     var onConfigureOpenCodeGo: (() -> Void)?
     var accounts: [CodexAccountSlot] = []
+    var codexMeteredQuotas: [CodexMeteredQuota] = []
     var selectedAccount: CodexAccountSlot?
     var accountStatuses: [CodexAccountSlot: CodexAccountStatus] = [:]
     var quitMenuTitle = "退出额度悬浮球"
@@ -346,6 +347,9 @@ final class QuotaOrbView: NSView {
             )
             updated.isEnabled = false
             menu.addItem(updated)
+            if provider == .codex, !codexMeteredQuotas.isEmpty {
+                menu.addItem(meteredQuotasMenuItem())
+            }
             menu.addItem(.separator())
         }
         if let message = state.errorMessage {
@@ -419,6 +423,25 @@ final class QuotaOrbView: NSView {
         }
         accountItem.submenu = accountMenu
         return accountItem
+    }
+
+    private func meteredQuotasMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "其他 Codex 额度", action: nil, keyEquivalent: "")
+        let submenu = NSMenu(title: item.title)
+        submenu.autoenablesItems = false
+        for bucket in codexMeteredQuotas {
+            let heading = NSMenuItem(title: bucket.name, action: nil, keyEquivalent: "")
+            heading.isEnabled = false
+            submenu.addItem(heading)
+            for line in quotaDetails(in: bucket.snapshot) {
+                let detail = NSMenuItem(title: line, action: nil, keyEquivalent: "")
+                detail.isEnabled = false
+                detail.indentationLevel = 1
+                submenu.addItem(detail)
+            }
+        }
+        item.submenu = submenu
+        return item
     }
 
     @objc private func refreshFromMenu() { onRefresh?() }

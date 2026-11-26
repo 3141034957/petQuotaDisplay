@@ -162,9 +162,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self, let client, self.client === client else { return }
             self.orbView.state.beginRefresh()
         }
-        client.onSnapshot = { [weak self, weak client] snapshot in
+        client.onReport = { [weak self, weak client] report in
             guard let self, let client, self.client === client else { return }
-            self.orbView.state = .loaded(snapshot)
+            self.orbView.codexMeteredQuotas = report.additional
+            self.orbView.state = .loaded(report.primary)
         }
         client.onAccount = { [weak self, weak client] account in
             guard let self, let client, self.client === client else { return }

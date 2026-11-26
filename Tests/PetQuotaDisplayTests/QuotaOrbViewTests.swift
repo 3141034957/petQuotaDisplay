@@ -159,6 +159,21 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertFalse(summary.contains("连接中断"))
     }
 
+    func testAdditionalCodexBucketsAppearOnlyWithACodexSnapshot() throws {
+        let view = QuotaOrbView(frame: .zero)
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: QuotaWindow(usedPercent: 20, resetsAt: nil), weekly: nil)
+        view.codexMeteredQuotas = [CodexMeteredQuota(id: "extra", name: "Extra", snapshot: snapshot)]
+        XCTAssertNil(try menu(view).item(withTitle: "其他 Codex 额度"))
+
+        view.state = .loaded(snapshot)
+        let extra = try XCTUnwrap(menu(view).item(withTitle: "其他 Codex 额度")?.submenu)
+        XCTAssertEqual(extra.items.map(\.title), ["Extra", "5 小时额度：剩余 80% · 重置时间未知"])
+
+        view.provider = .gemini
+        view.state = .loaded(snapshot)
+        XCTAssertNil(try menu(view).item(withTitle: "其他 Codex 额度"))
+    }
+
     private func menu(_ view: QuotaOrbView) throws -> NSMenu {
         let menu = try XCTUnwrap(view.menu(for: NSEvent()))
         menu.update()

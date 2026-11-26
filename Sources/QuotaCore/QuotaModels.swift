@@ -76,23 +76,57 @@ public enum QuotaParseError: LocalizedError, Equatable {
     }
 }
 
+public struct CodexMeteredQuota: Equatable {
+    public let id: String
+    public let name: String
+    public let snapshot: QuotaSnapshot
+
+    public init(id: String, name: String, snapshot: QuotaSnapshot) {
+        self.id = id
+        self.name = name
+        self.snapshot = snapshot
+    }
+}
+
+public struct CodexQuotaReport: Equatable {
+    public let primary: QuotaSnapshot
+    public let additional: [CodexMeteredQuota]
+}
+
 public enum QuotaParser {
     public static let fiveHourDurationMinutes = 5 * 60
     public static let weeklyDurationMinutes = 7 * 24 * 60
 
     /// Parses the `result` object returned by `account/rateLimits/read`.
     public static func parse(result: [String: Any], now: Date = Date()) throws -> QuotaSnapshot {
+        try primaryQuota(result, now: now).snapshot
+    }
+
+    public static func parseReport(result: [String: Any], now: Date = Date()) throws -> CodexQuotaReport {
+        let primary = try primaryQuota(result, now: now)
+        let metered = result["rateLimitsByLimitId"] as? [String: Any] ?? [:]
+        let additional = metered.keys.sorted().compactMap { id -> CodexMeteredQuota? in
+            guard !id.isEmpty, id != "codex", id != primary.id,
+                  let bucket = metered[id] as? [String: Any],
+                  let snapshot = parseWindows(bucket, now: now) else { return nil }
+            let name = (bucket["limitName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return CodexMeteredQuota(id: id, name: name.flatMap { $0.isEmpty ? nil : $0 } ?? id, snapshot: snapshot)
+        }
+        return CodexQuotaReport(primary: primary.snapshot, additional: additional)
+    }
+
+    private static func primaryQuota(_ result: [String: Any], now: Date) throws -> (snapshot: QuotaSnapshot, id: String?) {
         let legacy = result["rateLimits"] as? [String: Any]
         let metered = result["rateLimitsByLimitId"] as? [String: Any]
         let namedCodex = metered?["codex"] as? [String: Any]
-        guard legacy != nil || namedCodex != nil else {
-            throw QuotaParseError.missingRateLimits
+        guard legacy != nil || namedCodex != nil else { throw QuotaParseError.missingRateLimits }
+        if let legacy, let snapshot = parseWindows(legacy, now: now) {
+            return (snapshot, legacy["limitId"] as? String)
         }
-        guard let snapshot = legacy.flatMap({ parseWindows($0, now: now) })
-            ?? namedCodex.flatMap({ parseWindows($0, now: now) }) else {
-            throw QuotaParseError.missingQuotaWindow
+        if let namedCodex, let snapshot = parseWindows(namedCodex, now: now) {
+            return (snapshot, "codex")
         }
-        return snapshot
+        throw QuotaParseError.missingQuotaWindow
     }
 
     private static func parseWindows(_ limits: [String: Any], now: Date) -> QuotaSnapshot? {

@@ -57,7 +57,7 @@ final class CodexQuotaClientTests: XCTestCase {
         fixture.client.onAccount = { account in
             if account == nil { signedOut.fulfill() }
         }
-        fixture.client.onSnapshot = { _ in lateResult.fulfill() }
+        fixture.client.onReport = { _ in lateResult.fulfill() }
         fixture.client.onError = { _ in lateResult.fulfill() }
         fixture.client.start()
         wait(for: [signedOut], timeout: 5)
@@ -90,8 +90,8 @@ final class CodexQuotaClientTests: XCTestCase {
             checkError(error)
             failed.fulfill()
         }
-        fixture.client.onSnapshot = { snapshot in
-            XCTAssertEqual(snapshot.weekly?.remainingPercent, 65)
+        fixture.client.onReport = { report in
+            XCTAssertEqual(report.primary.weekly?.remainingPercent, 65)
             recovered.fulfill()
         }
         fixture.client.start()

@@ -32,7 +32,7 @@ final class CodexQuotaClient {
     }
 
     var onRefreshing: (() -> Void)?
-    var onSnapshot: ((QuotaSnapshot) -> Void)?
+    var onReport: ((CodexQuotaReport) -> Void)?
     var onAccount: ((CodexAccountSummary?) -> Void)?
     var onLoginURL: ((URL) -> Void)?
     var onError: ((Error) -> Void)?
@@ -276,8 +276,8 @@ final class CodexQuotaClient {
             }
         case .rateLimits:
             do {
-                let snapshot = try QuotaParser.parse(result: result)
-                DispatchQueue.main.async { [weak self] in self?.onSnapshot?(snapshot) }
+                let report = try QuotaParser.parseReport(result: result)
+                DispatchQueue.main.async { [weak self] in self?.onReport?(report) }
             } catch {
                 emit(error: error)
             }
