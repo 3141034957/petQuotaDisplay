@@ -10,6 +10,9 @@ final class QuotaHistorySeriesTests: XCTestCase {
         }
         let recent = QuotaHistorySeries(readings: readings, period: .weekly, range: .quarterHour)
         XCTAssertEqual(recent.points.map { $0.time.timeIntervalSince1970 }, [2_700, 3_600])
+        let first = Date(timeIntervalSince1970: 2_700)
+        XCTAssertNil(recent.point(adjacentTo: first, offset: -1))
+        XCTAssertEqual(recent.point(adjacentTo: first, offset: 1)?.time, readings.last?.fetchedAt)
         XCTAssertEqual(QuotaHistorySeries(readings: readings, period: .weekly, range: .hour).points.count, 4)
     }
 

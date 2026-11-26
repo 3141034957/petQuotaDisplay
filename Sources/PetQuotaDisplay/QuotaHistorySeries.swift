@@ -73,4 +73,10 @@ struct QuotaHistorySeries {
     func nearestPoint(to time: Date) -> Point? {
         points.min { abs($0.time.timeIntervalSince(time)) < abs($1.time.timeIntervalSince(time)) }
     }
+
+    func point(adjacentTo time: Date, offset: Int) -> Point? {
+        guard let index = points.firstIndex(where: { $0.time == time }),
+              points.indices.contains(index + offset) else { return nil }
+        return points[index + offset]
+    }
 }
