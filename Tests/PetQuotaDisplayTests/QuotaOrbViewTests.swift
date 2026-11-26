@@ -42,6 +42,20 @@ final class QuotaOrbViewTests: XCTestCase {
         XCTAssertEqual(try menu(view).item(withTitle: "悬浮球大小")?.submenu?.item(withTitle: "大")?.state, .on)
     }
 
+    func testMenuBarTitleReflectsSelectedQuotaAndRefreshStatus() {
+        let view = QuotaOrbView(frame: .zero)
+        let snapshot = QuotaSnapshot(planType: nil, fiveHour: nil, weekly: QuotaWindow(usedPercent: 20, resetsAt: nil))
+        XCTAssertEqual(view.menuBarTitle, "额度…")
+        view.state = .loaded(snapshot)
+        XCTAssertEqual(view.menuBarTitle, "80%")
+        view.state.beginRefresh()
+        XCTAssertEqual(view.menuBarTitle, "80%…")
+        view.state.recordFailure("连接中断")
+        XCTAssertEqual(view.menuBarTitle, "~80%")
+        view.state = .failed("需要登录")
+        XCTAssertEqual(view.menuBarTitle, "额度 —")
+    }
+
     func testStaleQuotaShowsLastUpdateAndFailureUntilRecovery() throws {
         let view = QuotaOrbView(frame: NSRect(x: 0, y: 0, width: 111, height: 111))
         let snapshot = QuotaSnapshot(

@@ -67,6 +67,9 @@ final class QuotaOrbView: NSView {
         didSet { needsDisplay = true }
     }
     var onSelectResetDisplay: ((OrbResetDisplay) -> Void)?
+    var showsMenuBarQuota = false
+    var onToggleMenuBarQuota: (() -> Void)?
+    var onPresentationChanged: (() -> Void)?
     var onSelectProvider: ((QuotaProvider) -> Void)?
     var onSelectAccount: ((CodexAccountSlot) -> Void)?
     var onAddAccount: (() -> Void)?
@@ -297,7 +300,14 @@ final class QuotaOrbView: NSView {
     override func menu(for event: NSEvent) -> NSMenu? { makeMenu() }
 
     private func makeMenu() -> NSMenu {
-        let menu = NSMenu(title: "\(provider.title) 额度")
+        let menu = NSMenu()
+        populateMenu(menu)
+        return menu
+    }
+
+    func populateMenu(_ menu: NSMenu) {
+        menu.removeAllItems()
+        menu.title = "\(provider.title) 额度"
         menu.autoenablesItems = false
         let refresh = NSMenuItem(title: "立即刷新", action: #selector(refreshFromMenu), keyEquivalent: "r")
         refresh.target = self
@@ -376,6 +386,10 @@ final class QuotaOrbView: NSView {
 
         menu.addItem(orbSizeMenuItem())
         menu.addItem(resetDisplayMenuItem())
+        let menuBarToggle = NSMenuItem(title: "在菜单栏显示额度", action: #selector(toggleMenuBarQuota), keyEquivalent: "")
+        menuBarToggle.target = self
+        menuBarToggle.state = showsMenuBarQuota ? .on : .off
+        menu.addItem(menuBarToggle)
         let reset = NSMenuItem(title: "重置悬浮球位置", action: #selector(resetPositionFromMenu), keyEquivalent: "")
         reset.target = self
         menu.addItem(reset)
@@ -383,7 +397,6 @@ final class QuotaOrbView: NSView {
         let quit = NSMenuItem(title: quitMenuTitle, action: #selector(quitFromMenu), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
-        return menu
     }
 
     private func refreshCadenceMenuItem() -> NSMenuItem {
@@ -515,6 +528,7 @@ final class QuotaOrbView: NSView {
     @objc private func refreshFromMenu() { onRefresh?() }
     @objc private func quitFromMenu() { onQuit?() }
     @objc private func resetPositionFromMenu() { onResetPosition?() }
+    @objc private func toggleMenuBarQuota() { onToggleMenuBarQuota?() }
 
     @objc private func selectOrbSize(_ sender: NSMenuItem) {
         guard let size = OrbSizePreference(rawValue: sender.tag) else { return }
@@ -615,6 +629,17 @@ final class QuotaOrbView: NSView {
         return period.quota(in: snapshot).map { (period.title, $0) }
     }
 
+    var menuBarTitle: String {
+        let percent = state.snapshot.flatMap(displayedQuota).map { "\($0.quota.remainingPercent)%" }
+        switch state {
+        case .loading: return "额度…"
+        case .failed: return "额度 —"
+        case .loaded: return percent ?? "额度"
+        case .refreshing: return percent.map { "\($0)…" } ?? "额度…"
+        case .stale: return percent.map { "~\($0)" } ?? "额度 —"
+        }
+    }
+
     private var lastUpdatedLabel: String { provider == .claudeCode ? "状态栏采集时间" : "最后更新" }
     private var staleMenuLabel: String { provider == .claudeCode ? "显示上次缓存" : "刷新失败（显示上次数据）" }
 
@@ -665,6 +690,7 @@ final class QuotaOrbView: NSView {
         toolTip = description
         setAccessibilityLabel(description)
         setAccessibilityHelp("可拖动悬浮球，单击刷新，右键切换额度来源或周期")
+        onPresentationChanged?()
     }
 
     func refreshLocalTimeFormatting() {

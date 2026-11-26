@@ -1,10 +1,11 @@
 import AppKit
 import QuotaCore
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let codexBundleIdentifier = "com.openai.codex"
     private static let selectedAccountDefaultsKey = "quota.selectedAccount"
     private static let selectedProviderDefaultsKey = "quota.selectedProvider"
+    private static let showsMenuBarQuotaDefaultsKey = "quota.showsMenuBarItem"
 
     private var orbSizePreference = OrbSizePreference(
         rawValue: UserDefaults.standard.integer(forKey: OrbSizePreference.defaultsKey)
@@ -17,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var orbView: QuotaOrbView!
     private var refreshTimer: Timer?
     private var countdownTimer: Timer?
+    private var statusItem: NSStatusItem?
     private var orbIsActive = false
     private var cliMonitor: CodexCLIProcessMonitor?
     private var codexGUIRunning = false
@@ -97,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cliMonitor?.stop()
         cliMonitor = nil
         stopOrb(hideWindow: false)
+        removeStatusItem()
     }
 
     private func createWindow() {
@@ -119,6 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let savedProvider = UserDefaults.standard.string(forKey: Self.selectedProviderDefaultsKey)
         orbView.provider = savedProvider.flatMap(QuotaProvider.init(rawValue:)) ?? .codex
         orbView.refreshCadence = QuotaRefreshCadence.load()
+        orbView.showsMenuBarQuota = UserDefaults.standard.bool(forKey: Self.showsMenuBarQuotaDefaultsKey)
         orbView.sizePreference = orbSizePreference
         let savedResetDisplay = UserDefaults.standard.string(forKey: OrbResetDisplay.defaultsKey)
         orbView.resetDisplay = savedResetDisplay.flatMap(OrbResetDisplay.init(rawValue:)) ?? .time
@@ -134,6 +138,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
         orbView.onSelectSize = { [weak self] size in self?.resizeOrb(to: size) }
         orbView.onSelectResetDisplay = { [weak self] mode in self?.setResetDisplay(mode) }
+        orbView.onToggleMenuBarQuota = { [weak self] in self?.toggleMenuBarQuota() }
+        orbView.onPresentationChanged = { [weak self] in self?.updateStatusItem() }
         orbView.onSelectAccount = { [weak self] account in self?.switchAccount(to: account) }
         orbView.onAddAccount = { [weak self] in self?.addAccount() }
         orbView.onLoginAccount = { [weak self] account in self?.loginAccount(account) }
@@ -150,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         orbIsActive = true
         window.setFrameOrigin(restoredOrDefaultOrigin())
         window.orderFrontRegardless()
+        reconcileStatusItem()
 
         switch orbView.provider {
         case .codex: startCodexClient()
@@ -310,7 +317,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pollingClient = nil
         if hideWindow {
             window.orderOut(nil)
+            removeStatusItem()
         }
+    }
+
+    private func toggleMenuBarQuota() {
+        orbView.showsMenuBarQuota.toggle()
+        UserDefaults.standard.set(orbView.showsMenuBarQuota, forKey: Self.showsMenuBarQuotaDefaultsKey)
+        reconcileStatusItem()
+    }
+
+    private func reconcileStatusItem() {
+        guard orbIsActive, orbView.showsMenuBarQuota else {
+            removeStatusItem()
+            return
+        }
+        if statusItem == nil {
+            let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            item.button?.image = NSImage(systemSymbolName: "gauge", accessibilityDescription: nil)
+            item.button?.imagePosition = .imageLeading
+            let menu = NSMenu()
+            menu.delegate = self
+            item.menu = menu
+            statusItem = item
+        }
+        updateStatusItem()
+    }
+
+    private func updateStatusItem() {
+        guard let button = statusItem?.button else { return }
+        button.title = orbView.menuBarTitle
+        button.toolTip = orbView.toolTip
+        button.setAccessibilityLabel(orbView.accessibilityLabel())
+    }
+
+    private func removeStatusItem() {
+        guard let statusItem else { return }
+        NSStatusBar.system.removeStatusItem(statusItem)
+        self.statusItem = nil
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        orbView.populateMenu(menu)
     }
 
     private func switchProvider(to provider: QuotaProvider) {
