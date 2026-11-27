@@ -6,10 +6,11 @@ struct WorkspaceDashboardView: View {
     @ObservedObject var model: WorkspaceDashboardModel
 
     private enum Section: String, CaseIterable {
-        case accounts, instances, gateway
+        case overview, accounts, instances, gateway
 
         var title: String {
             switch self {
+            case .overview: return "工作台总览"
             case .accounts: return "账号与额度"
             case .instances: return "客户端实例"
             case .gateway: return "API 网关"
@@ -18,6 +19,7 @@ struct WorkspaceDashboardView: View {
 
         var symbol: String {
             switch self {
+            case .overview: return "rectangle.grid.2x2"
             case .accounts: return "person.crop.rectangle.stack"
             case .instances: return "rectangle.on.rectangle"
             case .gateway: return "point.3.connected.trianglepath.dotted"
@@ -37,7 +39,11 @@ struct WorkspaceDashboardView: View {
         }
     }
 
-    @State private var section = Section.accounts
+    @State private var section = Section.overview
+    @State private var platformFilter: WorkspacePlatform?
+    @State private var accountSearch = ""
+    @State private var instanceSearch = ""
+    @State private var showMembers = false
     @State private var editor: Editor?
     @State private var deletion: (title: String, action: () -> Void)?
     @State private var port = ""
@@ -51,6 +57,24 @@ struct WorkspaceDashboardView: View {
                 header
                 Divider()
                 switch section {
+                case .overview:
+                    WorkspaceOverview(model: model) { platform in
+                        accountSearch = ""
+                        platformFilter = platform
+                        section = .accounts
+                        if !model.accounts.contains(where: { $0.platform == platform }) {
+                            editor = .account(platform)
+                        }
+                    } showInstances: {
+                        instanceSearch = ""
+                        section = .instances
+                    } showRequests: {
+                        requestFilter = GatewayRequestFilter()
+                        showMembers = false
+                        section = .gateway
+                    } newInstance: {
+                        editor = .instance(nil)
+                    }
                 case .accounts: accounts
                 case .instances: instances
                 case .gateway: gateway
@@ -65,7 +89,7 @@ struct WorkspaceDashboardView: View {
             switch editor {
             case .account(let platform): WorkspaceAccountEditor(model: model, platform: platform)
             case .instance(let instance, let accountID): WorkspaceInstanceEditor(model: model, instance: instance, accountID: accountID)
-            case .member: WorkspaceGatewayMemberEditor(model: model)
+            case .member: WorkspaceGatewayMemberEditor(model: model) { showMembers = true }
             }
         }
         .alert("操作未完成", isPresented: Binding(get: { editor == nil && model.error != nil }, set: { if !$0 { model.error = nil } })) {
@@ -84,8 +108,10 @@ struct WorkspaceDashboardView: View {
             HStack(spacing: 10) {
                 Image(systemName: "gauge.with.dots.needle.67percent")
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(.teal)
-                Text("PetQuota").font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Color.mint)
+                    .frame(width: 33, height: 33)
+                    .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 9))
+                Text("PetQuota").font(.system(size: 20, weight: .semibold, design: .rounded))
             }
             .padding(.horizontal, 9)
             VStack(alignment: .leading, spacing: 5) {
@@ -98,7 +124,7 @@ struct WorkspaceDashboardView: View {
                             .font(.system(size: 13, weight: section == item ? .semibold : .regular))
                             .padding(.horizontal, 10).padding(.vertical, 9)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(section == item ? Color.teal.opacity(0.16) : Color.clear,
+                            .background(section == item ? Color.white.opacity(0.15) : Color.clear,
                                         in: RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
@@ -107,21 +133,35 @@ struct WorkspaceDashboardView: View {
             }
             Spacer()
             if let notice = model.notice {
-                Text(notice).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(notice).font(.caption).fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 9)
             }
+            Divider().overlay(.white.opacity(0.20))
+            Button {
+                section = .gateway
+            } label: {
+                HStack(spacing: 7) {
+                    Circle().fill(gatewayReady ? Color.mint : .white.opacity(0.55)).frame(width: 7, height: 7)
+                    Text(gatewayLabel).font(.caption)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption2)
+                }.padding(.horizontal, 8)
+            }.buttonStyle(.plain)
         }
         .padding(.horizontal, 14).padding(.vertical, 24)
         .frame(width: 180)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .foregroundStyle(.white)
+        .background(LinearGradient(colors: [Color(red: 0.08, green: 0.19, blue: 0.22),
+                                            Color(red: 0.07, green: 0.12, blue: 0.17)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing))
     }
 
     private var header: some View {
         HStack(alignment: .center) {
-            Text(section.title).font(.system(size: 26, weight: .semibold))
+            Text(section.title).font(.system(size: 26, weight: .semibold, design: .rounded))
             Spacer()
             switch section {
-            case .accounts:
+            case .accounts, .overview:
                 Button { model.refreshSelected() } label: { Label("刷新所选账号", systemImage: "arrow.clockwise") }
                 Menu {
                     Button("登录新的 Codex 账号…") { model.startCodexLogin?(nil) }
@@ -130,34 +170,54 @@ struct WorkspaceDashboardView: View {
                         Button("添加 \(platform.title) 账号…") { editor = .account(platform) }
                     }
                 } label: { Label("添加账号", systemImage: "plus") }
-                .fixedSize()
+                .fixedSize().menuStyle(.button).buttonStyle(.borderedProminent)
             case .instances:
                 Button { editor = .instance(nil) } label: { Label("新建实例", systemImage: "plus") }
+                    .buttonStyle(.borderedProminent)
             case .gateway:
                 Button { editor = .member } label: { Label("添加成员", systemImage: "plus") }
+                    .buttonStyle(.borderedProminent)
             }
         }
         .padding(.horizontal, 26).padding(.vertical, 19)
     }
 
     private var accounts: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 25) {
-                ForEach(WorkspacePlatform.allCases) { platform in
-                    let entries = model.accounts.filter { $0.platform == platform }
-                    VStack(alignment: .leading, spacing: 11) {
-                        Text(platform.title).font(.headline)
-                        if entries.isEmpty {
-                            Text("尚无账号").font(.callout).foregroundStyle(.secondary)
-                        } else {
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 245), spacing: 12)], spacing: 12) {
-                                ForEach(entries) { account in accountCard(account) }
+        let term = accountSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        let matches = model.accounts.filter { account in
+            (platformFilter == nil || account.platform == platformFilter)
+                && (term.isEmpty || account.name.localizedStandardContains(term) || account.platform.title.localizedStandardContains(term))
+        }
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                Picker("平台", selection: $platformFilter) {
+                    Text("全部").tag(nil as WorkspacePlatform?)
+                    ForEach(WorkspacePlatform.allCases) { Text($0.title).tag(Optional($0)) }
+                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+                Spacer(minLength: 0)
+                TextField("搜索账号或平台", text: $accountSearch)
+                    .textFieldStyle(.roundedBorder).frame(maxWidth: 200).accessibilityLabel("搜索账号或平台")
+            }.padding(.horizontal, 24).padding(.top, 16)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    if !term.isEmpty && matches.isEmpty {
+                        Text("没有匹配的账号").foregroundStyle(.secondary)
+                        Button("清除搜索") { accountSearch = "" }
+                    }
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 12, alignment: .top)], spacing: 12) {
+                        ForEach(WorkspacePlatform.allCases.filter { platformFilter == nil || platformFilter == $0 }) { platform in
+                            let entries = matches.filter { $0.platform == platform }
+                            ForEach(entries) { account in accountCard(account) }
+                            if term.isEmpty && entries.isEmpty {
+                                VStack(alignment: .leading, spacing: 14) {
+                                    HStack { platform.mark; Text(platform.title).font(.headline) }
+                                    Button("添加 \(platform.title) 账号…") { editor = .account(platform) }.buttonStyle(.link)
+                                }.frame(maxWidth: .infinity, alignment: .leading).padding(14).workspacePanel()
                             }
                         }
                     }
-                }
+                }.padding(24).frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(26)
         }
     }
 
@@ -166,7 +226,8 @@ struct WorkspaceDashboardView: View {
         let quota = model.quotas[account.id]
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text(account.name).font(.headline).lineLimit(2)
+                account.platform.mark
+                Text(account.platform.title).font(.subheadline.weight(.medium))
                 Spacer(minLength: 4)
                 if account.credential.reportsQuota {
                     Button { model.refresh(account) } label: { Image(systemName: "arrow.clockwise") }
@@ -190,8 +251,9 @@ struct WorkspaceDashboardView: View {
                 .menuStyle(.borderlessButton).fixedSize()
                 .accessibilityLabel("\(account.name) 的操作")
             }
+            Text(account.name).font(.system(size: 17, weight: .semibold)).lineLimit(2)
             if selected {
-                Label("当前选择", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.teal)
+                Label("当前选择", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(account.platform.tint)
             } else {
                 Button("选择此账号") { model.select(account) }.buttonStyle(.link)
             }
@@ -200,10 +262,10 @@ struct WorkspaceDashboardView: View {
                 ProgressView("正在读取额度").controlSize(.small)
             }
             if let quota, !quota.values.isEmpty {
-                ForEach(quota.values.prefix(3)) { value in quotaRow(value) }
+                ForEach(quota.values.prefix(3)) { value in quotaRow(value, tint: account.platform.tint) }
                 if quota.values.count > 3 {
                     DisclosureGroup("其他额度") {
-                        ForEach(quota.values.dropFirst(3)) { value in quotaRow(value) }
+                        ForEach(quota.values.dropFirst(3)) { value in quotaRow(value, tint: account.platform.tint) }
                     }
                 }
                 if let time = quota.updatedAt {
@@ -221,20 +283,20 @@ struct WorkspaceDashboardView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(selected ? Color.teal.opacity(0.48) : Color.primary.opacity(0.10)))
+        .workspacePanel(tint: selected ? account.platform.tint : .secondary)
     }
 
-    private func quotaRow(_ quota: WorkspaceQuota) -> some View {
+    private func quotaRow(_ quota: WorkspaceQuota, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(quota.title).lineLimit(2)
                 Spacer()
-                if let percent = quota.percent { Text("\(percent)%").monospacedDigit() }
+                if let percent = quota.percent {
+                    Text("\(percent)%").monospacedDigit().accessibilityLabel("剩余 \(percent)%")
+                }
             }
             if let percent = quota.percent {
-                ProgressView(value: Double(percent), total: 100).tint(percent <= 20 ? .orange : .teal)
-                    .accessibilityLabel("\(quota.title)剩余")
+                WorkspaceQuotaMeter(percent: percent, tint: tint)
             }
             let reset = quota.resetsAt.map { "重置 \($0.formatted(date: .abbreviated, time: .shortened))" }
             let detail = [quota.detail, reset].compactMap { $0 }.joined(separator: " · ")
@@ -244,21 +306,42 @@ struct WorkspaceDashboardView: View {
     }
 
     private var instances: some View {
-        ScrollView {
+        let term = instanceSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        let visible = model.settings.instances.filter { instance in
+            let account = model.accounts.first { $0.id == instance.accountID }
+            return term.isEmpty || [instance.name, instance.projectPath, account?.name ?? "", account?.platform.title ?? ""]
+                .contains { $0.localizedStandardContains(term) }
+        }
+        return ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if model.settings.instances.isEmpty {
-                    Text("新建实例时选择账号和项目目录。").foregroundStyle(.secondary)
+                    VStack(spacing: 12) {
+                        Image(systemName: "folder.badge.plus").font(.system(size: 30)).foregroundStyle(.teal)
+                        Text("还没有客户端实例").font(.headline)
+                        Text("新建实例时选择账号和项目目录。").foregroundStyle(.secondary)
+                    }.padding(32).frame(maxWidth: .infinity).workspacePanel()
+                } else {
+                    HStack {
+                        Text("项目实例 · \(visible.count)").font(.headline)
+                        Spacer()
+                        TextField("搜索项目、目录或账号", text: $instanceSearch)
+                            .textFieldStyle(.roundedBorder).frame(maxWidth: 220)
+                    }
+                    if visible.isEmpty {
+                        Button("没有匹配的实例 · 清除搜索") { instanceSearch = "" }.buttonStyle(.link)
+                    }
                 }
-                ForEach(model.settings.instances) { instance in
+                ForEach(visible) { instance in
                     let account = model.accounts.first { $0.id == instance.accountID }
                     HStack(spacing: 12) {
-                        Image(systemName: "terminal").foregroundStyle(.teal).font(.title3)
+                        if let account { account.platform.mark }
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(instance.name).font(.headline)
+                            Text(instance.name).font(.headline).lineLimit(2)
                             Text([account?.platform.title, account?.name ?? "账号已移除", instance.gatewayMemberID == nil ? nil : "本机 API 网关"]
                                 .compactMap { $0 }.joined(separator: " · "))
                                 .foregroundStyle(.secondary)
-                            Text(instance.projectPath).font(.caption.monospaced()).textSelection(.enabled)
+                            Text(instance.projectPath).font(.caption.monospaced()).foregroundStyle(.secondary)
+                                .lineLimit(1).truncationMode(.middle).help(instance.projectPath).textSelection(.enabled)
                         }
                         Spacer()
                         Button(instance.opensDesktop == true ? "打开桌面端" : "打开终端") { model.launch(instance) }.disabled(account == nil)
@@ -272,8 +355,7 @@ struct WorkspaceDashboardView: View {
                         .menuStyle(.borderlessButton).fixedSize()
                         .accessibilityLabel("\(instance.name) 的操作")
                     }
-                    .padding(13)
-                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                    .padding(14).workspacePanel()
                 }
             }
             .padding(26)
@@ -283,52 +365,65 @@ struct WorkspaceDashboardView: View {
 
     private var gateway: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                Circle().fill(gatewayReady ? Color.green : Color.secondary).frame(width: 8, height: 8)
-                Text(gatewayLabel).font(.callout.weight(.medium))
-                Spacer()
-                TextField("端口", text: $port).frame(width: 78).disabled(gatewayActive)
-                if gatewayActive {
-                    Button("停止") { model.stopGateway() }
-                } else {
-                    Button("启动网关") { model.startGateway(port: port) }
-                        .disabled(model.settings.gatewayMembers.isEmpty)
-                }
-            }
-            if case .ready(let bound) = model.gatewayState {
-                let url = "http://127.0.0.1:\(bound)/v1"
-                HStack {
-                    Text(url).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
-                    Button("复制地址") { QuotaClipboard.copy(url) }.buttonStyle(.link)
-                }
-            }
-            if case .failed(let message) = model.gatewayState { Text(message).font(.callout).foregroundStyle(.orange) }
-            Divider()
-            Text("网关成员").font(.headline)
-            if model.settings.gatewayMembers.isEmpty { Text("添加一个 OpenAI API Key 以启动网关。").foregroundStyle(.secondary) }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 7) {
-                    ForEach(model.settings.gatewayMembers) { member in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(member.name).fontWeight(.medium)
-                                if let account = model.accounts.first(where: { $0.id == member.codexAccountID }) {
-                                    Text(account.name).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                            Spacer()
-                            Button("复制本机 Key") { model.copyGatewayKey(member) }
-                            Button("移除") {
-                                deletion = ("移除 \(member.name)？", { model.removeGatewayMember(member) })
-                            }
-                        }
-                        .padding(.vertical, 3)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Circle().fill(gatewayReady ? Color.green : Color.secondary).frame(width: 8, height: 8)
+                    Text(gatewayLabel).font(.callout.weight(.medium))
+                    Spacer()
+                    Text("端口").font(.caption).foregroundStyle(.secondary)
+                    TextField("端口", text: $port).frame(width: 68).disabled(gatewayActive)
+                    if gatewayActive {
+                        Button("停止") { model.stopGateway() }
+                    } else {
+                        Button("启动网关") { model.startGateway(port: port) }
+                            .disabled(model.settings.gatewayMembers.isEmpty)
                     }
                 }
+                if case .ready(let bound) = model.gatewayState {
+                    let url = "http://127.0.0.1:\(bound)/v1"
+                    HStack {
+                        Text(url).font(.system(.callout, design: .monospaced)).textSelection(.enabled)
+                        Button("复制地址") { QuotaClipboard.copy(url) }.buttonStyle(.link)
+                    }
+                }
+                if case .failed(let message) = model.gatewayState { Text(message).font(.callout).foregroundStyle(.orange) }
+                else if model.settings.gatewayMembers.isEmpty {
+                    Text("添加一个 OpenAI API Key 以启动网关。").font(.callout).foregroundStyle(.secondary)
+                }
+            }.padding(16).workspacePanel(tint: gatewayReady ? .teal : .secondary)
+            Picker("网关视图", selection: $showMembers) {
+                Text("请求记录 · \(model.requests.count)").tag(false)
+                Text("网关成员 · \(model.settings.gatewayMembers.count)").tag(true)
+            }.pickerStyle(.segmented).labelsHidden().fixedSize()
+            if showMembers {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if model.settings.gatewayMembers.isEmpty {
+                            Text("还没有网关成员").foregroundStyle(.secondary)
+                                .padding(16).frame(maxWidth: .infinity, alignment: .leading).workspacePanel()
+                        }
+                        ForEach(model.settings.gatewayMembers) { member in
+                            HStack {
+                                Image(systemName: "key.fill").foregroundStyle(.teal).frame(width: 28)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(member.name).fontWeight(.medium)
+                                    if let account = model.accounts.first(where: { $0.id == member.codexAccountID }) {
+                                        Text(account.name).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                }
+                                Spacer()
+                                Button("复制本机 Key") { model.copyGatewayKey(member) }
+                                Button("移除") {
+                                    deletion = ("移除 \(member.name)？", { model.removeGatewayMember(member) })
+                                }
+                            }
+                            .padding(14).workspacePanel()
+                        }
+                    }
+                }
+            } else {
+                requestHistory
             }
-            .frame(maxHeight: model.settings.gatewayMembers.isEmpty ? 0 : 112)
-            Divider()
-            requestHistory
         }
         .padding(26)
     }
@@ -337,8 +432,6 @@ struct WorkspaceDashboardView: View {
         let records = requestFilter.apply(to: model.requests)
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                Text("请求记录").font(.headline)
-                Spacer()
                 if !model.requests.isEmpty {
                     TextField("成员、模型、路径或状态码", text: $requestFilter.query)
                         .textFieldStyle(.roundedBorder)
@@ -347,6 +440,8 @@ struct WorkspaceDashboardView: View {
                     Toggle("只看异常", isOn: $requestFilter.failuresOnly)
                         .toggleStyle(.checkbox)
                         .help("显示 HTTP 错误和传输中断的请求")
+                    Spacer()
+                    Text("\(records.count) 条").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }
             }
             Table(records) {
@@ -549,6 +644,7 @@ private struct WorkspaceInstanceEditor: View {
 
 private struct WorkspaceGatewayMemberEditor: View {
     @ObservedObject var model: WorkspaceDashboardModel
+    let didSave: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var key = ""
@@ -575,6 +671,7 @@ private struct WorkspaceGatewayMemberEditor: View {
                 Button("添加") {
                     if model.saveGatewayMember(name: name, key: usesSavedKey ? "" : key, accountID: accountID) {
                         key = ""
+                        didSave()
                         dismiss()
                     }
                 }

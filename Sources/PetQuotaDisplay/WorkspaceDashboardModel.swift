@@ -10,6 +10,11 @@ final class WorkspaceDashboardModel: ObservableObject {
         var error: String?
         var isRefreshing = false
 
+        var overviewQuota: WorkspaceQuota? {
+            let measured = values.compactMap { quota in quota.percent.map { (percent: $0, quota: quota) } }
+            return measured.min { $0.percent < $1.percent }?.quota ?? values.first
+        }
+
         mutating func recordFailure(_ failure: Error) {
             switch failure as? WorkspaceError {
             case .unauthorized, .missingCredential:
@@ -386,4 +391,5 @@ final class WorkspaceDashboardModel: ObservableObject {
         guard !name.isEmpty else { throw WorkspaceError.invalidAccount }
         return String(name.prefix(60))
     }
+
 }

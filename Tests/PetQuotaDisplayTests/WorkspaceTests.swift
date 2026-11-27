@@ -4,6 +4,18 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class WorkspaceTests: XCTestCase {
+    func testOverviewShowsLowestMeasuredQuotaOrOriginalCreditAmount() {
+        let credits = WorkspaceQuota(id: "credits", title: "Credits", percent: nil, detail: "400 Credits", resetsAt: nil)
+        let weekly = WorkspaceQuota(id: "week", title: "周额度", percent: 78, detail: nil, resetsAt: nil)
+        let daily = WorkspaceQuota(id: "day", title: "日额度", percent: 0, detail: nil, resetsAt: nil)
+        var state = WorkspaceDashboardModel.QuotaState()
+        XCTAssertNil(state.overviewQuota)
+        state.values = [credits]
+        XCTAssertEqual(state.overviewQuota, credits)
+        state.values = [credits, weekly, daily]
+        XCTAssertEqual(state.overviewQuota, daily)
+    }
+
     func testBackgroundQuotaFailuresPreserveLastReadingOnlyWhileAuthorized() throws {
         let model = WorkspaceDashboardModel(store: WorkspaceStore(directory: temporaryWorkspace()))
         let slot = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
