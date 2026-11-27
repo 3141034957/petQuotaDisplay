@@ -1,8 +1,29 @@
 # Agent 额度悬浮球
 
-原生 macOS 额度悬浮球和工作台。悬浮球显示 Codex、Gemini、Claude Code、OpenCode Go 或 Kimi Code 的余量和重置时间。工作台管理 Codex、CodeBuddy、Gemini 的账号和客户端实例，并可启动 Codex 本机 API 网关。
+PetQuota 为 Windows 和 macOS 提供额度窗与账号工作台，可管理 Codex、CodeBuddy、Gemini 的账号、独立 CLI 实例和 Codex 本机 API 网关。
 
-## 运行
+## Windows 版
+
+在 Windows 10/11 x64 上，将 **PetQuota-win-x64.zip** 解压到同一目录，再双击 `PetQuota.exe` 打开工作台。发布包包含 .NET 桌面运行时。使用某个平台的 CLI 实例需要另外安装对应的官方客户端，并把它加入 PATH。支持原生可执行文件和标准 npm 全局安装，也可通过 `CODEX_CLI_PATH`、`CODEBUDDY_CLI_PATH`、`GEMINI_CLI_PATH` 指定实际的 `.exe`。
+
+1. 在“账号与额度”添加账号。Codex 支持登录 `auth.json` 或 OpenAI API Key，CodeBuddy 支持登录 JSON、访问令牌或 API Key，Gemini 支持 `oauth_creds.json` 或 API Key。选择账号后点击“切换至此账号”，即可在总览和置顶额度窗查看。登录账号支持刷新，API Key 的余额由平台控制台提供。
+2. 到“客户端实例”绑定账号和项目目录，点击“打开终端”。实例可编辑、复制或移除。Codex 和 Gemini 按账号隔离登录，CodeBuddy 另外按实例隔离配置目录。
+3. 在“API 网关”选用一个已保存的 Codex API Key 账号。启动后，点击“复制地址”和“复制本机 Key”配置客户端，或在新建 Codex 实例时直接绑定成员。网关只监听 `127.0.0.1`，支持模型列表、Responses、compact 和 Chat Completions，保留最近 200 条请求的元数据。
+4. 在总览点击“置顶额度窗”，也可用 `PetQuota.exe --always-show` 启动。单击数字刷新，右键返回工作台。运行期间每五分钟刷新当前登录账号。
+
+Windows 配置保存在 `%LOCALAPPDATA%\PetQuotaDisplay\Workspace`。API Key、CodeBuddy 访问令牌及网关成员的本机 Key 使用当前 Windows 用户的 DPAPI 保护。Codex 和 Gemini 登录文件按官方 CLI 格式保存在各自的账号目录中。
+
+安装 .NET 10 SDK 后可从源码运行、检查核心功能或生成自包含发布包。
+
+```powershell
+dotnet run --project windows/PetQuota -- --workspace
+dotnet run --project windows/PetQuota.Checks -c Release
+dotnet publish windows/PetQuota -c Release -r win-x64 --self-contained true -o dist/win-x64
+```
+
+仓库入口也支持 `py main.py --workspace`。当前 Windows 版优先提供三平台工作台和置顶额度窗。以下 macOS 章节中的跟随 Codex 显隐、历史命令、其他额度来源和登录自启动属于 Mac 版功能。
+
+## macOS 运行
 
 需要 macOS 13 或更高版本和 Xcode Command Line Tools。查看 Codex 额度需要已安装并登录的 Codex CLI，查看 Gemini 额度需要已安装并登录的 Antigravity CLI。
 

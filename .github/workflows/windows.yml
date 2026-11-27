@@ -1,0 +1,29 @@
+name: Windows desktop
+on:
+  push:
+    branches: [windows]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Check profiles, providers and loopback gateway
+        run: dotnet run --project windows/PetQuota.Checks -c Release
+      - name: Publish Windows x64
+        run: dotnet publish windows/PetQuota -c Release -r win-x64 --self-contained true -o dist/win-x64
+      - name: Start desktop and verify current-user DPAPI
+        shell: pwsh
+        run: |
+          $app = Start-Process ./dist/win-x64/PetQuota.exe -ArgumentList '--smoke-test' -PassThru
+          if (-not $app.WaitForExit(30000)) { $app.Kill(); throw "Desktop smoke test timed out" }
+          if ($app.ExitCode -ne 0) { throw "Desktop smoke test failed: $($app.ExitCode)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PetQuota-win-x64
+          path: dist/win-x64/
