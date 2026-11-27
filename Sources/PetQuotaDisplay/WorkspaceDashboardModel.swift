@@ -93,6 +93,7 @@ final class WorkspaceDashboardModel: ObservableObject {
         attempt {
             if account.credential == .codexLogin, let slot = CodexAccountSlot(rawValue: account.id) {
                 removeCodex?(slot)
+                return
             } else if account.credential != .antigravity {
                 settings = try store.update { state in
                     guard !state.referencesAccount(account.id) else { throw WorkspaceError.accountInUse }
@@ -108,10 +109,14 @@ final class WorkspaceDashboardModel: ObservableObject {
                     try WorkspaceKeychain.remove(account.id)
                 }
             }
-            takeRefresh(account.id)?.cancel()
-            quotas.removeValue(forKey: account.id)
+            forgetQuota(for: account.id)
             reload()
         }
+    }
+
+    func forgetQuota(for accountID: String) {
+        takeRefresh(accountID)?.cancel()
+        quotas.removeValue(forKey: accountID)
     }
 
     func refreshSelected() {

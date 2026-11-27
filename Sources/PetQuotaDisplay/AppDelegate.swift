@@ -1163,6 +1163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
         do {
             try CodexAccountProfile.deleteAccount(account)
+            workspaceModel?.forgetQuota(for: account.rawValue)
             orbView.forgetQuota(for: .codex, account: account)
             accounts.removeAll { $0 == account }
             accountStatuses.removeValue(forKey: account)

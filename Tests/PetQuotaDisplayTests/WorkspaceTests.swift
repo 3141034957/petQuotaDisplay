@@ -1,8 +1,26 @@
 import Foundation
+import QuotaCore
 import XCTest
 @testable import PetQuotaDisplay
 
 final class WorkspaceTests: XCTestCase {
+    func testCodexRemovalKeepsTheReadingUntilDeletionSucceeds() throws {
+        let model = WorkspaceDashboardModel(store: WorkspaceStore(directory: temporaryWorkspace()))
+        let slot = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let account = WorkspaceAccount(id: slot.rawValue, platform: .codex, name: "Test", credential: .codexLogin)
+        let report = try QuotaParser.parseReport(result: [
+            "rateLimits": ["primary": ["usedPercent": 20, "windowDurationMins": 300]]
+        ])
+        model.noteCodex(slot, report: report)
+        model.removeCodex = { XCTAssertEqual($0, slot) }
+        model.deleteAccount(account)
+        XCTAssertEqual(model.quotas[account.id]?.values.first?.percent, 80)
+        model.removeCodex = { model.forgetQuota(for: $0.rawValue) }
+        model.deleteAccount(account)
+        XCTAssertNil(model.quotas[account.id])
+        model.removeCodex = nil
+    }
+
     func testRequestSearchCombinesTermsWithFailuresAndKeepsLogOrder() {
         func record(_ member: String, model: String?, status: Int, interrupted: Bool? = nil) -> GatewayRequestRecord {
             GatewayRequestRecord(id: UUID(), time: Date(), method: "POST", path: "/v1/responses", member: member,
