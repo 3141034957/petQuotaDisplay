@@ -104,6 +104,33 @@ enum CodexAccountProfile {
         return slot
     }
 
+    static func importLogin(_ data: Data, name: String, defaults: UserDefaults = QuotaPreferences.shared) throws -> CodexAccountSlot {
+        try validateLogin(data)
+        guard let slot = CodexAccountSlot(rawValue: UUID().uuidString) else { throw WorkspaceError.invalidAccount }
+        let home = try accountHomeURL(for: slot, create: true)
+        do {
+            try WorkspaceStore.write(data, to: home.appendingPathComponent("auth.json"))
+        } catch {
+            try? FileManager.default.removeItem(at: home)
+            throw error
+        }
+        let accounts = loadAccounts(defaults: defaults) + [slot]
+        defaults.set(accounts.map(\.rawValue), forKey: additionalAccountsDefaultsKey)
+        setName(name, for: slot, defaults: defaults)
+        return slot
+    }
+
+    static func validateLogin(_ data: Data) throws {
+        guard let document = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tokens = document["tokens"] as? [String: Any],
+              let access = tokens["access_token"] as? String,
+              let refresh = tokens["refresh_token"] as? String,
+              (try? WorkspaceKeychain.normalizedSecret(access)) != nil,
+              (try? WorkspaceKeychain.normalizedSecret(refresh)) != nil else {
+            throw WorkspaceError.invalidAccountFile
+        }
+    }
+
     static func deleteAccount(_ slot: CodexAccountSlot, defaults: UserDefaults = QuotaPreferences.shared) throws {
         guard !slot.isPrimary else { return }
         let fileManager = FileManager.default

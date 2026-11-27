@@ -16,6 +16,7 @@ struct QuotaDisplayOptions {
     private(set) var provider: QuotaProvider?
     private(set) var period: String?
     private(set) var refreshCadence: QuotaRefreshCadence?
+    private(set) var opensWorkspace = false
 
     init(arguments: [String]) throws {
         var arguments = arguments[...]
@@ -23,6 +24,8 @@ struct QuotaDisplayOptions {
             if let requestedMode = Mode(rawValue: argument) {
                 guard mode == nil else { throw Failure.multipleModes }
                 mode = requestedMode
+            } else if argument == "--workspace", !opensWorkspace {
+                opensWorkspace = true
             } else if argument == "--provider" {
                 guard provider == nil, let name = arguments.popFirst(),
                       let requestedProvider = QuotaProvider(rawValue: name) else { throw Failure.invalidProvider }

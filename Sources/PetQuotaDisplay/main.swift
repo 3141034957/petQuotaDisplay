@@ -13,6 +13,7 @@ let usage = """
       PetQuotaDisplay --inspect-history 文件 [--format text|json|csv]
       PetQuotaDisplay --version [--json]
   --always-show   本次启动强制显示悬浮球
+  --workspace     打开账号、实例和 API 网关工作台
   --follow-codex  仅在 Codex 运行时显示额度悬浮球
   --follow-codex-desktop  仅跟随 Codex 桌面端
   --follow-codex-cli      仅跟随独立 Codex CLI
@@ -63,6 +64,14 @@ let historyUsage = """
 let arguments = Array(CommandLine.arguments.dropFirst())
 let display: QuotaDisplayOptions
 switch arguments {
+case _ where arguments.first == "--run-instance":
+    guard arguments.count == 2, let instance = UUID(uuidString: arguments[1]) else { exit(64) }
+    do {
+        try WorkspaceLauncher(store: .local).run(instance)
+    } catch {
+        FileHandle.standardError.write(Data("\(error.localizedDescription)\n".utf8))
+        exit(1)
+    }
 case ["--version"]:
     print(QuotaBuildInformation.current.summary)
     exit(0)

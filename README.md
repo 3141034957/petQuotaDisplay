@@ -1,6 +1,6 @@
 # Agent 额度悬浮球
 
-一个原生 macOS 悬浮球，显示 Codex、Gemini、Claude Code、OpenCode Go 或 Kimi Code 额度的剩余百分比和下一次重置时间。
+原生 macOS 额度悬浮球和工作台。悬浮球显示 Codex、Gemini、Claude Code、OpenCode Go 或 Kimi Code 的余量和重置时间。工作台管理 Codex、CodeBuddy、Gemini 的账号和客户端实例，并可启动 Codex 本机 API 网关。
 
 ## 运行
 
@@ -25,6 +25,26 @@ swift run PetQuotaDisplay
 可以组合 `--provider openCodeGo --period monthly` 指定初次展示的周期。`--period lowestRemaining` 会自动选择剩余最少的周期。切换来源、账号或手动选择周期后，会使用对应的保存设置。
 
 `--refresh-interval 120` 可临时指定每 120 秒刷新，`--refresh-interval 0` 则关闭本次运行的定时刷新。
+
+### 额度工作台
+
+从悬浮球或菜单栏选择“打开额度工作台”，也可以单独运行窗口。
+
+```bash
+python3 main.py --workspace
+```
+
+| 平台 | 账号和额度 | 客户端实例 |
+| --- | --- | --- |
+| Codex | 浏览器登录、导入 `auth.json` 或保存 OpenAI API Key。ChatGPT 登录可查看主要额度和独立模型额度。 | Codex CLI。已安装 Codex 桌面端时，可为 ChatGPT 登录账号单独打开桌面实例。 |
+| CodeBuddy | 导入含 `access_token` 的账号 JSON，或输入访问令牌、API Key。账号登录可查询平台返回的个人或企业 Credits。 | CodeBuddy CLI，每个实例使用独立配置目录。 |
+| Gemini | 导入 Gemini CLI 的 `oauth_creds.json`，填写适用的 Google Cloud 项目，或保存 API Key。工作台也可读取当前 Antigravity 登录的额度。 | Gemini CLI 为每个账号使用独立登录目录。Antigravity 实例使用本机当前登录。 |
+
+在“账号与额度”选择账号并刷新额度。在账号菜单选择“为此账号新建实例”，或到“客户端实例”指定账号和项目目录。实例启动时使用绑定的账号以及所选项目，几个不同账号可同时运行。API Key 账号的计费与用量由各平台控制台提供。
+
+在“API 网关”添加一个独立 OpenAI API Key，或选用工作台里已保存的 Codex API Key。启动后，客户端的 Base URL 填 `http://127.0.0.1:14550/v1`（端口可改），API Key 填对应成员的“本机 Key”。在 Codex CLI 实例中选择该成员，工作台会自动填好两项。绑定 ChatGPT 登录账号的网关成员也需要提供 OpenAI API Key。
+
+网关监听 IPv4 回环地址，支持 HTTP 方式访问模型列表、Responses（含流式与 compact）和 Chat Completions。每个本机 Key 对应一个成员。工作台保留最近 200 条转发记录，包含时间、成员、模型、路径、状态与耗时。OpenAI API Key 保存在 macOS 钥匙串，请求正文和凭据不会写入网关记录。
 
 ### 终端查询
 

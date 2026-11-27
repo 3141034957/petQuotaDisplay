@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var monitorsCodexCLI: Bool { displayOptions.mode?.monitorsCodexCLI == true }
     private var followCodex: Bool { monitorsCodexDesktop || monitorsCodexCLI }
     private var forceOrbVisible: Bool { displayOptions.mode == .forceOrb }
+    private var workspaceOnly: Bool { displayOptions.opensWorkspace && displayOptions.mode == nil }
     private var client: CodexQuotaClient?
     private var pollingClient: PollingQuotaClient?
     private var window: NSWindow!
@@ -22,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private var refreshTimer: Timer?
     private let claudeCacheMonitor = ClaudeQuotaCacheMonitor(directory: ClaudeQuotaCache.directory)
     private var historyWindows: [QuotaHistoryContext: (controller: NSWindowController, model: QuotaHistoryWindowModel)] = [:]
+    private var workspaceController: NSWindowController?
+    private var workspaceModel: WorkspaceDashboardModel?
     private var nextHistoryWindowLocation = NSPoint.zero
     private let historyArchive = QuotaHistoryArchive.local
     private let historyArchiveWriter = DispatchQueue(label: "com.erenshwang.petquotadisplay.history", qos: .utility)
@@ -55,7 +58,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        NSApp.setActivationPolicy(workspaceOnly ? .regular : .accessory)
+        if workspaceOnly {
+            let mainMenu = NSMenu()
+            let appItem = NSMenuItem()
+            let appMenu = NSMenu(title: "PetQuota")
+            appMenu.addItem(withTitle: "退出 PetQuota", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            appItem.submenu = appMenu
+            mainMenu.addItem(appItem)
+            let editItem = NSMenuItem()
+            let editMenu = NSMenu(title: "编辑")
+            editMenu.addItem(withTitle: "撤销", action: Selector(("undo:")), keyEquivalent: "z")
+            editMenu.addItem(.separator())
+            editMenu.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+            editMenu.addItem(withTitle: "复制", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+            editMenu.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+            editMenu.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+            editItem.submenu = editMenu
+            mainMenu.addItem(editItem)
+            NSApp.mainMenu = mainMenu
+        }
         for account in accounts where CodexAccountProfile.hasStoredCredentials(for: account) {
             accountStatuses[account] = .stored
         }
@@ -112,6 +134,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             self.cliMonitor = cliMonitor
             cliMonitor.start()
         }
+        if displayOptions.opensWorkspace { showWorkspace() }
+        guard !workspaceOnly else { return }
         if followCodex {
             reconcileOrbVisibility()
         } else {
@@ -120,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        workspaceModel?.shutdown()
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         cliMonitor?.stop()
@@ -184,6 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
         orbView.onQuit = { [weak self] in self?.quitOrHideOrb() }
         orbView.onShowAbout = { [weak self] in self?.showAbout() }
+        orbView.onShowWorkspace = { [weak self] in self?.showWorkspace() }
         orbView.onPositionChanged = { [weak self] in self?.finishOrbDrag() }
         orbView.onResetPosition = { [weak self] in self?.resetOrbPosition() }
         orbView.onSelectCorner = { [weak self] corner in self?.moveOrb(to: corner) }
@@ -280,6 +306,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         historyWindows[context] = (controller, model)
         NSApp.activate(ignoringOtherApps: true)
         controller.showWindow(nil)
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if workspaceOnly { showWorkspace() }
+        return true
+    }
+
+    private func showWorkspace() {
+        if let workspaceController {
+            workspaceModel?.reload()
+            NSApp.activate(ignoringOtherApps: true)
+            workspaceController.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+        let model = WorkspaceDashboardModel()
+        model.getSelectedCodex = { [weak self] in self?.selectedAccount }
+        model.selectCodex = { [weak self] account in self?.selectWorkspaceCodex(account) }
+        model.startCodexLogin = { [weak self] account in
+            guard let self else { return }
+            if self.orbView.provider != .codex { self.switchProvider(to: .codex) }
+            if let account { self.loginAccount(account) }
+            else { self.addAccount() }
+        }
+        model.removeCodex = { [weak self] account in self?.deleteAccount(account) }
+        model.refreshActiveCodex = { [weak self] slot in
+            guard let self, let client = self.client, self.selectedAccount == slot else { return false }
+            client.refresh()
+            return true
+        }
+        let hosting = NSHostingController(rootView: WorkspaceDashboardView(model: model))
+        let workspaceWindow = NSWindow(contentViewController: hosting)
+        workspaceWindow.title = "PetQuota 工作台"
+        workspaceWindow.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        workspaceWindow.isReleasedWhenClosed = false
+        workspaceWindow.contentMinSize = NSSize(width: 840, height: 540)
+        workspaceWindow.setContentSize(NSSize(width: 1_000, height: 670))
+        workspaceWindow.setFrameAutosaveName("PetQuotaWorkspace")
+        if !workspaceWindow.setFrameUsingName("PetQuotaWorkspace") { workspaceWindow.center() }
+        let controller = NSWindowController(window: workspaceWindow)
+        workspaceModel = model
+        workspaceController = controller
+        NSApp.activate(ignoringOtherApps: true)
+        controller.showWindow(nil)
+        workspaceWindow.makeKeyAndOrderFront(nil)
+    }
+
+    private func selectWorkspaceCodex(_ account: CodexAccountSlot) {
+        accounts = CodexAccountProfile.loadAccounts()
+        guard accounts.contains(account) else { return }
+        if accountStatuses[account] == nil, CodexAccountProfile.hasStoredCredentials(for: account) {
+            accountStatuses[account] = .stored
+        }
+        let wasActive = orbIsActive
+        if wasActive { stopOrb(hideWindow: false) }
+        selectedAccount = account
+        orbView.provider = .codex
+        orbView.startupPeriodOverride = nil
+        QuotaPreferences.shared.set(account.rawValue, forKey: CodexAccountProfile.selectedAccountDefaultsKey)
+        QuotaPreferences.shared.set(QuotaProvider.codex.rawValue, forKey: QuotaPreferences.selectedProviderKey)
+        updateAccountMenuState()
+        if wasActive { startOrb() }
     }
 
     private func historyWindowTitle(for context: QuotaHistoryContext) -> String {
@@ -591,6 +678,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             guard let self, let client, self.client === client else { return }
             self.orbView.codexMeteredQuotas = report.additional
             self.orbView.state = .loaded(report.primary)
+            self.workspaceModel?.noteCodex(clientAccount, report: report)
         }
         client.onAccount = { [weak self, weak client] account in
             guard let self, let client, self.client === client else { return }
@@ -603,6 +691,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             self.accountStatuses[clientAccount] = account.map(CodexAccountStatus.signedIn) ?? .signedOut
             self.updateAccountMenuState()
             if account == nil {
+                self.workspaceModel?.noteCodexFailure(clientAccount, error: WorkspaceError.unauthorized)
                 if previousStatus != .signedOut { self.orbView.forgetQuota(for: .codex, account: clientAccount) }
                 guard !self.orbView.isCodexLoginPending else { return }
                 let name = self.accountName(for: clientAccount)
@@ -625,6 +714,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         client.onError = { [weak self, weak client] error in
             guard let self, let client, self.client === client else { return }
             self.orbView.state.recordFailure(error.localizedDescription)
+            self.workspaceModel?.noteCodexFailure(clientAccount, error: error)
         }
         self.client = client
         client.start()
@@ -885,7 +975,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     private func reconcileWindowVisibility() {
-        guard orbIsActive, !orbView.menuBarOnly else {
+        guard orbIsActive, !workspaceOnly, !orbView.menuBarOnly else {
             window.orderOut(nil)
             return
         }
@@ -894,7 +984,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     }
 
     private func reconcileStatusItem() {
-        guard orbIsActive, orbView.showsMenuBarQuota else {
+        guard orbIsActive, !workspaceOnly, orbView.showsMenuBarQuota else {
             removeStatusItem()
             return
         }
@@ -1010,7 +1100,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
         if selectedAccount == account {
             orbView.state = .loading
-            client?.loginWithChatGPT(replacingExisting: replacingExisting)
+            if let client {
+                client.loginWithChatGPT(replacingExisting: replacingExisting)
+            } else {
+                pendingAccountLogin = account
+                pendingLoginReplacesExisting = replacingExisting
+                if orbIsActive { startCodexClient() }
+                else { startOrb() }
+            }
         } else {
             pendingAccountLogin = account
             pendingLoginReplacesExisting = replacingExisting
@@ -1041,6 +1138,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
     private func deleteAccount(_ account: CodexAccountSlot) {
         guard accounts.contains(account) else { return }
         let name = accountName(for: account)
+        do {
+            guard try !WorkspaceStore.local.load().referencesAccount(account.rawValue) else {
+                throw WorkspaceError.accountInUse
+            }
+        } catch {
+            let failure = NSAlert(error: error)
+            failure.messageText = "无法删除\(name)"
+            failure.runModal()
+            return
+        }
         let alert = NSAlert()
         alert.messageText = "删除\(name)？"
         alert.informativeText = "这会从本机永久删除该额度账号保存的登录凭据。当前 Codex CLI/桌面端账号不会受影响。"
@@ -1095,6 +1202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         orbView.accountNames = Dictionary(uniqueKeysWithValues: accounts.compactMap { account in
             CodexAccountProfile.name(for: account).map { (account, $0) }
         })
+        workspaceModel?.reload()
     }
 
     private func accountName(for account: CodexAccountSlot) -> String {
