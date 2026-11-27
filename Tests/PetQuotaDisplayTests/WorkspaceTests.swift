@@ -3,6 +3,25 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class WorkspaceTests: XCTestCase {
+    func testRequestSearchCombinesTermsWithFailuresAndKeepsLogOrder() {
+        func record(_ member: String, model: String?, status: Int, interrupted: Bool? = nil) -> GatewayRequestRecord {
+            GatewayRequestRecord(id: UUID(), time: Date(), method: "POST", path: "/v1/responses", member: member,
+                                 model: model, status: status, duration: 1, outputBytes: 25, interrupted: interrupted)
+        }
+        let complete = record("Team", model: "Model-A", status: 200)
+        let limited = record("Team", model: nil, status: 429)
+        let disconnected = record("Team", model: "Model-B", status: 200, interrupted: true)
+        let records = [complete, limited, disconnected]
+        func matches(_ query: String, failuresOnly: Bool = false) -> [UUID] {
+            GatewayRequestFilter(query: query, failuresOnly: failuresOnly).apply(to: records).map(\.id)
+        }
+        XCTAssertEqual(matches("  "), records.map(\.id))
+        XCTAssertEqual(matches(" TEAM  Responses ", failuresOnly: true), [limited.id, disconnected.id])
+        XCTAssertEqual(matches("200 model-b", failuresOnly: true), [disconnected.id])
+        XCTAssertEqual(matches("429"), [limited.id])
+        XCTAssertTrue(matches("Model-A", failuresOnly: true).isEmpty)
+    }
+
     func testWritesConcurrentWorkspaceEditsWithoutLosingInstances() throws {
         let directory = temporaryWorkspace()
         defer { try? FileManager.default.removeItem(at: directory) }

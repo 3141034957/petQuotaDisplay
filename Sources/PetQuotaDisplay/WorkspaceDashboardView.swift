@@ -41,6 +41,7 @@ struct WorkspaceDashboardView: View {
     @State private var editor: Editor?
     @State private var deletion: (title: String, action: () -> Void)?
     @State private var port = ""
+    @State private var requestFilter = GatewayRequestFilter()
 
     var body: some View {
         HStack(spacing: 0) {
@@ -325,24 +326,50 @@ struct WorkspaceDashboardView: View {
             }
             .frame(maxHeight: model.settings.gatewayMembers.isEmpty ? 0 : 112)
             Divider()
-            Text("请求记录").font(.headline)
-            Table(model.requests) {
+            requestHistory
+        }
+        .padding(26)
+    }
+
+    private var requestHistory: some View {
+        let records = requestFilter.apply(to: model.requests)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Text("请求记录").font(.headline)
+                Spacer()
+                if !model.requests.isEmpty {
+                    TextField("成员、模型、路径或状态码", text: $requestFilter.query)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 230)
+                        .accessibilityLabel("搜索请求记录")
+                    Toggle("只看异常", isOn: $requestFilter.failuresOnly)
+                        .toggleStyle(.checkbox)
+                        .help("显示 HTTP 错误和传输中断的请求")
+                }
+            }
+            Table(records) {
                 TableColumn("时间") { row in Text(row.time.formatted(date: .omitted, time: .standard)) }.width(min: 64, ideal: 72)
                 TableColumn("路径", value: \.path).width(min: 105, ideal: 135)
                 TableColumn("成员", value: \.member).width(min: 65, ideal: 90)
                 TableColumn("模型") { row in Text(row.model ?? "—") }.width(min: 60, ideal: 95)
                 TableColumn("HTTP") { row in
                     Text(row.interrupted == true ? "\(row.status) 中断" : String(row.status))
-                        .foregroundStyle(row.status >= 400 || row.interrupted == true ? Color.orange : Color.primary)
+                        .foregroundStyle(row.isFailure ? Color.orange : Color.primary)
                 }.width(min: 44, ideal: 64)
                 TableColumn("耗时") { row in Text(String(format: "%.2f s", row.duration)).monospacedDigit() }
                     .width(min: 48, ideal: 58)
             }
             .overlay {
-                if model.requests.isEmpty { Text("网关转发请求后会显示记录").foregroundStyle(.secondary).allowsHitTesting(false) }
+                if model.requests.isEmpty {
+                    Text("网关转发请求后会显示记录").foregroundStyle(.secondary).allowsHitTesting(false)
+                } else if records.isEmpty {
+                    VStack(spacing: 6) {
+                        Text("没有匹配的请求").foregroundStyle(.secondary)
+                        Button("清除筛选") { requestFilter = GatewayRequestFilter() }.buttonStyle(.link)
+                    }
+                }
             }
         }
-        .padding(26)
     }
 
     private var gatewayActive: Bool {

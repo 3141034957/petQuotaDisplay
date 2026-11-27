@@ -13,6 +13,25 @@ struct GatewayRequestRecord: Codable, Identifiable {
     let duration: TimeInterval
     let outputBytes: Int
     var interrupted: Bool? = nil
+
+    var isFailure: Bool { status >= 400 || interrupted == true }
+}
+
+struct GatewayRequestFilter {
+    var query = ""
+    var failuresOnly = false
+
+    func apply(to records: [GatewayRequestRecord]) -> [GatewayRequestRecord] {
+        let terms = query.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard failuresOnly || !terms.isEmpty else { return records }
+        return records.filter { record in
+            guard !failuresOnly || record.isFailure else { return false }
+            let fields = [record.member, record.model ?? "", record.path, String(record.status)]
+            return terms.allSatisfy { term in
+                fields.contains { $0.localizedStandardContains(term) }
+            }
+        }
+    }
 }
 
 struct GatewayRoute {
