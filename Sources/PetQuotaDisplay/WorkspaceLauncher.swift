@@ -27,10 +27,7 @@ struct WorkspaceLauncher {
 
     func plan(for instance: WorkspaceInstance, account: WorkspaceAccount, settings: WorkspaceSettings,
               environment base: [String: String] = ProcessInfo.processInfo.environment) throws -> WorkspaceLaunchPlan {
-        let project = URL(fileURLWithPath: instance.projectPath, isDirectory: true)
-        var directory: ObjCBool = false
-        guard instance.projectPath.hasPrefix("/"), FileManager.default.fileExists(atPath: project.path, isDirectory: &directory),
-              directory.boolValue else { throw WorkspaceError.invalidProject }
+        let project = try WorkspaceInstance.projectDirectory(for: instance.projectPath)
         guard instance.accountID == account.id else { throw WorkspaceError.invalidAccount }
         var environment = base
         let executable: String
@@ -131,10 +128,7 @@ struct WorkspaceLauncher {
         guard instance.accountID == account.id, account.credential == .codexLogin, instance.gatewayMemberID == nil,
               let slot = CodexAccountSlot(rawValue: account.id), !slot.isPrimary,
               let home = try codexHome(slot) else { throw WorkspaceError.invalidAccount }
-        let project = URL(fileURLWithPath: instance.projectPath, isDirectory: true)
-        guard instance.projectPath.hasPrefix("/"), try project.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true else {
-            throw WorkspaceError.invalidProject
-        }
+        let project = try WorkspaceInstance.projectDirectory(for: instance.projectPath)
         let profile = store.instanceHome(instance.id).appendingPathComponent("electron", isDirectory: true)
         try WorkspaceStore.prepare(profile)
         return DesktopProfile(project: project, dataDirectory: profile, environment: [

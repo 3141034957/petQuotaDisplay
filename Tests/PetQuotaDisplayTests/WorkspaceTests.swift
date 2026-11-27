@@ -4,6 +4,22 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class WorkspaceTests: XCTestCase {
+    func testInstanceProjectAcceptsHomeAndLocalFileLinks() throws {
+        let root = temporaryWorkspace()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let project = root.appendingPathComponent("项目 A#1", isDirectory: true)
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        let store = WorkspaceStore(directory: root)
+        let model = WorkspaceDashboardModel(store: store)
+        XCTAssertTrue(model.saveInstance(id: UUID(), name: "Project", accountID: WorkspaceAccount.antigravity.id,
+                                         path: project.absoluteString, gatewayMemberID: nil, opensDesktop: false))
+        XCTAssertEqual(try store.load().instances.first?.projectPath, project.path)
+        XCTAssertEqual(try WorkspaceInstance.projectDirectory(for: "~/").path, NSHomeDirectory())
+        for invalid in ["relative/path", "file://remote.example/tmp", root.appendingPathComponent("settings.json").path] {
+            XCTAssertThrowsError(try WorkspaceInstance.projectDirectory(for: invalid))
+        }
+    }
+
     func testCodexRemovalKeepsTheReadingUntilDeletionSucceeds() throws {
         let model = WorkspaceDashboardModel(store: WorkspaceStore(directory: temporaryWorkspace()))
         let slot = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))

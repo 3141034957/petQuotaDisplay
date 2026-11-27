@@ -516,7 +516,8 @@ private struct WorkspaceInstanceEditor: View {
                 }
             }
             HStack {
-                TextField("项目绝对路径", text: $path)
+                TextField("项目目录，例如 ~/Projects", text: $path)
+                    .help("支持绝对路径、~/ 路径和本机 file:// 链接")
                 Button("选择目录…") {
                     let panel = NSOpenPanel()
                     panel.canChooseFiles = false

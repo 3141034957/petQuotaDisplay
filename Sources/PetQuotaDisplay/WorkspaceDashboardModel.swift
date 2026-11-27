@@ -229,9 +229,7 @@ final class WorkspaceDashboardModel: ObservableObject {
                       gatewayMemberID: UUID?, opensDesktop: Bool) -> Bool {
         attempt {
             let name = try validName(name)
-            var isDirectory: ObjCBool = false
-            guard path.hasPrefix("/"), FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
-                  isDirectory.boolValue else { throw WorkspaceError.invalidProject }
+            let project = try WorkspaceInstance.projectDirectory(for: path)
             guard let account = accounts.first(where: { $0.id == accountID }) else { throw WorkspaceError.invalidAccount }
             settings = try store.update { state in
                 if account.credential != .codexLogin && account.credential != .antigravity
@@ -242,7 +240,7 @@ final class WorkspaceDashboardModel: ObservableObject {
                     throw WorkspaceError.invalidAccount
                 }
                 let instance = WorkspaceInstance(id: id, name: name, accountID: accountID,
-                                                  projectPath: path, gatewayMemberID: gatewayMemberID, opensDesktop: opensDesktop)
+                                                  projectPath: project.path, gatewayMemberID: gatewayMemberID, opensDesktop: opensDesktop)
                 if let existing = state.instances.firstIndex(where: { $0.id == id }) {
                     state.instances[existing] = instance
                 } else {

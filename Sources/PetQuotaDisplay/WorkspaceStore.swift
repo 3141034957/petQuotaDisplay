@@ -45,6 +45,28 @@ struct WorkspaceInstance: Codable, Identifiable, Equatable {
     let projectPath: String
     var gatewayMemberID: UUID? = nil
     var opensDesktop: Bool? = nil
+
+    static func projectDirectory(for input: String) throws -> URL {
+        let path: String
+        if input.hasPrefix("file://") {
+            guard let url = URL(string: input), url.isFileURL,
+                  ["", "localhost"].contains(url.host?.lowercased() ?? ""),
+                  url.user == nil, url.password == nil, url.port == nil, url.query == nil, url.fragment == nil else {
+                throw WorkspaceError.invalidProject
+            }
+            path = url.path
+        } else if input == "~" || input.hasPrefix("~/") {
+            path = (input as NSString).expandingTildeInPath
+        } else {
+            path = input
+        }
+        var directory: ObjCBool = false
+        guard path.hasPrefix("/"), !path.utf8.contains(0),
+              FileManager.default.fileExists(atPath: path, isDirectory: &directory), directory.boolValue else {
+            throw WorkspaceError.invalidProject
+        }
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
 }
 
 struct WorkspaceGatewayMember: Codable, Identifiable, Equatable {
