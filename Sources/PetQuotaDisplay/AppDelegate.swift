@@ -686,6 +686,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
             if case .signedIn(let previous) = previousStatus,
                let account, previous.email != account.email {
                 self.orbView.forgetQuota(for: .codex, account: clientAccount)
+                self.workspaceModel?.forgetQuota(for: clientAccount.rawValue)
                 self.orbView.state = .loading
             }
             self.accountStatuses[clientAccount] = account.map(CodexAccountStatus.signedIn) ?? .signedOut

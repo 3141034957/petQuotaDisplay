@@ -9,6 +9,17 @@ final class WorkspaceDashboardModel: ObservableObject {
         var updatedAt: Date?
         var error: String?
         var isRefreshing = false
+
+        mutating func recordFailure(_ failure: Error) {
+            switch failure as? WorkspaceError {
+            case .unauthorized, .missingCredential:
+                values.removeAll()
+                updatedAt = nil
+            default:
+                break
+            }
+            error = QuotaQuery.publicErrorDescription(failure)
+        }
     }
 
     @Published private(set) var settings = WorkspaceSettings()
@@ -194,7 +205,11 @@ final class WorkspaceDashboardModel: ObservableObject {
     }
 
     func noteCodexFailure(_ slot: CodexAccountSlot, error: Error) {
-        if let request = running[slot.rawValue]?.id { finish(slot.rawValue, request: request, result: .failure(error)) }
+        if let request = running[slot.rawValue]?.id {
+            finish(slot.rawValue, request: request, result: .failure(error))
+        } else {
+            quotas[slot.rawValue, default: QuotaState()].recordFailure(error)
+        }
     }
 
     private static func codexQuotas(_ report: CodexQuotaReport) -> [WorkspaceQuota] {
@@ -220,7 +235,7 @@ final class WorkspaceDashboardModel: ObservableObject {
             state.updatedAt = Date()
             state.error = nil
         case .failure(let error):
-            state.error = QuotaQuery.publicErrorDescription(error)
+            state.recordFailure(error)
         }
         quotas[account] = state
     }

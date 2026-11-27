@@ -207,7 +207,8 @@ struct WorkspaceDashboardView: View {
                     }
                 }
                 if let time = quota.updatedAt {
-                    Text("采集于 \(time.formatted(date: .omitted, time: .shortened))")
+                    let label = quota.error == nil ? "采集于" : "上次成功采集于"
+                    Text("\(label) \(time.formatted(date: .abbreviated, time: .shortened))")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             } else if quota?.isRefreshing != true, quota?.error == nil {

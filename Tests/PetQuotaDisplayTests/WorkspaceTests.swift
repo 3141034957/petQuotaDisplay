@@ -4,6 +4,25 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class WorkspaceTests: XCTestCase {
+    func testBackgroundQuotaFailuresPreserveLastReadingOnlyWhileAuthorized() throws {
+        let model = WorkspaceDashboardModel(store: WorkspaceStore(directory: temporaryWorkspace()))
+        let slot = try XCTUnwrap(CodexAccountSlot(rawValue: UUID().uuidString))
+        let report = try QuotaParser.parseReport(result: [
+            "rateLimits": ["primary": ["usedPercent": 23, "windowDurationMins": 300]]
+        ])
+        model.noteCodex(slot, report: report)
+        model.noteCodexFailure(slot, error: URLError(.notConnectedToInternet))
+        XCTAssertEqual(model.quotas[slot.rawValue]?.values.first?.percent, 77)
+        XCTAssertEqual(model.quotas[slot.rawValue]?.updatedAt, report.primary.fetchedAt)
+        XCTAssertNotNil(model.quotas[slot.rawValue]?.error)
+        model.noteCodexFailure(slot, error: WorkspaceError.unauthorized)
+        XCTAssertEqual(model.quotas[slot.rawValue]?.values.count, 0)
+        XCTAssertNil(model.quotas[slot.rawValue]?.updatedAt)
+        model.noteCodex(slot, report: report)
+        XCTAssertNil(model.quotas[slot.rawValue]?.error)
+        XCTAssertEqual(model.quotas[slot.rawValue]?.values.first?.percent, 77)
+    }
+
     func testSavingAnInstanceCopyPreservesTheOriginalAndItsBindings() throws {
         let directory = temporaryWorkspace()
         defer { try? FileManager.default.removeItem(at: directory) }
