@@ -4,6 +4,29 @@ import XCTest
 @testable import PetQuotaDisplay
 
 final class WorkspaceTests: XCTestCase {
+    func testSavingAnInstanceCopyPreservesTheOriginalAndItsBindings() throws {
+        let directory = temporaryWorkspace()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = WorkspaceStore(directory: directory)
+        let account = WorkspaceAccount(id: UUID().uuidString, platform: .codex, name: "Codex", credential: .codexKey)
+        let member = WorkspaceGatewayMember(id: UUID(), name: "Gateway", codexAccountID: account.id)
+        let original = WorkspaceInstance(id: UUID(), name: "Workspace", accountID: account.id,
+                                         projectPath: directory.path, gatewayMemberID: member.id, opensDesktop: false)
+        try store.update {
+            $0.accounts = [account]
+            $0.gatewayMembers = [member]
+            $0.instances = [original]
+        }
+        let copy = original.draftCopy()
+        XCTAssertNotEqual(copy.id, original.id)
+        XCTAssertEqual(copy.gatewayMemberID, member.id)
+        XCTAssertEqual(try store.load().instances, [original])
+        let model = WorkspaceDashboardModel(store: store)
+        XCTAssertTrue(model.saveInstance(id: copy.id, name: copy.name, accountID: copy.accountID, path: copy.projectPath,
+                                         gatewayMemberID: copy.gatewayMemberID, opensDesktop: copy.opensDesktop == true))
+        XCTAssertEqual(try store.load().instances, [original, copy])
+    }
+
     func testInstanceProjectAcceptsHomeAndLocalFileLinks() throws {
         let root = temporaryWorkspace()
         defer { try? FileManager.default.removeItem(at: root) }

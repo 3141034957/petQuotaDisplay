@@ -263,6 +263,7 @@ struct WorkspaceDashboardView: View {
                         Button(instance.opensDesktop == true ? "打开桌面端" : "打开终端") { model.launch(instance) }.disabled(account == nil)
                         Button("编辑") { editor = .instance(instance) }
                         Menu {
+                            Button("复制为新实例…") { editor = .instance(instance.draftCopy()) }
                             Button("移除实例", role: .destructive) {
                                 deletion = ("移除 \(instance.name)？", { model.removeInstance(instance.id) })
                             }
@@ -486,7 +487,7 @@ private struct WorkspaceInstanceEditor: View {
     init(model: WorkspaceDashboardModel, instance: WorkspaceInstance?, accountID: String?) {
         self.model = model
         id = instance?.id ?? UUID()
-        editing = instance != nil
+        editing = model.settings.instances.contains { $0.id == instance?.id }
         _name = State(initialValue: instance?.name ?? "")
         _accountID = State(initialValue: instance?.accountID ?? accountID ?? model.selectedAccount(for: .codex) ?? model.accounts.first?.id ?? "")
         _path = State(initialValue: instance?.projectPath ?? "")

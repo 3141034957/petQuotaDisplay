@@ -46,6 +46,11 @@ struct WorkspaceInstance: Codable, Identifiable, Equatable {
     var gatewayMemberID: UUID? = nil
     var opensDesktop: Bool? = nil
 
+    func draftCopy() -> Self {
+        Self(id: UUID(), name: "副本 · \(name)", accountID: accountID, projectPath: projectPath,
+             gatewayMemberID: gatewayMemberID, opensDesktop: opensDesktop)
+    }
+
     static func projectDirectory(for input: String) throws -> URL {
         let path: String
         if input.hasPrefix("file://") {
